@@ -1066,26 +1066,6 @@ async function initialize(){
   } catch (e) {
     console.error("initialize error:", e);
   }
-
-  if (!window.__panelAuthListenerAttached) {
-    window.__panelAuthListenerAttached = true;
-
-    supabaseClient.auth.onAuthStateChange(async (event) => {
-      if (event === "SIGNED_OUT") {
-        showLogin();
-        return;
-      }
-
-      // Evitar loop: no recargar panel completo en TOKEN_REFRESHED
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-        try {
-          await evaluateSession();
-        } catch (e) {
-          console.error("auth state change error:", e);
-        }
-      }
-    });
-  }
 }
 document.addEventListener("DOMContentLoaded", initialize);
 </script>
