@@ -283,15 +283,72 @@ function switchTab(tab){
   $("adminView").classList.toggle("hidden", tab!=="admin");
 }
 
-async function initSupabase(){ supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+async function initSupabase(){
+  if (!window.__panelSupabaseClient) {
+    window.__panelSupabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        auth: {
+          storageKey: "panel-asistencia-auth",
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false
+        }
+      }
+    );
+  }
+  supabaseClient = window.__panelSupabaseClient;
+}
 
-async function sendMagicLink(){
+async function loginWithPassword(){
   const email = $("loginEmail").value.trim();
-  if (!email){ $("loginStatus").textContent = "Ingresá un email"; $("loginStatus").className = "hint warntext"; return; }
-  const redirectTo = window.location.origin + window.location.pathname;
-  const res = await supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
-  if (res.error){ $("loginStatus").textContent = "Error: " + res.error.message; $("loginStatus").className = "hint bad"; return; }
-  $("loginStatus").textContent = "Te enviamos un link de acceso a tu email";
+  const password = $("loginPassword").value;
+
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Ingresando...";
+  $("loginStatus").className = "hint";
+
+  const res = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Ingreso correcto";
+  $("loginStatus").className = "hint ok";
+  window.location.reload();
+}
+
+async function registerWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Creando cuenta...";
+  $("loginStatus").className = "hint";
+
+  const res = await supabaseClient.auth.signUp({ email, password });
+
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
   $("loginStatus").className = "hint ok";
 }
 
@@ -867,7 +924,7 @@ async function evaluateSession(){
   const sessionRes = await supabaseClient.auth.getSession();
   currentSession = sessionRes.data.session;
 
-  if (!currentSession) {
+  if (!currentSession){
     showLogin();
     setStatus("Sin sesión", "warntext");
     return;
@@ -906,79 +963,6 @@ async function evaluateSession(){
   cargarBorradorDelDia();
   renderAll();
   setStatus("Conectado correctamente", "ok");
-}
-  const sessionRes = await supabaseClient.auth.getSession();
-  currentSession = sessionRes.data.session;
-  if (!currentSession){ showLogin(); setStatus("Sin sesión","warntext"); return; }
-  try { currentProfile = await fetchProfile(); } catch (e) { showLogin(); setStatus("Error leyendo perfil","bad"); return; }
-  if (!currentProfile || !currentProfile.is_active){
-    showLogin();
-    $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-  $("sessionEmail").textContent = currentProfile.email;
-  $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
-  showApp();
-  if (userCanAdmin()) $("tabAdmin").classList.remove("hidden"); else { $("tabAdmin").classList.add("hidden"); switchTab("operativa"); }
-  await cargarTodoDesdeServidor();
-  cargarBorradorDelDia();
-  renderAll();
-  setStatus("Conectado correctamente","ok");
-}
-  async function loginWithPassword(){
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPassword").value;
-
-  if (!email || !password){
-    $("loginStatus").textContent = "Ingresá email y contraseña";
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("loginStatus").textContent = "Ingresando...";
-  $("loginStatus").className = "hint";
-
-  const res = await supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  if (res.error){
-    $("loginStatus").textContent = "Error: " + res.error.message;
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  window.location.reload();
-}
-
-async function registerWithPassword(){
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPassword").value;
-
-  if (!email || !password){
-    $("loginStatus").textContent = "Ingresá email y contraseña";
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("loginStatus").textContent = "Creando cuenta...";
-  $("loginStatus").className = "hint";
-
-  const res = await supabaseClient.auth.signUp({
-    email,
-    password
-  });
-
-  if (res.error){
-    $("loginStatus").textContent = "Error: " + res.error.message;
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
-  $("loginStatus").className = "hint ok";
 }
 function wireEvents(){
   $("btnLoginPassword").addEventListener("click", loginWithPassword);
@@ -1031,6 +1015,7 @@ async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
 
+  await initSupabase();
   wireEvents();
   initializeDefaults();
 
@@ -1044,8 +1029,6 @@ async function initialize(){
     window.__panelAuthListenerAttached = true;
 
     supabaseClient.auth.onAuthStateChange(async (event) => {
-      console.log("auth event:", event);
-
       if (event === "SIGNED_OUT") {
         showLogin();
         return;
@@ -1059,30 +1042,6 @@ async function initialize(){
         }
       }
     });
-  }
-}
-  if (window.__panelInitialized) return;
-  window.__panelInitialized = true;
-
-  await initSupabase();
-  wireEvents();
-  initializeDefaults();
-
-  if (!window.__panelAuthListenerAttached) {
-    window.__panelAuthListenerAttached = true;
-    supabaseClient.auth.onAuthStateChange(async () => {
-      try {
-        await evaluateSession();
-      } catch (e) {
-        console.error("Auth state change error:", e);
-      }
-    });
-  }
-
-  try {
-    await evaluateSession();
-  } catch (e) {
-    console.error("Initialize error:", e);
   }
 }
 document.addEventListener("DOMContentLoaded", initialize);
