@@ -883,6 +883,60 @@ async function evaluateSession(){
   renderAll();
   setStatus("Conectado correctamente","ok");
 }
+  async function loginWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Ingresando...";
+  $("loginStatus").className = "hint";
+
+  const res = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  window.location.reload();
+}
+
+async function registerWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Creando cuenta...";
+  $("loginStatus").className = "hint";
+
+  const res = await supabaseClient.auth.signUp({
+    email,
+    password
+  });
+
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
+  $("loginStatus").className = "hint ok";
+}
 function wireEvents(){
   $("btnLoginPassword").addEventListener("click", loginWithPassword);
   $("btnRegisterPassword").addEventListener("click", registerWithPassword);
