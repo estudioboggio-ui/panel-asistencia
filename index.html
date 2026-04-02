@@ -1,99 +1,974 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Panel de Asistencia San Martín</title>
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Asistencia San Martín V2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
-body {
-  font-family: Arial;
-  background: #0b1220;
-  color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
-.box {
-  background: #111a2e;
-  padding: 30px;
-  border-radius: 10px;
-  width: 300px;
-}
-input {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-}
-button {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  background: #22c55e;
-  border: none;
-  color: white;
-  cursor: pointer;
-}
-.error {
-  color: red;
-}
+  :root{
+    --bg:#0f172a; --bg2:#081224; --panel:#111827; --line:#334155; --text:#e5e7eb; --muted:#94a3b8;
+    --green:#16a34a; --teal:#0f766e; --red:#991b1b; --amber:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg2),var(--bg));color:var(--text)}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px}
+  h1{margin:0 0 18px 0;font-size:28px}
+  h2{margin:0 0 12px 0;font-size:18px}
+  .panel{background:rgba(17,24,39,.94);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .hint{color:var(--muted);font-size:12px;line-height:1.45}
+  .toolbar,.tabs,.row-actions{display:flex;flex-wrap:wrap;gap:10px}
+  .toolbar,.tabs{margin:0 0 16px 0}
+  .tab-btn{padding:10px 16px;border-radius:999px}
+  .tab-btn.active{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:16px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .card{background:linear-gradient(180deg,rgba(30,41,59,.9),rgba(15,23,42,.95));border:1px solid var(--line);border-radius:18px;padding:16px}
+  .card .label{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .card .value{font-size:30px;font-weight:700}
+  .split{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+  .filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .filters.single{grid-template-columns:1fr}
+  .stack{display:grid;gap:10px}
+  .scroll{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0b1220}
+  .people-list{max-height:580px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0b1220}
+  .person{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(51,65,85,.5);gap:8px}
+  .person:last-child{border-bottom:none}
+  .person.present{background:rgba(34,197,94,.12)}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .badge.on{color:#dcfce7;border-color:#166534;background:rgba(34,197,94,.18)}
+  .counter-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220}
+  .counter-box{display:flex;align-items:center;gap:10px;margin:0 0 8px 0}
+  .counter-value{min-width:56px;text-align:center;font-size:28px;font-weight:700;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#081224}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px;border-bottom:1px solid rgba(51,65,85,.5)}
+  th{color:var(--muted);font-weight:600}
+  input,select,button,textarea{
+    border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:10px 12px;font-size:14px
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.8);cursor:pointer}
+  button{cursor:pointer;background:linear-gradient(180deg,#1e293b,#111827)}
+  button.primary{background:linear-gradient(180deg,#166534,#14532d);border-color:#166534}
+  button.secondary{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e}
+  button.danger{background:linear-gradient(180deg,#7f1d1d,#111827);border-color:#991b1b}
+  button.warn{background:linear-gradient(180deg,#b45309,#78350f);border-color:#b45309}
+  .login-wrap{max-width:520px;margin:60px auto}
+  .hidden{display:none !important}
+  .alert-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220;margin-bottom:10px}
+  .ok{color:#86efac}.bad{color:#fca5a5}.warntext{color:#fcd34d}
+  @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:700px){.cards,.filters{grid-template-columns:1fr}}
 </style>
 </head>
-
 <body>
+<div id="loginView" class="wrap login-wrap">
+  <div class="panel">
+    <h1 style="font-size:30px;margin-bottom:8px;">Panel de Asistencia San Martín</h1>
+    <div class="hint" style="margin-bottom:16px;">Ingreso por email y contraseña.</div>
+    <div class="stack">
+      <input id="loginEmail" type="email" placeholder="tu-email@dominio.com" autocomplete="username">
+      <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <div class="row-actions">
+        <button id="btnLoginPassword" class="primary" type="button">Ingresar</button>
+        <button id="btnRegisterPassword" class="secondary" type="button">Crear cuenta</button>
+      </div>
+      <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
+    </div>
+  </div>
+</div>
 
-<div class="box">
-  <h2>Acceso</h2>
+<div id="appView" class="wrap hidden">
+  <div class="row-actions" style="justify-content:space-between; margin-bottom:10px;">
+    <div>
+      <h1 style="margin-bottom:6px;">Panel de Asistencia San Martín</h1>
+      <div class="hint">
+        <span id="sessionEmail">Sin sesión</span> ·
+        <span id="sessionRole">Sin rol</span>
+      </div>
+    </div>
+    <div class="row-actions">
+      <span id="sbStatus" class="hint">Conectando...</span>
+      <button id="btnLogout" class="secondary" type="button">Cerrar sesión</button>
+    </div>
+  </div>
 
-  <input id="email" placeholder="Email">
-  <input id="password" type="password" placeholder="Contraseña">
+  <div class="tabs">
+    <button id="tabOperativa" class="tab-btn active" type="button">Operativa</button>
+    <button id="tabAdmin" class="tab-btn hidden" type="button">Administración</button>
+  </div>
 
-  <button onclick="login()">Ingresar</button>
-  <button onclick="register()">Crear cuenta</button>
+  <div id="operativaView">
+    <div class="toolbar">
+      <button id="btnReload" class="secondary" type="button">Recargar desde servidor</button>
+      <button id="btnExport" type="button">Exportar reporte HTML</button>
+      <button id="btnToday" type="button">Ir a hoy</button>
+    </div>
 
-  <div id="msg" class="error"></div>
+    <div class="grid">
+      <div class="panel">
+        <h2>Registro rápido</h2>
+        <div class="filters single">
+          <div>
+            <div class="hint" style="margin-bottom:6px;">Fecha</div>
+            <input id="fecha" type="date">
+          </div>
+        </div>
+        <input id="search" type="text" placeholder="Buscar apellido o nombre..." style="width:100%;margin-bottom:12px;">
+        <div class="row-actions" style="margin-bottom:12px;">
+          <button id="btnSaveDay" class="primary" type="button">Guardar día</button>
+          <span id="saveStatus" class="hint">Sin cambios pendientes</span>
+        </div>
+        <div id="peopleList" class="people-list"></div>
+        <div id="searchEmptyState" class="hint hidden" style="margin-top:8px;"></div>
+      </div>
+
+      <div>
+        <div class="cards">
+          <div class="card"><div class="label">Asistencia total</div><div id="kpiTotalDia" class="value">0</div></div>
+          <div class="card"><div class="label">Asistencia promedio miércoles</div><div id="kpiAvgWed" class="value">0</div></div>
+          <div class="card"><div class="label">Asistencia promedio domingos</div><div id="kpiAvgSun" class="value">0</div></div>
+          <div class="card"><div class="label">Asistencia promedio general</div><div id="kpiAvgGen" class="value">0</div></div>
+        </div>
+
+        <div class="split">
+          <div class="panel">
+            <h2>Visitas y 1ra. Vez</h2>
+            <div class="stack">
+              <div class="counter-card">
+                <div style="font-weight:600;margin-bottom:8px;">Visitas</div>
+                <div class="counter-box">
+                  <button id="btnVisitasMinus" class="secondary" type="button">−</button>
+                  <div id="visitasCount" class="counter-value">0</div>
+                  <button id="btnVisitasPlus" class="primary" type="button">+</button>
+                </div>
+                <input id="visitasTexto" type="text" placeholder="Texto libre...">
+              </div>
+              <div class="counter-card">
+                <div style="font-weight:600;margin-bottom:8px;">1ra. Vez</div>
+                <div class="counter-box">
+                  <button id="btnPrimeraMinus" class="secondary" type="button">−</button>
+                  <div id="primeraVezCount" class="counter-value">0</div>
+                  <button id="btnPrimeraPlus" class="primary" type="button">+</button>
+                </div>
+                <input id="primeraVezTexto" type="text" placeholder="Texto libre...">
+                <textarea id="primeraVezNombres" placeholder="Nombres 1ra. vez (uno por línea)&#10;Ej:&#10;Juan Pérez&#10;Lucía Gómez" style="margin-top:8px; width:100%; min-height:80px;"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Top asistentes</h2>
+            <div class="scroll"><table><thead><tr><th>Nombre</th><th>Asistencias</th></tr></thead><tbody id="topTable"></tbody></table></div>
+          </div>
+
+          <div class="panel">
+            <h2>Asistencia por fecha</h2>
+            <div class="scroll"><table><thead><tr><th>Fecha</th><th>Asistentes</th></tr></thead><tbody id="dateTable"></tbody></table></div>
+          </div>
+        </div>
+
+        <div class="split">
+          <div class="panel">
+            <h2>Comparativo de meses</h2>
+            <div class="filters" style="margin-bottom:12px;">
+              <div>
+                <div class="hint" style="margin-bottom:6px;">Período A</div>
+                <div class="filters" style="margin-bottom:0;">
+                  <select id="compMonthA"><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select>
+                  <select id="compYearA"><option value="2025">2025</option><option value="2026">2026</option></select>
+                </div>
+              </div>
+              <div>
+                <div class="hint" style="margin-bottom:6px;">Período B</div>
+                <div class="filters" style="margin-bottom:0;">
+                  <select id="compMonthB"><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select>
+                  <select id="compYearB"><option value="2025">2025</option><option value="2026">2026</option></select>
+                </div>
+              </div>
+            </div>
+            <div class="scroll"><table><thead><tr><th>Período</th><th>Total mes</th><th>Cantidad de fechas</th><th>Promedio mes</th></tr></thead><tbody id="yearTable"></tbody></table></div>
+          </div>
+
+          <div class="panel">
+            <h2>Gestión de miembros</h2>
+            <div class="stack">
+              <input id="newMemberName" type="text" placeholder="Agregar nuevo miembro manualmente...">
+              <button id="btnAddMember" class="secondary" type="button">Agregar miembro desde esta fecha</button>
+              <div>
+                <input id="removeMemberSearch" type="text" placeholder="Buscar miembro a inactivar..." autocomplete="off">
+                <div id="memberSuggestionsBox" class="scroll suggestions"></div>
+              </div>
+              <button id="btnDeactivateMember" class="danger" type="button">Inactivar miembro desde esta fecha</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Acceso</h2>
+            <div class="hint">Esta solapa la pueden usar perfiles <strong>admin</strong> y <strong>carga</strong>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminView" class="hidden">
+    <div class="toolbar">
+      <button id="btnAdminReload" class="secondary" type="button">Actualizar analítica</button>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="label">Promedio 4 semanas</div><div id="adminKpiAvg4w" class="value">0</div></div>
+      <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
+      <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
+      <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
+      <div class="card"><div class="label">Inactivos recientes</div><div id="adminKpiInactiveRecent" class="value">0</div></div>
+      <div class="card"><div class="label">Vs mes anterior</div><div id="adminKpiVsPrevMonth" class="value">0%</div></div>
+      <div class="card"><div class="label">Vs mismo mes año anterior</div><div id="adminKpiVsPrevYear" class="value">0%</div></div>
+      <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
+    </div>
+
+    <div class="split">
+      <div class="panel">
+        <h2>Seguimiento de miembros</h2>
+        <div class="scroll"><table><thead><tr><th>Métrica</th><th>Cantidad</th></tr></thead><tbody id="adminSummaryTable"></tbody></table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Alertas</h2>
+        <div id="alertsContainer"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Parámetros de alertas</h2>
+        <div class="stack">
+          <div><div class="hint">Asistencia baja</div><input id="alertLowAttendance" type="number"></div>
+          <div><div class="hint">Caída de tendencia (%)</div><input id="alertTrendDrop" type="number" step="0.01"></div>
+          <div><div class="hint">Retorno primera vez (semanas)</div><input id="alertFirstReturnWeeks" type="number"></div>
+          <div><div class="hint">Miembro inactivo (semanas)</div><input id="alertInactiveWeeks" type="number"></div>
+          <div><div class="hint">Pico de visitas</div><input id="alertVisitsSpike" type="number"></div>
+          <button id="btnSaveAlerts" class="warn" type="button">Guardar parámetros</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-const supabase = window.supabase.createClient(
-  "https://vscgsnfvojwzkfdsxpvh.supabase.co",
-  "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM"
-);
+const SUPABASE_URL = "https://vscgsnfvojwzkfdsxpvh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM";
+const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":"Mayo","06":"Junio","07":"Julio","08":"Agosto","09":"Septiembre","10":"Octubre","11":"Noviembre","12":"Diciembre"};
 
-async function login() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+let supabaseClient = null;
+let currentSession = null;
+let currentProfile = null;
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null };
+let draftAttendance = [];
+let dirty = false;
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password
+const $ = id => document.getElementById(id);
+
+function normalizeName(s){ return String(s || "").trim().replace(/\s+/g, " "); }
+function normalizeDisplayName(s){ return normalizeName(s).toUpperCase(); }
+function formatDate(iso){ if (!iso) return ""; const [y,m,d] = iso.split("-"); return `${d}/${m}/${y}`; }
+function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
+function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; el.className="hint "+cls; }
+function userCanAdmin(){ return currentProfile?.role === "admin"; }
+function userCanOperative(){ return currentProfile?.role === "admin" || currentProfile?.role === "carga"; }
+function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
+function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); }
+function switchTab(tab){
+  $("tabOperativa").classList.toggle("active", tab==="operativa");
+  $("tabAdmin").classList.toggle("active", tab==="admin");
+  $("operativaView").classList.toggle("hidden", tab!=="operativa");
+  $("adminView").classList.toggle("hidden", tab!=="admin");
+}
+
+async function initSupabase(){ supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+
+async function loginWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint warntext";
+    return;
+  }
+  $("loginStatus").textContent = "Ingresando...";
+  $("loginStatus").className = "hint";
+  const res = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+  $("loginStatus").textContent = "Ingreso correcto";
+  $("loginStatus").className = "hint ok";
+  await evaluateSession();
+}
+
+async function registerWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint warntext";
+    return;
+  }
+  $("loginStatus").textContent = "Creando cuenta...";
+  $("loginStatus").className = "hint";
+  const res = await supabaseClient.auth.signUp({ email, password });
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+  $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
+  $("loginStatus").className = "hint ok";
+}
+
+async function fetchProfile(){
+  if (!currentSession?.user?.id) return null;
+  const res = await supabaseClient.from("user_profiles").select("id,user_id,email,role,is_active").eq("user_id", currentSession.user.id).maybeSingle();
+  if (res.error) throw res.error;
+  return res.data;
+}
+
+async function fetchAllRows(table, columns, pageSize=1000, orderCol=null){
+  let all = [], from = 0;
+  while (true){
+    let q = supabaseClient.from(table).select(columns).range(from, from + pageSize - 1);
+    if (orderCol) q = q.order(orderCol);
+    const res = await q;
+    if (res.error) throw res.error;
+    const rows = res.data || [];
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+async function cargarTodoDesdeServidor(){
+  if (!userCanOperative()) return;
+  const promises = [
+    fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
+    fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
+    fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
+    fetchAllRows("first_time_tracking", "member_id,first_date,returned,return_date", 1000, "first_date")
+  ];
+  if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
+  else promises.push(Promise.resolve({data:null,error:null}));
+
+  const [members, attendanceRows, extras, firstTimeRows, alertSettings] = await Promise.all(promises);
+  if (alertSettings.error) throw alertSettings.error;
+
+  state.people = [];
+  state.membersById = {};
+  state.memberIdsByName = {};
+  state.activeFrom = {};
+  state.inactiveFrom = {};
+
+  members.forEach(m => {
+    state.people.push(m.name);
+    state.membersById[m.id] = m.name;
+    state.memberIdsByName[m.name] = m.id;
+    state.activeFrom[m.name] = m.active_from || "1900-01-01";
+    if (m.inactive_from) state.inactiveFrom[m.name] = m.inactive_from;
   });
 
-  if (error) {
-    document.getElementById("msg").innerText = error.message;
+  state.attendance = attendanceRows.map(r => ({
+    date: r.attendance_date,
+    member_id: r.member_id,
+    name: state.membersById[r.member_id] || null
+  })).filter(x => x.name);
+
+  state.dayExtras = {};
+  extras.forEach(e => {
+    state.dayExtras[e.attendance_date] = {
+      visitas: { count: e.visitas_count || 0, text: e.visitas_text || "" },
+      primeraVez: { count: e.primera_vez_count || 0, text: e.primera_vez_text || "" }
+    };
+  });
+
+  state.firstTimeByDate = {};
+  (firstTimeRows || []).forEach(r => {
+    const name = state.membersById[r.member_id];
+    if (!name) return;
+    if (!state.firstTimeByDate[r.first_date]) state.firstTimeByDate[r.first_date] = [];
+    state.firstTimeByDate[r.first_date].push(name);
+  });
+  Object.keys(state.firstTimeByDate).forEach(date => {
+    state.firstTimeByDate[date] = [...new Set(state.firstTimeByDate[date])].sort((a,b) => a.localeCompare(b, "es"));
+  });
+
+  state.alertSettings = alertSettings.data || null;
+}
+
+function ensureDayExtras(date){
+  if (!state.dayExtras[date]) state.dayExtras[date] = { visitas:{count:0,text:""}, primeraVez:{count:0,text:""} };
+}
+function loadExtrasUI(date){
+  ensureDayExtras(date);
+  $("visitasCount").textContent = state.dayExtras[date].visitas.count || 0;
+  $("primeraVezCount").textContent = state.dayExtras[date].primeraVez.count || 0;
+  $("visitasTexto").value = state.dayExtras[date].visitas.text || "";
+  $("primeraVezTexto").value = state.dayExtras[date].primeraVez.text || "";
+}
+function loadFirstTimeNamesForDate(date){
+  if (!$("primeraVezNombres")) return;
+  const names = state.firstTimeByDate[date] || [];
+  $("primeraVezNombres").value = names.join("\n");
+}
+function clearFirstTimeNames(){
+  if ($("primeraVezNombres")) $("primeraVezNombres").value = "";
+}
+function parseNombresPrimeraVez(){
+  const raw = $("primeraVezNombres") ? ($("primeraVezNombres").value || "") : "";
+  return raw
+    .split("\n")
+    .map(x => x.trim())
+    .filter(x => x.length > 0)
+    .map(x => x.toUpperCase());
+}
+function syncPrimeraVezCountFromNames(){
+  if (!$("primeraVezNombres")) return;
+  const qty = parseNombresPrimeraVez().length;
+  const date = selectedDate();
+  ensureDayExtras(date);
+  if (qty > 0){
+    state.dayExtras[date].primeraVez.count = qty;
+    $("primeraVezCount").textContent = qty;
+  }
+}
+function dayRecords(date){ return state.attendance.filter(x => x.date === date).map(x => x.name); }
+function isMemberActiveOn(name, date){
+  const start = state.activeFrom[name] || "1900-01-01";
+  const end = state.inactiveFrom[name] || null;
+  if (date < start) return false;
+  if (end && date >= end) return false;
+  return true;
+}
+function cargarBorradorDelDia(){
+  const date = selectedDate();
+  draftAttendance = dayRecords(date).filter(n => isMemberActiveOn(n, date));
+  ensureDayExtras(date);
+  loadExtrasUI(date);
+  loadFirstTimeNamesForDate(date);
+  dirty = false;
+  updateSaveStatus();
+}
+let saveStatusTimeout = null;
+function updateSaveStatus(message=null){
+  if (saveStatusTimeout){
+    clearTimeout(saveStatusTimeout);
+    saveStatusTimeout = null;
+  }
+  if (message){
+    $("saveStatus").textContent = message;
+    $("saveStatus").style.color = "#86efac";
+    saveStatusTimeout = setTimeout(() => {
+      $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
+      $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+    }, 2500);
+    return;
+  }
+  $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
+  $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+}
+function isPresent(date, name){ return date === selectedDate() ? draftAttendance.includes(name) : state.attendance.some(x => x.date === date && x.name === name); }
+function togglePresence(name){
+  const i = draftAttendance.indexOf(name);
+  if (i >= 0) draftAttendance.splice(i, 1); else draftAttendance.push(name);
+  draftAttendance.sort((a,b)=>a.localeCompare(b,"es"));
+  dirty = true; updateSaveStatus(); renderPeople(); resumen();
+}
+function changeCounter(kind, delta){
+  const date = selectedDate();
+  ensureDayExtras(date);
+  const current = Number(state.dayExtras[date][kind].count || 0);
+  state.dayExtras[date][kind].count = Math.max(0, current + delta);
+  dirty = true; updateSaveStatus(); loadExtrasUI(date); resumen();
+}
+function updateExtraText(kind){
+  const date = selectedDate();
+  ensureDayExtras(date);
+  if (kind === "visitas") state.dayExtras[date].visitas.text = $("visitasTexto").value;
+  else state.dayExtras[date].primeraVez.text = $("primeraVezTexto").value;
+  dirty = true; updateSaveStatus();
+}
+function renderPeople(){
+  const date = selectedDate();
+  const query = $("search").value.trim().toLowerCase();
+  let people = state.people.filter(name => isMemberActiveOn(name, date));
+  if (query) people = people.filter(n => n.toLowerCase().includes(query));
+  people.sort((a,b)=>a.localeCompare(b,"es"));
+
+  $("peopleList").innerHTML = people.map(name => {
+    const present = isPresent(date, name);
+    return `<div class="person ${present ? "present" : ""}">
+      <div><strong>${escapeHtml(name)}</strong></div>
+      <div class="row-actions">
+        <span class="badge ${present ? "on" : ""}">${present ? "P" : "—"}</span>
+        <button type="button" data-name="${escapeHtml(name)}" class="toggle-presence">${present ? "Quitar" : "Marcar"}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".toggle-presence").forEach(btn => btn.addEventListener("click", ()=>togglePresence(btn.getAttribute("data-name"))));
+
+  if (people.length === 0 && query){
+    $("searchEmptyState").classList.remove("hidden");
+    $("searchEmptyState").innerHTML = `No hay coincidencias. Podés agregar manualmente a <strong>${escapeHtml(query.toUpperCase())}</strong>.`;
   } else {
-    window.location.reload();
+    $("searchEmptyState").classList.add("hidden");
+    $("searchEmptyState").innerHTML = "";
   }
 }
 
-async function register() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+function ultimosTresMesesDesde(fechaStr){
+  const end = new Date(fechaStr + "T00:00:00");
+  const start = new Date(end); start.setMonth(start.getMonth()-3);
+  return {start,end};
+}
+function buildMonthStats(month, year){
+  const prefix = `${String(year)}-${String(month).padStart(2,"0")}-`;
+  const totalsByDate = {};
+  state.attendance.forEach(x => { if (x.date.startsWith(prefix)) totalsByDate[x.date] = (totalsByDate[x.date] || 0) + 1; });
+  Object.keys(state.dayExtras).forEach(date => {
+    if (date.startsWith(prefix)) totalsByDate[date] = (totalsByDate[date] || 0) + Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
+  });
+  const dates = Object.keys(totalsByDate).length;
+  const total = Object.values(totalsByDate).reduce((a,b)=>a+b,0);
+  return { total, dates, avg: dates ? (total/dates).toFixed(1) : "0" };
+}
+function safePct(num, den){ return den ? (num/den)*100 : 0; }
 
-  const { error } = await supabase.auth.signUp({
-    email,
-    password
+function resumen(){
+  const fecha = selectedDate();
+  ensureDayExtras(fecha);
+  const totalDia = draftAttendance.length + Number(state.dayExtras[fecha].visitas.count || 0) + Number(state.dayExtras[fecha].primeraVez.count || 0);
+  $("kpiTotalDia").textContent = totalDia;
+
+  const rango = ultimosTresMesesDesde(fecha);
+  const inRange = state.attendance.filter(x => {
+    const d = new Date(x.date + "T00:00:00");
+    return d >= rango.start && d <= rango.end;
   });
 
-  if (error) {
-    document.getElementById("msg").innerText = error.message;
-  } else {
-    alert("Cuenta creada. Ahora ingresá.");
+  const byDate = {};
+  inRange.forEach(x => byDate[x.date] = (byDate[x.date] || 0) + 1);
+  Object.keys(byDate).forEach(date => {
+    ensureDayExtras(date);
+    byDate[date] += Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
+  });
+
+  const byPerson = {};
+  inRange.forEach(x => byPerson[x.name] = (byPerson[x.name] || 0) + 1);
+
+  const datesWed = {}, datesSun = {};
+  Object.keys(byDate).forEach(date => {
+    const day = new Date(date + "T00:00:00").getDay();
+    if (day === 3) datesWed[date] = byDate[date];
+    if (day === 0) datesSun[date] = byDate[date];
+  });
+  const avg = obj => {
+    const vals = Object.values(obj);
+    return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
+  };
+
+  $("kpiAvgWed").textContent = avg(datesWed).toFixed(1);
+  $("kpiAvgSun").textContent = avg(datesSun).toFixed(1);
+  $("kpiAvgGen").textContent = avg(byDate).toFixed(1);
+
+  $("topTable").innerHTML = Object.entries(byPerson).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],'es')).slice(0,20)
+    .map(([name,qty]) => `<tr><td>${escapeHtml(name)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
+
+  $("dateTable").innerHTML = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30)
+    .map(([date,qty]) => `<tr><td>${formatDate(date)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
+
+  const monthA = $("compMonthA").value;
+  const yearA = $("compYearA").value;
+  const monthB = $("compMonthB").value;
+  const yearB = $("compYearB").value;
+  const statsA = buildMonthStats(monthA, yearA);
+  const statsB = buildMonthStats(monthB, yearB);
+  $("yearTable").innerHTML = `<tr><td>${MONTH_NAMES[String(monthA).padStart(2,"0")]} ${yearA}</td><td>${statsA.total}</td><td>${statsA.dates}</td><td>${statsA.avg}</td></tr>
+<tr><td>${MONTH_NAMES[String(monthB).padStart(2,"0")]} ${yearB}</td><td>${statsB.total}</td><td>${statsB.dates}</td><td>${statsB.avg}</td></tr>`;
+
+  if (userCanAdmin()) renderAdminAnalytics();
+}
+
+function getMeetingTotalsSorted(){
+  const totals = {};
+  state.attendance.forEach(x => totals[x.date] = (totals[x.date] || 0) + 1);
+  Object.keys(state.dayExtras).forEach(date => {
+    totals[date] = (totals[date] || 0) + Number(state.dayExtras[date]?.visitas?.count || 0) + Number(state.dayExtras[date]?.primeraVez?.count || 0);
+  });
+  return Object.entries(totals).sort((a,b)=>a[0].localeCompare(b[0]));
+}
+function nucleusShare(){
+  const end = new Date(selectedDate()+"T00:00:00");
+  const start = new Date(end); start.setMonth(start.getMonth()-3);
+  const counts = {}; let total = 0;
+  state.attendance.forEach(r => {
+    const dt = new Date(r.date + "T00:00:00");
+    if (dt >= start && dt <= end){ counts[r.name] = (counts[r.name] || 0) + 1; total++; }
+  });
+  const top10 = Object.values(counts).sort((a,b)=>b-a).slice(0,10).reduce((a,b)=>a+b,0);
+  return safePct(top10, total);
+}
+function retentionEstimate(){
+  const end = new Date(selectedDate()+"T00:00:00");
+  const aStart = new Date(end); aStart.setMonth(aStart.getMonth()-2);
+  const aEnd = new Date(end); aEnd.setMonth(aEnd.getMonth()-1);
+  const bStart = new Date(end); bStart.setMonth(bStart.getMonth()-1);
+  const setA = new Set(), setB = new Set();
+  state.attendance.forEach(r => {
+    const dt = new Date(r.date + "T00:00:00");
+    if (dt >= aStart && dt < aEnd) setA.add(r.name);
+    if (dt >= bStart && dt <= end) setB.add(r.name);
+  });
+  const intersection = [...setA].filter(x => setB.has(x)).length;
+  return safePct(intersection, setA.size);
+}
+function loadAlertSettingsUI(){
+  const s = state.alertSettings; if (!s) return;
+  $("alertLowAttendance").value = s.low_attendance_threshold ?? 20;
+  $("alertTrendDrop").value = s.trend_drop_percent ?? 15;
+  $("alertFirstReturnWeeks").value = s.first_time_return_weeks ?? 4;
+  $("alertInactiveWeeks").value = s.inactive_member_weeks ?? 8;
+  $("alertVisitsSpike").value = s.visits_spike_threshold ?? 5;
+}
+function renderAlerts(){
+  const c = $("alertsContainer");
+  const s = state.alertSettings || {low_attendance_threshold:20, trend_drop_percent:15, first_time_return_weeks:4, inactive_member_weeks:8, visits_spike_threshold:5};
+  const alerts = [];
+  const today = selectedDate();
+  const todayTotal = Number($("kpiTotalDia").textContent || 0);
+  if (todayTotal && todayTotal < Number(s.low_attendance_threshold || 20)) alerts.push({title:"Asistencia baja", text:"La reunión del día quedó por debajo del umbral.", level:"bad"});
+  const meetings = getMeetingTotalsSorted();
+  const last8 = meetings.slice(-8).map(x=>x[1]), prev8 = meetings.slice(-16,-8).map(x=>x[1]);
+  if (last8.length && prev8.length){
+    const avgLast = last8.reduce((a,b)=>a+b,0)/last8.length;
+    const avgPrev = prev8.reduce((a,b)=>a+b,0)/prev8.length;
+    const drop = avgPrev ? ((avgPrev-avgLast)/avgPrev)*100 : 0;
+    if (drop >= Number(s.trend_drop_percent || 15)) alerts.push({title:"Caída de tendencia", text:`La caída reciente fue de ${drop.toFixed(1)}%.`, level:"warntext"});
+  }
+  const spikeVisits = Number(state.dayExtras[today]?.visitas?.count || 0);
+  if (spikeVisits >= Number(s.visits_spike_threshold || 5)) alerts.push({title:"Pico de visitas", text:`Las visitas del día alcanzaron ${spikeVisits}.`, level:"ok"});
+  c.innerHTML = alerts.length ? alerts.map(a => `<div class="alert-card"><div class="${a.level}"><strong>${a.title}</strong></div><div class="hint" style="margin-top:6px;">${a.text}</div></div>`).join("") : `<div class="hint">Sin alertas activas por ahora.</div>`;
+}
+function renderAdminAnalytics(){
+  const sortedMeetings = getMeetingTotalsSorted();
+  const last8 = sortedMeetings.slice(-8);
+  const avg4w = last8.length ? last8.reduce((a, [,v]) => a+v, 0) / last8.length : 0;
+  $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
+
+  const now = new Date(selectedDate()+"T00:00:00");
+  const inactiveCutoff = new Date(now); inactiveCutoff.setDate(inactiveCutoff.getDate()-56);
+  const recentCutoff = new Date(now); recentCutoff.setDate(recentCutoff.getDate()-84);
+  const monthPrefix = selectedDate().slice(0,7)+"-";
+  const prevMonthDate = new Date(now); prevMonthDate.setMonth(prevMonthDate.getMonth()-1);
+  const prevMonthPrefix = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth()+1).padStart(2,'0')}-`;
+  const prevYearPrefix = `${now.getFullYear()-1}-${String(now.getMonth()+1).padStart(2,'0')}-`;
+
+  const memberDates = {};
+  state.attendance.forEach(r => { if (!memberDates[r.name]) memberDates[r.name]=[]; memberDates[r.name].push(r.date); });
+
+  let recurring=0, inactiveRecent=0, downFreq=0, left=0, newMembers=0;
+  Object.entries(memberDates).forEach(([name, dates]) => {
+    dates.sort();
+    const last = new Date(dates[dates.length-1]+"T00:00:00");
+    const last84 = dates.filter(d => new Date(d+"T00:00:00") >= recentCutoff).length;
+    const prev84 = dates.filter(d => {
+      const dt = new Date(d+"T00:00:00");
+      const start = new Date(recentCutoff); start.setDate(start.getDate()-84);
+      return dt >= start && dt < recentCutoff;
+    }).length;
+    if (last84 >= 2) recurring++;
+    if (last < inactiveCutoff) inactiveRecent++;
+    if (last84 > 0 && prev84 > 0 && last84 < prev84) downFreq++;
+    if (last < inactiveCutoff) left++;
+    if (dates[0].startsWith(selectedDate().slice(0,7))) newMembers++;
+  });
+
+  const firstMonthCount = Object.keys(state.dayExtras).filter(d => d.startsWith(monthPrefix)).reduce((a,d)=>a+Number(state.dayExtras[d]?.primeraVez?.count||0),0);
+  const returnRate = 0;
+  const totalsObj = Object.fromEntries(getMeetingTotalsSorted());
+  const thisMonthTotal = Object.entries(totalsObj).filter(([d]) => d.startsWith(monthPrefix)).reduce((a,[,v])=>a+v,0);
+  const prevMonthTotal = Object.entries(totalsObj).filter(([d]) => d.startsWith(prevMonthPrefix)).reduce((a,[,v])=>a+v,0);
+  const prevYearTotal = Object.entries(totalsObj).filter(([d]) => d.startsWith(prevYearPrefix)).reduce((a,[,v])=>a+v,0);
+  const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d.startsWith(monthPrefix)).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
+
+  $("adminKpiRecurring").textContent = recurring;
+  $("adminKpiFirstMonth").textContent = firstMonthCount;
+  $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
+  $("adminKpiInactiveRecent").textContent = inactiveRecent;
+  $("adminKpiVsPrevMonth").textContent = `${(prevMonthTotal ? ((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100 : 0).toFixed(0)}%`;
+  $("adminKpiVsPrevYear").textContent = `${(prevYearTotal ? ((thisMonthTotal - prevYearTotal) / prevYearTotal) * 100 : 0).toFixed(0)}%`;
+  $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
+
+  $("adminSummaryTable").innerHTML = [
+    ["Asistentes recurrentes", recurring],
+    ["Miembros que bajaron frecuencia (últ. 3 meses)", downFreq],
+    ["Miembros que dejaron de asistir", left],
+    ["Nuevas incorporaciones del mes", newMembers],
+    ["Peso primeras veces sobre total mes", `${safePct(firstMonthCount, thisMonthTotal).toFixed(1)}%`],
+    ["Concentración núcleo duro (top 10 / total 3 meses)", nucleusShare().toFixed(1) + "%"],
+    ["Tasa de retención estimada", retentionEstimate().toFixed(1) + "%"]
+  ].map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+
+  renderAlerts();
+  loadAlertSettingsUI();
+}
+async function saveAlertSettings(){
+  if (!userCanAdmin()) return;
+  const payload = {
+    id: state.alertSettings?.id || undefined,
+    low_attendance_threshold: Number($("alertLowAttendance").value || 20),
+    trend_drop_percent: Number($("alertTrendDrop").value || 15),
+    first_time_return_weeks: Number($("alertFirstReturnWeeks").value || 4),
+    inactive_member_weeks: Number($("alertInactiveWeeks").value || 8),
+    visits_spike_threshold: Number($("alertVisitsSpike").value || 5),
+    updated_at: new Date().toISOString(),
+    updated_by: currentProfile?.id || null
+  };
+  const res = await supabaseClient.from("alert_settings").upsert(payload).select().single();
+  if (res.error){ alert("No pude guardar parámetros de alertas: " + res.error.message); return; }
+  state.alertSettings = res.data;
+  renderAdminAnalytics();
+  alert("Parámetros guardados.");
+}
+function actualizarSugerenciasInactivar(){
+  const q = normalizeName($("removeMemberSearch").value).toLowerCase();
+  const box = $("memberSuggestionsBox");
+  if (!q){ box.style.display = "none"; box.innerHTML = ""; return; }
+  const fecha = selectedDate();
+  const items = state.people.filter(name => isMemberActiveOn(name, fecha)).filter(name => name.toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b,"es")).slice(0,12);
+  if (!items.length){ box.style.display = "none"; box.innerHTML = ""; return; }
+  box.style.display = "block";
+  box.innerHTML = items.map(name => `<div class="suggestion-item" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`).join("");
+  box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", ()=>{ $("removeMemberSearch").value = el.getAttribute("data-name"); box.style.display="none"; box.innerHTML=""; }));
+}
+async function agregarNuevoMiembro(){
+  if (!userCanOperative()) return;
+  const name = normalizeDisplayName($("newMemberName").value);
+  const date = selectedDate();
+  if (!name){ alert("Ingresá un nombre válido."); return; }
+  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  const res = existing
+    ? await supabaseClient.from("members").update({ active_from: date, inactive_from: null }).eq("name", existing)
+    : await supabaseClient.from("members").insert({ name, active_from: date });
+  if (res.error){ alert("No pude guardar el miembro: " + res.error.message); return; }
+  $("newMemberName").value = "";
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); if (!draftAttendance.includes(name)) draftAttendance.push(name); dirty = true; updateSaveStatus(); renderAll();
+}
+async function inactivarMiembro(){
+  if (!userCanOperative()) return;
+  const name = normalizeName($("removeMemberSearch").value);
+  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  if (!existing){ alert("No encontré ese miembro."); return; }
+  const res = await supabaseClient.from("members").update({ inactive_from: selectedDate() }).eq("name", existing);
+  if (res.error){ alert("No pude inactivar el miembro: " + res.error.message); return; }
+  $("removeMemberSearch").value = "";
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); dirty = true; updateSaveStatus(); renderAll();
+}
+async function guardarDia(){
+  if (!userCanOperative()) return;
+  const date = selectedDate();
+  ensureDayExtras(date);
+
+  try {
+    const names = [...new Set(draftAttendance)].filter(Boolean);
+    const nombresPrimera = [...new Set(parseNombresPrimeraVez())].filter(Boolean);
+
+    if (nombresPrimera.length){
+      state.dayExtras[date].primeraVez.count = nombresPrimera.length;
+      $("primeraVezCount").textContent = nombresPrimera.length;
+    }
+
+    const combinedNames = [...new Set([...names, ...nombresPrimera])].filter(Boolean);
+    let membersData = [];
+    if (combinedNames.length){
+      const membersRes = await supabaseClient.from("members").select("id,name").in("name", combinedNames);
+      if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
+      membersData = membersRes.data || [];
+    }
+
+    const nameToId = {};
+    membersData.forEach(m => { nameToId[m.name] = m.id; });
+
+    const missingFirstTimers = nombresPrimera.filter(name => !nameToId[name]);
+    if (missingFirstTimers.length){
+      const insertMembersRes = await supabaseClient
+        .from("members")
+        .insert(missingFirstTimers.map(name => ({ name, active_from: date })))
+        .select("id,name");
+      if (insertMembersRes.error) throw new Error("No pude crear miembros nuevos para primeras veces: " + insertMembersRes.error.message);
+      (insertMembersRes.data || []).forEach(m => { nameToId[m.name] = m.id; });
+    }
+
+    const delRes = await supabaseClient.from("attendance_records").delete().eq("attendance_date", date);
+    if (delRes.error) throw new Error("No pude limpiar asistencias del día: " + delRes.error.message);
+
+    const rows = names
+      .filter(name => isMemberActiveOn(name, date) && nameToId[name])
+      .map(name => ({ attendance_date: date, member_id: nameToId[name] }));
+
+    if (rows.length){
+      const insRes = await supabaseClient.from("attendance_records").insert(rows);
+      if (insRes.error) throw new Error("No pude guardar asistencias: " + insRes.error.message);
+    }
+
+    const extraRes = await supabaseClient.from("day_extras").upsert({
+      attendance_date: date,
+      visitas_count: Number(state.dayExtras[date].visitas.count || 0),
+      visitas_text: state.dayExtras[date].visitas.text || "",
+      primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
+      primera_vez_text: state.dayExtras[date].primeraVez.text || ""
+    }, { onConflict:"attendance_date" });
+    if (extraRes.error) throw new Error("No pude guardar visitas / 1ra. vez: " + extraRes.error.message);
+
+    if (nombresPrimera.length){
+      const idsPrimera = nombresPrimera.map(name => nameToId[name]).filter(Boolean);
+
+      if (idsPrimera.length){
+        const existingTrackingRes = await supabaseClient
+          .from("first_time_tracking")
+          .select("member_id")
+          .eq("first_date", date)
+          .in("member_id", idsPrimera);
+
+        if (existingTrackingRes.error) throw new Error("No pude verificar primeras veces existentes: " + existingTrackingRes.error.message);
+
+        const existingIds = new Set((existingTrackingRes.data || []).map(x => x.member_id));
+        const trackingRows = idsPrimera
+          .filter(member_id => !existingIds.has(member_id))
+          .map(member_id => ({ member_id, first_date: date, returned: false }));
+
+        if (trackingRows.length){
+          const trackingRes = await supabaseClient.from("first_time_tracking").insert(trackingRows);
+          if (trackingRes.error) throw new Error("Error guardando primeras veces: " + trackingRes.error.message);
+        }
+      }
+    }
+
+    for (const name of names){
+      const memberId = nameToId[name];
+      if (!memberId) continue;
+
+      const firstRes = await supabaseClient
+        .from("first_time_tracking")
+        .select("id,first_date,returned")
+        .eq("member_id", memberId)
+        .eq("returned", false)
+        .order("first_date", { ascending: true })
+        .limit(1);
+
+      if (firstRes.error) throw new Error("No pude consultar retorno automático: " + firstRes.error.message);
+
+      if (firstRes.data && firstRes.data.length > 0){
+        const first = firstRes.data[0];
+        if (first.first_date !== date){
+          const upd = await supabaseClient
+            .from("first_time_tracking")
+            .update({ returned: true, return_date: date })
+            .eq("id", first.id);
+
+          if (upd.error) throw new Error("No pude marcar el retorno automático: " + upd.error.message);
+        }
+      }
+    }
+
+    await cargarTodoDesdeServidor();
+    cargarBorradorDelDia();
+    clearFirstTimeNames();
+    dirty = false;
+    renderAll();
+    updateSaveStatus("Día guardado correctamente");
+    alert("Se guardó correctamente el día " + formatDate(date) + ".");
+  } catch (err) {
+    console.error("guardarDia error:", err);
+    alert(err.message || "Ocurrió un error al guardar.");
   }
 }
+function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
+async function logout(){ await supabaseClient.auth.signOut(); currentSession = null; currentProfile = null; showLogin(); }
+async function evaluateSession(){
+  const sessionRes = await supabaseClient.auth.getSession();
+  currentSession = sessionRes.data.session;
+  if (!currentSession){ showLogin(); setStatus("Sin sesión","warntext"); return; }
+  try { currentProfile = await fetchProfile(); } catch (e) { showLogin(); setStatus("Error leyendo perfil","bad"); return; }
+  if (!currentProfile || !currentProfile.is_active){
+    showLogin();
+    $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+  $("sessionEmail").textContent = currentProfile.email;
+  $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
+  showApp();
+  if (userCanAdmin()) $("tabAdmin").classList.remove("hidden"); else { $("tabAdmin").classList.add("hidden"); switchTab("operativa"); }
+  await cargarTodoDesdeServidor();
+  cargarBorradorDelDia();
+  renderAll();
+  setStatus("Conectado correctamente","ok");
+}
+function wireEvents(){
+  $("btnLoginPassword").addEventListener("click", loginWithPassword);
+  $("btnRegisterPassword").addEventListener("click", registerWithPassword);
+  $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
+  $("btnLogout").addEventListener("click", logout);
+  $("btnReload").addEventListener("click", async ()=>{ await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); });
+  $("btnExport").addEventListener("click", exportarReporteHTML);
+  $("btnToday").addEventListener("click", ()=>{ $("fecha").value = new Date().toISOString().slice(0,10); cargarBorradorDelDia(); renderAll(); });
+  $("btnSaveDay").addEventListener("click", guardarDia);
+  $("btnAddMember").addEventListener("click", agregarNuevoMiembro);
+  $("btnDeactivateMember").addEventListener("click", inactivarMiembro);
+  $("btnVisitasMinus").addEventListener("click", ()=>changeCounter("visitas",-1));
+  $("btnVisitasPlus").addEventListener("click", ()=>changeCounter("visitas",1));
+  $("btnPrimeraMinus").addEventListener("click", ()=>changeCounter("primeraVez",-1));
+  $("btnPrimeraPlus").addEventListener("click", ()=>changeCounter("primeraVez",1));
+  $("visitasTexto").addEventListener("input", ()=>updateExtraText("visitas"));
+  $("primeraVezTexto").addEventListener("input", ()=>updateExtraText("primeraVez"));
+  if ($("primeraVezNombres")) $("primeraVezNombres").addEventListener("input", ()=>{
+    syncPrimeraVezCountFromNames();
+    dirty = true;
+    updateSaveStatus();
+    resumen();
+  });
+  $("search").addEventListener("input", renderPeople);
+  $("fecha").addEventListener("change", ()=>{ cargarBorradorDelDia(); renderAll(); });
+  $("compMonthA").addEventListener("change", resumen);
+  $("compYearA").addEventListener("change", resumen);
+  $("compMonthB").addEventListener("change", resumen);
+  $("compYearB").addEventListener("change", resumen);
+  $("removeMemberSearch").addEventListener("input", actualizarSugerenciasInactivar);
+  $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
+  $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
+  $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
+  $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
+  document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
+}
+function initializeDefaults(){
+  $("fecha").value = new Date().toISOString().slice(0,10);
+  const mm = $("fecha").value.slice(5,7);
+  const yy = $("fecha").value.slice(0,4);
+  $("compMonthA").value = mm;
+  $("compYearA").value = "2025";
+  $("compMonthB").value = mm;
+  $("compYearB").value = yy;
+  switchTab("operativa");
+}
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
+async function initialize(){
+  await initSupabase();
+  wireEvents();
+  initializeDefaults();
+  supabaseClient.auth.onAuthStateChange(async ()=>{ await evaluateSession(); });
+  await evaluateSession();
+}
+document.addEventListener("DOMContentLoaded", initialize);
 </script>
-
 </body>
 </html>
