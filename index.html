@@ -285,44 +285,13 @@ function switchTab(tab){
 
 async function initSupabase(){ supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
 
-async function loginWithPassword(){
+async function sendMagicLink(){
   const email = $("loginEmail").value.trim();
-  const password = $("loginPassword").value;
-  if (!email || !password){
-    $("loginStatus").textContent = "Ingresá email y contraseña";
-    $("loginStatus").className = "hint warntext";
-    return;
-  }
-  $("loginStatus").textContent = "Ingresando...";
-  $("loginStatus").className = "hint";
-  const res = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (res.error){
-    $("loginStatus").textContent = "Error: " + res.error.message;
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-  $("loginStatus").textContent = "Ingreso correcto";
-$("loginStatus").className = "hint ok";
-window.location.reload();
-}
-
-async function registerWithPassword(){
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPassword").value;
-  if (!email || !password){
-    $("loginStatus").textContent = "Ingresá email y contraseña";
-    $("loginStatus").className = "hint warntext";
-    return;
-  }
-  $("loginStatus").textContent = "Creando cuenta...";
-  $("loginStatus").className = "hint";
-  const res = await supabaseClient.auth.signUp({ email, password });
-  if (res.error){
-    $("loginStatus").textContent = "Error: " + res.error.message;
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-  $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
+  if (!email){ $("loginStatus").textContent = "Ingresá un email"; $("loginStatus").className = "hint warntext"; return; }
+  const redirectTo = window.location.origin + window.location.pathname;
+  const res = await supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+  if (res.error){ $("loginStatus").textContent = "Error: " + res.error.message; $("loginStatus").className = "hint bad"; return; }
+  $("loginStatus").textContent = "Te enviamos un link de acceso a tu email";
   $("loginStatus").className = "hint ok";
 }
 
@@ -962,11 +931,29 @@ function initializeDefaults(){
 }
 function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
 async function initialize(){
+  if (window.__panelInitialized) return;
+  window.__panelInitialized = true;
+
   await initSupabase();
   wireEvents();
   initializeDefaults();
-  supabaseClient.auth.onAuthStateChange(async ()=>{ await evaluateSession(); });
-  await evaluateSession();
+
+  if (!window.__panelAuthListenerAttached) {
+    window.__panelAuthListenerAttached = true;
+    supabaseClient.auth.onAuthStateChange(async () => {
+      try {
+        await evaluateSession();
+      } catch (e) {
+        console.error("Auth state change error:", e);
+      }
+    });
+  }
+
+  try {
+    await evaluateSession();
+  } catch (e) {
+    console.error("Initialize error:", e);
+  }
 }
 document.addEventListener("DOMContentLoaded", initialize);
 </script>
