@@ -954,49 +954,57 @@ async function guardarDia(){
 }
 function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
 async function logout(){ await supabaseClient.auth.signOut(); currentSession = null; currentProfile = null; showLogin(); }
+let __panelEvaluatingSession = false;
 async function evaluateSession(){
-  const sessionRes = await supabaseClient.auth.getSession();
-  currentSession = sessionRes.data.session;
-
-  if (!currentSession){
-    showLogin();
-    setStatus("Sin sesión", "warntext");
-    return;
-  }
+  if (__panelEvaluatingSession) return;
+  __panelEvaluatingSession = true;
 
   try {
-    currentProfile = await fetchProfile();
-  } catch (e) {
-    console.error("fetchProfile error:", e);
-    showLogin();
-    $("loginStatus").textContent = "Error leyendo perfil";
-    $("loginStatus").className = "hint bad";
-    return;
+    const sessionRes = await supabaseClient.auth.getSession();
+    currentSession = sessionRes.data.session;
+
+    if (!currentSession){
+      showLogin();
+      setStatus("Sin sesión", "warntext");
+      return;
+    }
+
+    try {
+      currentProfile = await fetchProfile();
+    } catch (e) {
+      console.error("fetchProfile error:", e);
+      showLogin();
+      $("loginStatus").textContent = "Error leyendo perfil";
+      $("loginStatus").className = "hint bad";
+      return;
+    }
+
+    if (!currentProfile || !currentProfile.is_active){
+      showLogin();
+      $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
+      $("loginStatus").className = "hint bad";
+      return;
+    }
+
+    $("sessionEmail").textContent = currentProfile.email;
+    $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
+
+    showApp();
+
+    if (userCanAdmin()) {
+      $("tabAdmin").classList.remove("hidden");
+    } else {
+      $("tabAdmin").classList.add("hidden");
+      switchTab("operativa");
+    }
+
+    await cargarTodoDesdeServidor();
+    cargarBorradorDelDia();
+    renderAll();
+    setStatus("Conectado correctamente", "ok");
+  } finally {
+    __panelEvaluatingSession = false;
   }
-
-  if (!currentProfile || !currentProfile.is_active){
-    showLogin();
-    $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("sessionEmail").textContent = currentProfile.email;
-  $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
-
-  showApp();
-
-  if (userCanAdmin()) {
-    $("tabAdmin").classList.remove("hidden");
-  } else {
-    $("tabAdmin").classList.add("hidden");
-    switchTab("operativa");
-  }
-
-  await cargarTodoDesdeServidor();
-  cargarBorradorDelDia();
-  renderAll();
-  setStatus("Conectado correctamente", "ok");
 }
 function wireEvents(){
   $("btnLoginPassword").addEventListener("click", loginWithPassword);
@@ -1068,7 +1076,8 @@ async function initialize(){
         return;
       }
 
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+      // Evitar loop: no recargar panel completo en TOKEN_REFRESHED
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
         try {
           await evaluateSession();
         } catch (e) {
