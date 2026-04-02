@@ -266,6 +266,7 @@ const $ = id => document.getElementById(id);
 
 function normalizeName(s){ return String(s || "").trim().replace(/\s+/g, " "); }
 function normalizeDisplayName(s){ return normalizeName(s).toUpperCase(); }
+function normalizeComparableName(s){ return normalizeDisplayName(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
 function formatDate(iso){ if (!iso) return ""; const [y,m,d] = iso.split("-"); return `${d}/${m}/${y}`; }
 function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
@@ -321,7 +322,7 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
     fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
-    fetchAllRows("first_time_tracking", "member_id,first_date,returned,return_date", 1000, "first_date")
+    fetchAllRows("first_time_tracking", "id,member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
@@ -359,7 +360,7 @@ async function cargarTodoDesdeServidor(){
 
   state.firstTimeByDate = {};
   (firstTimeRows || []).forEach(r => {
-    const name = state.membersById[r.member_id];
+    const name = r.guest_name || state.membersById[r.member_id];
     if (!name) return;
     if (!state.firstTimeByDate[r.first_date]) state.firstTimeByDate[r.first_date] = [];
     state.firstTimeByDate[r.first_date].push(name);
@@ -754,10 +755,10 @@ async function guardarDia(){
       $("primeraVezCount").textContent = nombresPrimera.length;
     }
 
-    const combinedNames = [...new Set([...names, ...nombresPrimera])].filter(Boolean);
+    // resolver miembros existentes solo para presentes del listado general
     let membersData = [];
-    if (combinedNames.length){
-      const membersRes = await supabaseClient.from("members").select("id,name").in("name", combinedNames);
+    if (names.length){
+      const membersRes = await supabaseClient.from("members").select("id,name").in("name", names);
       if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
       membersData = membersRes.data || [];
     }
@@ -765,16 +766,7 @@ async function guardarDia(){
     const nameToId = {};
     membersData.forEach(m => { nameToId[m.name] = m.id; });
 
-    const missingFirstTimers = nombresPrimera.filter(name => !nameToId[name]);
-    if (missingFirstTimers.length){
-      const insertMembersRes = await supabaseClient
-        .from("members")
-        .insert(missingFirstTimers.map(name => ({ name, active_from: date })))
-        .select("id,name");
-      if (insertMembersRes.error) throw new Error("No pude crear miembros nuevos para primeras veces: " + insertMembersRes.error.message);
-      (insertMembersRes.data || []).forEach(m => { nameToId[m.name] = m.id; });
-    }
-
+    // 1) guardar asistencia del día
     const delRes = await supabaseClient.from("attendance_records").delete().eq("attendance_date", date);
     if (delRes.error) throw new Error("No pude limpiar asistencias del día: " + delRes.error.message);
 
@@ -787,6 +779,7 @@ async function guardarDia(){
       if (insRes.error) throw new Error("No pude guardar asistencias: " + insRes.error.message);
     }
 
+    // 2) guardar extras del día
     const extraRes = await supabaseClient.from("day_extras").upsert({
       attendance_date: date,
       visitas_count: Number(state.dayExtras[date].visitas.count || 0),
@@ -796,46 +789,38 @@ async function guardarDia(){
     }, { onConflict:"attendance_date" });
     if (extraRes.error) throw new Error("No pude guardar visitas / 1ra. vez: " + extraRes.error.message);
 
+    // 3) guardar tracking de primeras veces SOLO como nombres, sin crear miembros recurrentes
+    const deleteTrackingSameDate = await supabaseClient
+      .from("first_time_tracking")
+      .delete()
+      .eq("first_date", date);
+
+    if (deleteTrackingSameDate.error) throw new Error("No pude actualizar primeras veces del día: " + deleteTrackingSameDate.error.message);
+
     if (nombresPrimera.length){
-      const idsPrimera = nombresPrimera.map(name => nameToId[name]).filter(Boolean);
+      const trackingRows = nombresPrimera.map(guest_name => ({
+        guest_name,
+        guest_name_normalized: normalizeComparableName(guest_name),
+        first_date: date,
+        returned: false
+      }));
 
-      if (idsPrimera.length){
-        const existingTrackingRes = await supabaseClient
-          .from("first_time_tracking")
-          .select("member_id")
-          .eq("first_date", date)
-          .in("member_id", idsPrimera);
-
-        if (existingTrackingRes.error) throw new Error("No pude verificar primeras veces existentes: " + existingTrackingRes.error.message);
-
-        const existingIds = new Set((existingTrackingRes.data || []).map(x => x.member_id));
-        const trackingRows = idsPrimera
-          .filter(member_id => !existingIds.has(member_id))
-          .map(member_id => ({ member_id, first_date: date, returned: false }));
-
-        if (trackingRows.length){
-          const trackingRes = await supabaseClient.from("first_time_tracking").insert(trackingRows);
-          if (trackingRes.error) throw new Error("Error guardando primeras veces: " + trackingRes.error.message);
-        }
-      }
+      const trackingRes = await supabaseClient.from("first_time_tracking").insert(trackingRows);
+      if (trackingRes.error) throw new Error("Error guardando primeras veces: " + trackingRes.error.message);
     }
 
-    for (const name of names){
-      const memberId = nameToId[name];
-      if (!memberId) continue;
-
-      const firstRes = await supabaseClient
+    // 4) detectar retorno automático comparando por nombre normalizado cuando ese invitado luego aparece en el listado general
+    const presentComparableNames = [...new Set(names.map(normalizeComparableName))];
+    if (presentComparableNames.length){
+      const unresolvedRes = await supabaseClient
         .from("first_time_tracking")
-        .select("id,first_date,returned")
-        .eq("member_id", memberId)
+        .select("id,guest_name_normalized,first_date,returned")
         .eq("returned", false)
-        .order("first_date", { ascending: true })
-        .limit(1);
+        .in("guest_name_normalized", presentComparableNames);
 
-      if (firstRes.error) throw new Error("No pude consultar retorno automático: " + firstRes.error.message);
+      if (unresolvedRes.error) throw new Error("No pude consultar retorno automático: " + unresolvedRes.error.message);
 
-      if (firstRes.data && firstRes.data.length > 0){
-        const first = firstRes.data[0];
+      for (const first of (unresolvedRes.data || [])){
         if (first.first_date !== date){
           const upd = await supabaseClient
             .from("first_time_tracking")
