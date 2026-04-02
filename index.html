@@ -258,7 +258,7 @@ const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":
 let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
-let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, alertSettings: null };
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null };
 let draftAttendance = [];
 let dirty = false;
 
@@ -320,12 +320,13 @@ async function cargarTodoDesdeServidor(){
   const promises = [
     fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
     fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
-    fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date")
+    fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
+    fetchAllRows("first_time_tracking", "member_id,first_date,returned,return_date", 1000, "first_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
 
-  const [members, attendanceRows, extras, alertSettings] = await Promise.all(promises);
+  const [members, attendanceRows, extras, firstTimeRows, alertSettings] = await Promise.all(promises);
   if (alertSettings.error) throw alertSettings.error;
 
   state.people = [];
@@ -356,6 +357,17 @@ async function cargarTodoDesdeServidor(){
     };
   });
 
+  state.firstTimeByDate = {};
+  (firstTimeRows || []).forEach(r => {
+    const name = state.membersById[r.member_id];
+    if (!name) return;
+    if (!state.firstTimeByDate[r.first_date]) state.firstTimeByDate[r.first_date] = [];
+    state.firstTimeByDate[r.first_date].push(name);
+  });
+  Object.keys(state.firstTimeByDate).forEach(date => {
+    state.firstTimeByDate[date] = [...new Set(state.firstTimeByDate[date])].sort((a,b) => a.localeCompare(b, "es"));
+  });
+
   state.alertSettings = alertSettings.data || null;
 }
 
@@ -371,7 +383,8 @@ function loadExtrasUI(date){
 }
 function loadFirstTimeNamesForDate(date){
   if (!$("primeraVezNombres")) return;
-  $("primeraVezNombres").value = "";
+  const names = state.firstTimeByDate[date] || [];
+  $("primeraVezNombres").value = names.join("\n");
 }
 function clearFirstTimeNames(){
   if ($("primeraVezNombres")) $("primeraVezNombres").value = "";
