@@ -920,9 +920,23 @@ async function guardarDia(){
       }
     }
 
-    await cargarTodoDesdeServidor();
-    cargarBorradorDelDia();
+    // Actualización local sin recargar todo desde el servidor
+    state.attendance = state.attendance.filter(x => x.date !== date);
+    for (const name of names){
+      if (nameToId[name]){
+        state.attendance.push({
+          date,
+          member_id: nameToId[name],
+          name
+        });
+      }
+    }
+
+    state.firstTimeByDate[date] = [...nombresPrimera];
+
     dirty = false;
+    loadExtrasUI(date);
+    loadFirstTimeNamesForDate(date);
     renderAll();
     updateSaveStatus("Día guardado correctamente");
     alert("Se guardó correctamente el día " + formatDate(date) + ".");
