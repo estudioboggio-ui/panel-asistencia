@@ -302,8 +302,8 @@ async function loginWithPassword(){
     return;
   }
   $("loginStatus").textContent = "Ingreso correcto";
-  $("loginStatus").className = "hint ok";
-  await evaluateSession();
+$("loginStatus").className = "hint ok";
+window.location.reload();
 }
 
 async function registerWithPassword(){
