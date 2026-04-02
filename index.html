@@ -385,7 +385,8 @@ function loadExtrasUI(date){
 function loadFirstTimeNamesForDate(date){
   if (!$("primeraVezNombres")) return;
   const names = state.firstTimeByDate[date] || [];
-  $("primeraVezNombres").value = names.join("\n");
+  $("primeraVezNombres").value = names.join("
+");
 }
 function clearFirstTimeNames(){
   if ($("primeraVezNombres")) $("primeraVezNombres").value = "";
@@ -743,6 +744,13 @@ async function inactivarMiembro(){
 }
 async function guardarDia(){
   if (!userCanOperative()) return;
+  const btn = $("btnSaveDay");
+  const originalBtnText = btn ? btn.textContent : "Guardar día";
+  if (btn){
+    btn.disabled = true;
+    btn.textContent = "Guardando...";
+  }
+
   const date = selectedDate();
   ensureDayExtras(date);
 
@@ -755,7 +763,7 @@ async function guardarDia(){
       $("primeraVezCount").textContent = nombresPrimera.length;
     }
 
-    // resolver miembros existentes solo para presentes del listado general
+    // Resolver SOLO miembros del listado general/presentes
     let membersData = [];
     if (names.length){
       const membersRes = await supabaseClient.from("members").select("id,name").in("name", names);
@@ -789,7 +797,7 @@ async function guardarDia(){
     }, { onConflict:"attendance_date" });
     if (extraRes.error) throw new Error("No pude guardar visitas / 1ra. vez: " + extraRes.error.message);
 
-    // 3) guardar tracking de primeras veces SOLO como nombres, sin crear miembros recurrentes
+    // 3) guardar tracking de primeras veces SOLO como invitados
     const deleteTrackingSameDate = await supabaseClient
       .from("first_time_tracking")
       .delete()
@@ -809,7 +817,7 @@ async function guardarDia(){
       if (trackingRes.error) throw new Error("Error guardando primeras veces: " + trackingRes.error.message);
     }
 
-    // 4) detectar retorno automático comparando por nombre normalizado cuando ese invitado luego aparece en el listado general
+    // 4) detectar retorno automático comparando por nombre normalizado
     const presentComparableNames = [...new Set(names.map(normalizeComparableName))];
     if (presentComparableNames.length){
       const unresolvedRes = await supabaseClient
@@ -834,7 +842,6 @@ async function guardarDia(){
 
     await cargarTodoDesdeServidor();
     cargarBorradorDelDia();
-    clearFirstTimeNames();
     dirty = false;
     renderAll();
     updateSaveStatus("Día guardado correctamente");
@@ -842,6 +849,11 @@ async function guardarDia(){
   } catch (err) {
     console.error("guardarDia error:", err);
     alert(err.message || "Ocurrió un error al guardar.");
+  } finally {
+    if (btn){
+      btn.disabled = false;
+      btn.textContent = originalBtnText;
+    }
   }
 }
 function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
