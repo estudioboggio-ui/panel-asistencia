@@ -866,6 +866,49 @@ async function logout(){ await supabaseClient.auth.signOut(); currentSession = n
 async function evaluateSession(){
   const sessionRes = await supabaseClient.auth.getSession();
   currentSession = sessionRes.data.session;
+
+  if (!currentSession) {
+    showLogin();
+    setStatus("Sin sesión", "warntext");
+    return;
+  }
+
+  try {
+    currentProfile = await fetchProfile();
+  } catch (e) {
+    console.error("fetchProfile error:", e);
+    showLogin();
+    $("loginStatus").textContent = "Error leyendo perfil";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  if (!currentProfile || !currentProfile.is_active){
+    showLogin();
+    $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("sessionEmail").textContent = currentProfile.email;
+  $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
+
+  showApp();
+
+  if (userCanAdmin()) {
+    $("tabAdmin").classList.remove("hidden");
+  } else {
+    $("tabAdmin").classList.add("hidden");
+    switchTab("operativa");
+  }
+
+  await cargarTodoDesdeServidor();
+  cargarBorradorDelDia();
+  renderAll();
+  setStatus("Conectado correctamente", "ok");
+}
+  const sessionRes = await supabaseClient.auth.getSession();
+  currentSession = sessionRes.data.session;
   if (!currentSession){ showLogin(); setStatus("Sin sesión","warntext"); return; }
   try { currentProfile = await fetchProfile(); } catch (e) { showLogin(); setStatus("Error leyendo perfil","bad"); return; }
   if (!currentProfile || !currentProfile.is_active){
@@ -985,6 +1028,39 @@ function initializeDefaults(){
 }
 function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
 async function initialize(){
+  if (window.__panelInitialized) return;
+  window.__panelInitialized = true;
+
+  wireEvents();
+  initializeDefaults();
+
+  try {
+    await evaluateSession();
+  } catch (e) {
+    console.error("initialize error:", e);
+  }
+
+  if (!window.__panelAuthListenerAttached) {
+    window.__panelAuthListenerAttached = true;
+
+    supabaseClient.auth.onAuthStateChange(async (event) => {
+      console.log("auth event:", event);
+
+      if (event === "SIGNED_OUT") {
+        showLogin();
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        try {
+          await evaluateSession();
+        } catch (e) {
+          console.error("auth state change error:", e);
+        }
+      }
+    });
+  }
+}
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
 
