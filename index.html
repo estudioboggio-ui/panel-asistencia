@@ -6,54 +6,52 @@
 <title>Asistencia San Martín V2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
 function calcularAdminKPIs(){
-  const today = new Date();
-  const now = today.toISOString().slice(0,10);
+  try{
+    const today = new Date();
+    const now = today.toISOString().slice(0,10);
 
-  // últimas 4 semanas
-  const fourWeeksAgo = new Date(today);
-  fourWeeksAgo.setDate(today.getDate()-28);
-  const start4w = fourWeeksAgo.toISOString().slice(0,10);
+    const fourWeeksAgo = new Date(today);
+    fourWeeksAgo.setDate(today.getDate()-28);
+    const start4w = fourWeeksAgo.toISOString().slice(0,10);
 
-  const last4w = state.attendance.filter(x => x.date >= start4w && x.date <= now);
-  const total4w = last4w.length;
-  const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
-  const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
-  $("adminKpiAvg4w").textContent = avg4w;
+    const last4w = state.attendance.filter(x => x.date >= start4w && x.date <= now);
+    const total4w = last4w.length;
+    const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
+    const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
+    $("adminKpiAvg4w").textContent = avg4w;
 
-  // primeras veces del mes
-  const month = now.slice(0,7);
-  let firstMonth = 0;
-  Object.keys(state.firstTimeByDate).forEach(d=>{
-    if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
-  });
-  $("adminKpiFirstMonth").textContent = firstMonth;
-
-  // recurrentes activos
-  const names = [...new Set(state.attendance.map(x=>x.name))];
-  $("adminKpiRecurring").textContent = names.length;
-
-  // inactivos recientes (últimas 4 semanas sin venir)
-  let inactive = 0;
-  names.forEach(n=>{
-    const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
-    if (last && last < start4w) inactive++;
-  });
-  $("adminKpiInactiveRecent").textContent = inactive;
-
-  // tasa retorno simple
-  let totalFirst = 0;
-  let returned = 0;
-  Object.values(state.firstTimeByDate).forEach(arr=>{
-    totalFirst += arr.length;
-    arr.forEach(n=>{
-      const count = state.attendance.filter(x=>x.name===n).length;
-      if (count>1) returned++;
+    const month = now.slice(0,7);
+    let firstMonth = 0;
+    Object.keys(state.firstTimeByDate).forEach(d=>{
+      if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
     });
-  });
-  const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
-  $("adminKpiReturnRate").textContent = rate+"%";
-}
+    $("adminKpiFirstMonth").textContent = firstMonth;
 
+    const names = [...new Set(state.attendance.map(x=>x.name))];
+    $("adminKpiRecurring").textContent = names.length;
+
+    let inactive = 0;
+    names.forEach(n=>{
+      const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
+      if (last && last < start4w) inactive++;
+    });
+    $("adminKpiInactiveRecent").textContent = inactive;
+
+    let totalFirst = 0;
+    let returned = 0;
+    Object.values(state.firstTimeByDate).forEach(arr=>{
+      totalFirst += arr.length;
+      arr.forEach(n=>{
+        const count = state.attendance.filter(x=>x.name===n).length;
+        if (count>1) returned++;
+      });
+    });
+    const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
+    $("adminKpiReturnRate").textContent = rate+"%";
+  }catch(e){
+    console.error("KPIs error", e);
+  }
+}
 
 </script>
 <style>
@@ -1127,7 +1125,7 @@ function wireEvents(){
   $("removeMemberSearch").addEventListener("input", actualizarSugerenciasInactivar);
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
   $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
-  $("btnAdminReload").addEventListener("click", ()=>{calcularAdminKPIs(); renderAdminAnalytics);
+  $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
   $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
   document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
 }
@@ -1159,54 +1157,52 @@ async function initialize(){
 document.addEventListener("DOMContentLoaded", initialize);
 
 function calcularAdminKPIs(){
-  const today = new Date();
-  const now = today.toISOString().slice(0,10);
+  try{
+    const today = new Date();
+    const now = today.toISOString().slice(0,10);
 
-  // últimas 4 semanas
-  const fourWeeksAgo = new Date(today);
-  fourWeeksAgo.setDate(today.getDate()-28);
-  const start4w = fourWeeksAgo.toISOString().slice(0,10);
+    const fourWeeksAgo = new Date(today);
+    fourWeeksAgo.setDate(today.getDate()-28);
+    const start4w = fourWeeksAgo.toISOString().slice(0,10);
 
-  const last4w = state.attendance.filter(x => x.date >= start4w && x.date <= now);
-  const total4w = last4w.length;
-  const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
-  const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
-  $("adminKpiAvg4w").textContent = avg4w;
+    const last4w = state.attendance.filter(x => x.date >= start4w && x.date <= now);
+    const total4w = last4w.length;
+    const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
+    const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
+    $("adminKpiAvg4w").textContent = avg4w;
 
-  // primeras veces del mes
-  const month = now.slice(0,7);
-  let firstMonth = 0;
-  Object.keys(state.firstTimeByDate).forEach(d=>{
-    if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
-  });
-  $("adminKpiFirstMonth").textContent = firstMonth;
-
-  // recurrentes activos
-  const names = [...new Set(state.attendance.map(x=>x.name))];
-  $("adminKpiRecurring").textContent = names.length;
-
-  // inactivos recientes (últimas 4 semanas sin venir)
-  let inactive = 0;
-  names.forEach(n=>{
-    const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
-    if (last && last < start4w) inactive++;
-  });
-  $("adminKpiInactiveRecent").textContent = inactive;
-
-  // tasa retorno simple
-  let totalFirst = 0;
-  let returned = 0;
-  Object.values(state.firstTimeByDate).forEach(arr=>{
-    totalFirst += arr.length;
-    arr.forEach(n=>{
-      const count = state.attendance.filter(x=>x.name===n).length;
-      if (count>1) returned++;
+    const month = now.slice(0,7);
+    let firstMonth = 0;
+    Object.keys(state.firstTimeByDate).forEach(d=>{
+      if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
     });
-  });
-  const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
-  $("adminKpiReturnRate").textContent = rate+"%";
-}
+    $("adminKpiFirstMonth").textContent = firstMonth;
 
+    const names = [...new Set(state.attendance.map(x=>x.name))];
+    $("adminKpiRecurring").textContent = names.length;
+
+    let inactive = 0;
+    names.forEach(n=>{
+      const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
+      if (last && last < start4w) inactive++;
+    });
+    $("adminKpiInactiveRecent").textContent = inactive;
+
+    let totalFirst = 0;
+    let returned = 0;
+    Object.values(state.firstTimeByDate).forEach(arr=>{
+      totalFirst += arr.length;
+      arr.forEach(n=>{
+        const count = state.attendance.filter(x=>x.name===n).length;
+        if (count>1) returned++;
+      });
+    });
+    const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
+    $("adminKpiReturnRate").textContent = rate+"%";
+  }catch(e){
+    console.error("KPIs error", e);
+  }
+}
 
 </script>
 </body>
