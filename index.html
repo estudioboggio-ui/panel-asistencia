@@ -268,6 +268,7 @@ const $ = id => document.getElementById(id);
 
 function normalizeName(s){ return String(s || "").trim().replace(/\s+/g, " "); }
 function normalizeDisplayName(s){ return normalizeName(s).toUpperCase(); }
+function normalizeComparableName(s){ return normalizeDisplayName(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
 function formatDate(iso){ if (!iso) return ""; const [y,m,d] = iso.split("-"); return `${d}/${m}/${y}`; }
 function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
