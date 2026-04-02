@@ -801,6 +801,143 @@ async function inactivarMiembro(){
 }
 async function guardarDia(){
   if (!userCanOperative()) return;
+
+  const btn = $("btnSaveDay");
+  const originalText = btn ? btn.textContent : "Guardar día";
+
+  if (btn){
+    btn.disabled = true;
+    btn.textContent = "Guardando...";
+  }
+
+  const date = selectedDate();
+  ensureDayExtras(date);
+
+  try {
+    const names = [...new Set(draftAttendance)].filter(Boolean);
+    const nombresPrimera = [...new Set(parseNombresPrimeraVez())].filter(Boolean);
+
+    if (nombresPrimera.length){
+      state.dayExtras[date].primeraVez.count = nombresPrimera.length;
+      $("primeraVezCount").textContent = nombresPrimera.length;
+    }
+
+    let membersData = [];
+    if (names.length){
+      const membersRes = await supabaseClient
+        .from("members")
+        .select("id,name")
+        .in("name", names);
+
+      if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
+      membersData = membersRes.data || [];
+    }
+
+    const nameToId = {};
+    membersData.forEach(m => {
+      nameToId[m.name] = m.id;
+    });
+
+    const delAttendance = await supabaseClient
+      .from("attendance_records")
+      .delete()
+      .eq("attendance_date", date);
+
+    if (delAttendance.error) throw new Error("No pude limpiar asistencias del día: " + delAttendance.error.message);
+
+    const attendanceRows = names
+      .filter(name => isMemberActiveOn(name, date) && nameToId[name])
+      .map(name => ({
+        attendance_date: date,
+        member_id: nameToId[name]
+      }));
+
+    if (attendanceRows.length){
+      const insAttendance = await supabaseClient
+        .from("attendance_records")
+        .insert(attendanceRows);
+
+      if (insAttendance.error) throw new Error("No pude guardar asistencias: " + insAttendance.error.message);
+    }
+
+    const saveExtras = await supabaseClient
+      .from("day_extras")
+      .upsert({
+        attendance_date: date,
+        visitas_count: Number(state.dayExtras[date].visitas.count || 0),
+        visitas_text: state.dayExtras[date].visitas.text || "",
+        primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
+        primera_vez_text: state.dayExtras[date].primeraVez.text || ""
+      }, { onConflict: "attendance_date" });
+
+    if (saveExtras.error) throw new Error("No pude guardar visitas / 1ra. vez: " + saveExtras.error.message);
+
+    const deleteTracking = await supabaseClient
+      .from("first_time_tracking")
+      .delete()
+      .eq("first_date", date);
+
+    if (deleteTracking.error) throw new Error("No pude actualizar primeras veces del día: " + deleteTracking.error.message);
+
+    if (nombresPrimera.length){
+      const trackingRows = nombresPrimera.map(name => ({
+        guest_name: name,
+        guest_name_normalized: normalizeComparableName(name),
+        first_date: date,
+        returned: false
+      }));
+
+      const insTracking = await supabaseClient
+        .from("first_time_tracking")
+        .insert(trackingRows);
+
+      if (insTracking.error) throw new Error("No pude guardar primeras veces: " + insTracking.error.message);
+    }
+
+    const presentComparableNames = [...new Set(names.map(normalizeComparableName))];
+
+    if (presentComparableNames.length){
+      const unresolved = await supabaseClient
+        .from("first_time_tracking")
+        .select("id, guest_name_normalized, first_date, returned")
+        .eq("returned", false)
+        .in("guest_name_normalized", presentComparableNames);
+
+      if (unresolved.error) throw new Error("No pude consultar retorno automático: " + unresolved.error.message);
+
+      for (const row of (unresolved.data || [])){
+        if (row.first_date !== date){
+          const upd = await supabaseClient
+            .from("first_time_tracking")
+            .update({
+              returned: true,
+              return_date: date
+            })
+            .eq("id", row.id);
+
+          if (upd.error) throw new Error("No pude marcar retorno automático: " + upd.error.message);
+        }
+      }
+    }
+
+    await cargarTodoDesdeServidor();
+    cargarBorradorDelDia();
+    dirty = false;
+    renderAll();
+    updateSaveStatus("Día guardado correctamente");
+    alert("Se guardó correctamente el día " + formatDate(date) + ".");
+
+  } catch (err) {
+    console.error("guardarDia error:", err);
+    alert(err.message || "Ocurrió un error al guardar.");
+  } finally {
+    if (btn){
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+}
+  if (!userCanOperative()) return;
   const date = selectedDate();
   ensureDayExtras(date);
 
