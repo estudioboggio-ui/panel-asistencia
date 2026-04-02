@@ -411,10 +411,19 @@ function cargarBorradorDelDia(){
   dirty = false;
   updateSaveStatus();
 }
+let saveStatusTimeout = null;
 function updateSaveStatus(message=null){
+  if (saveStatusTimeout){
+    clearTimeout(saveStatusTimeout);
+    saveStatusTimeout = null;
+  }
   if (message){
     $("saveStatus").textContent = message;
     $("saveStatus").style.color = "#86efac";
+    saveStatusTimeout = setTimeout(() => {
+      $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
+      $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+    }, 2500);
     return;
   }
   $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
@@ -723,147 +732,119 @@ async function guardarDia(){
   const date = selectedDate();
   ensureDayExtras(date);
 
-  const names = [...new Set(draftAttendance)].filter(Boolean);
-  const nombresPrimera = parseNombresPrimeraVez();
+  try {
+    const names = [...new Set(draftAttendance)].filter(Boolean);
+    const nombresPrimera = [...new Set(parseNombresPrimeraVez())].filter(Boolean);
 
-  // si se cargan nombres de 1ra vez, el contador debe acompañar
-  if (nombresPrimera.length){
-    state.dayExtras[date].primeraVez.count = nombresPrimera.length;
-  }
-
-  // resolver miembros existentes para presentes y primeras veces
-  const combinedNames = [...new Set([...names, ...nombresPrimera])].filter(Boolean);
-  let membersData = [];
-  if (combinedNames.length){
-    const membersRes = await supabaseClient.from("members").select("id,name").in("name", combinedNames);
-    if (membersRes.error){
-      alert("No pude resolver miembros: " + membersRes.error.message);
-      return;
+    if (nombresPrimera.length){
+      state.dayExtras[date].primeraVez.count = nombresPrimera.length;
+      $("primeraVezCount").textContent = nombresPrimera.length;
     }
-    membersData = membersRes.data || [];
-  }
 
-  const nameToId = {};
-  membersData.forEach(m => { nameToId[m.name] = m.id; });
-
-  // crear miembros nuevos solo para nombres de 1ra vez que no existan
-  const missingFirstTimers = nombresPrimera.filter(name => !nameToId[name]);
-  if (missingFirstTimers.length){
-    const insertMembersRes = await supabaseClient
-      .from("members")
-      .insert(missingFirstTimers.map(name => ({ name, active_from: date })))
-      .select("id,name");
-    if (insertMembersRes.error){
-      alert("No pude crear miembros nuevos para primeras veces: " + insertMembersRes.error.message);
-      return;
+    const combinedNames = [...new Set([...names, ...nombresPrimera])].filter(Boolean);
+    let membersData = [];
+    if (combinedNames.length){
+      const membersRes = await supabaseClient.from("members").select("id,name").in("name", combinedNames);
+      if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
+      membersData = membersRes.data || [];
     }
-    (insertMembersRes.data || []).forEach(m => { nameToId[m.name] = m.id; });
-  }
 
-  // 1) guardar asistencia del día
-  const delRes = await supabaseClient.from("attendance_records").delete().eq("attendance_date", date);
-  if (delRes.error){
-    alert("No pude limpiar asistencias del día: " + delRes.error.message);
-    return;
-  }
+    const nameToId = {};
+    membersData.forEach(m => { nameToId[m.name] = m.id; });
 
-  const rows = names
-    .filter(name => isMemberActiveOn(name, date) && nameToId[name])
-    .map(name => ({ attendance_date: date, member_id: nameToId[name] }));
-
-  if (rows.length){
-    const insRes = await supabaseClient.from("attendance_records").insert(rows);
-    if (insRes.error){
-      alert("No pude guardar asistencias: " + insRes.error.message);
-      return;
+    const missingFirstTimers = nombresPrimera.filter(name => !nameToId[name]);
+    if (missingFirstTimers.length){
+      const insertMembersRes = await supabaseClient
+        .from("members")
+        .insert(missingFirstTimers.map(name => ({ name, active_from: date })))
+        .select("id,name");
+      if (insertMembersRes.error) throw new Error("No pude crear miembros nuevos para primeras veces: " + insertMembersRes.error.message);
+      (insertMembersRes.data || []).forEach(m => { nameToId[m.name] = m.id; });
     }
-  }
 
-  // 2) guardar extras del día
-  const extraRes = await supabaseClient.from("day_extras").upsert({
-    attendance_date: date,
-    visitas_count: Number(state.dayExtras[date].visitas.count || 0),
-    visitas_text: state.dayExtras[date].visitas.text || "",
-    primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
-    primera_vez_text: state.dayExtras[date].primeraVez.text || ""
-  }, { onConflict:"attendance_date" });
+    const delRes = await supabaseClient.from("attendance_records").delete().eq("attendance_date", date);
+    if (delRes.error) throw new Error("No pude limpiar asistencias del día: " + delRes.error.message);
 
-  if (extraRes.error){
-    alert("No pude guardar visitas / 1ra. vez: " + extraRes.error.message);
-    return;
-  }
+    const rows = names
+      .filter(name => isMemberActiveOn(name, date) && nameToId[name])
+      .map(name => ({ attendance_date: date, member_id: nameToId[name] }));
 
-  // 3) guardar tracking de primeras veces por persona
-  // primero borramos solo tracking de esa fecha y de esos miembros, para permitir correcciones del mismo día
-  if (nombresPrimera.length){
-    const idsPrimera = nombresPrimera.map(name => nameToId[name]).filter(Boolean);
-
-    if (idsPrimera.length){
-      const deleteTrackingSameDate = await supabaseClient
-        .from("first_time_tracking")
-        .delete()
-        .eq("first_date", date)
-        .in("member_id", idsPrimera);
-
-      if (deleteTrackingSameDate.error){
-        alert("No pude actualizar primeras veces del día: " + deleteTrackingSameDate.error.message);
-        return;
-      }
-
-      const trackingRows = idsPrimera.map(member_id => ({
-        member_id,
-        first_date: date,
-        returned: false
-      }));
-
-      // JS boolean fix below after string replacement
-      const trackingRes = await supabaseClient
-        .from("first_time_tracking")
-        .insert(trackingRows);
-
-      if (trackingRes.error){
-        alert("Error guardando primeras veces: " + trackingRes.error.message);
-        return;
-      }
+    if (rows.length){
+      const insRes = await supabaseClient.from("attendance_records").insert(rows);
+      if (insRes.error) throw new Error("No pude guardar asistencias: " + insRes.error.message);
     }
-  }
 
-  // 4) detectar retorno automático
-  for (const name of names){
-    const memberId = nameToId[name];
-    if (!memberId) continue;
+    const extraRes = await supabaseClient.from("day_extras").upsert({
+      attendance_date: date,
+      visitas_count: Number(state.dayExtras[date].visitas.count || 0),
+      visitas_text: state.dayExtras[date].visitas.text || "",
+      primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
+      primera_vez_text: state.dayExtras[date].primeraVez.text || ""
+    }, { onConflict:"attendance_date" });
+    if (extraRes.error) throw new Error("No pude guardar visitas / 1ra. vez: " + extraRes.error.message);
 
-    const firstRes = await supabaseClient
-      .from("first_time_tracking")
-      .select("id,first_date,returned")
-      .eq("member_id", memberId)
-      .eq("returned", false)
-      .order("first_date", { ascending: true })
-      .limit(1);
+    if (nombresPrimera.length){
+      const idsPrimera = nombresPrimera.map(name => nameToId[name]).filter(Boolean);
 
-    if (!firstRes.error && firstRes.data && firstRes.data.length > 0){
-      const first = firstRes.data[0];
-      if (first.first_date !== date){
-        const upd = await supabaseClient
+      if (idsPrimera.length){
+        const existingTrackingRes = await supabaseClient
           .from("first_time_tracking")
-          .update({ returned: true, return_date: date })
-          .eq("id", first.id);
+          .select("member_id")
+          .eq("first_date", date)
+          .in("member_id", idsPrimera);
 
-        if (upd.error){
-          alert("No pude marcar el retorno automático: " + upd.error.message);
-          return;
+        if (existingTrackingRes.error) throw new Error("No pude verificar primeras veces existentes: " + existingTrackingRes.error.message);
+
+        const existingIds = new Set((existingTrackingRes.data || []).map(x => x.member_id));
+        const trackingRows = idsPrimera
+          .filter(member_id => !existingIds.has(member_id))
+          .map(member_id => ({ member_id, first_date: date, returned: false }));
+
+        if (trackingRows.length){
+          const trackingRes = await supabaseClient.from("first_time_tracking").insert(trackingRows);
+          if (trackingRes.error) throw new Error("Error guardando primeras veces: " + trackingRes.error.message);
         }
       }
     }
-  }
 
-  await cargarTodoDesdeServidor();
-  cargarBorradorDelDia();
-  clearFirstTimeNames();
-  dirty = false;
-  updateSaveStatus("Día guardado correctamente");
-  renderAll();
-  alert("Se guardó correctamente el día " + formatDate(date) + ".");
+    for (const name of names){
+      const memberId = nameToId[name];
+      if (!memberId) continue;
+
+      const firstRes = await supabaseClient
+        .from("first_time_tracking")
+        .select("id,first_date,returned")
+        .eq("member_id", memberId)
+        .eq("returned", false)
+        .order("first_date", { ascending: true })
+        .limit(1);
+
+      if (firstRes.error) throw new Error("No pude consultar retorno automático: " + firstRes.error.message);
+
+      if (firstRes.data && firstRes.data.length > 0){
+        const first = firstRes.data[0];
+        if (first.first_date !== date){
+          const upd = await supabaseClient
+            .from("first_time_tracking")
+            .update({ returned: true, return_date: date })
+            .eq("id", first.id);
+
+          if (upd.error) throw new Error("No pude marcar el retorno automático: " + upd.error.message);
+        }
+      }
+    }
+
+    await cargarTodoDesdeServidor();
+    cargarBorradorDelDia();
+    clearFirstTimeNames();
+    dirty = false;
+    renderAll();
+    updateSaveStatus("Día guardado correctamente");
+    alert("Se guardó correctamente el día " + formatDate(date) + ".");
+  } catch (err) {
+    console.error("guardarDia error:", err);
+    alert(err.message || "Ocurrió un error al guardar.");
+  }
 }
 function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
 async function logout(){ await supabaseClient.auth.signOut(); currentSession = null; currentProfile = null; showLogin(); }
