@@ -228,9 +228,6 @@
       <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
       <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
       <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
-      <div class="card"><div class="label">Inactivos recientes</div><div id="adminKpiInactiveRecent" class="value">0</div></div>
-      <div class="card"><div class="label">Vs mes anterior</div><div id="adminKpiVsPrevMonth" class="value">0%</div></div>
-      <div class="card"><div class="label">Vs mismo mes año anterior</div><div id="adminKpiVsPrevYear" class="value">0%</div></div>
       <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
     </div>
 
@@ -262,14 +259,11 @@
       <h2>Reportes de miembros</h2>
       <div class="filters" style="margin-bottom:12px;">
         <div>
-          <div class="hint" style="margin-bottom:6px;">Período para Top asistentes</div>
-          <select id="reportTopPeriod">
-            <option value="1">Último mes</option>
-            <option value="3" selected>Últimos 3 meses</option>
-            <option value="6">Últimos 6 meses</option>
-            <option value="12">Últimos 12 meses</option>
-            <option value="all">Todo el histórico</option>
-          </select>
+          <div class="hint" style="margin-bottom:6px;">Período de análisis</div>
+          <div class="filters" style="margin-bottom:0;">
+            <input id="reportDateFrom" type="date">
+            <input id="reportDateTo" type="date">
+          </div>
         </div>
         <div>
           <div class="hint" style="margin-bottom:6px;">Acción</div>
@@ -780,38 +774,46 @@ function getMonthBounds(isoDate){
     prefix: first.toISOString().slice(0,7)
   };
 }
-function getFirstTimersThisMonth(refDate){
-  const {start, end} = getMonthBounds(refDate);
+function getReportRange(){
+  const refDate = getReferenceDate();
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  let from = $("reportDateFrom")?.value || defaultFrom;
+  let to = $("reportDateTo")?.value || refDate;
+  if (from > to) [from, to] = [to, from];
+  return {from, to, refDate};
+}
+function getFirstTimersInRange(from, to){
   const rows = [];
   Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
-    if (date >= start && date <= end){
+    if (date >= from && date <= to){
       names.forEach(name => rows.push({name, date}));
     }
   });
   rows.sort((a,b) => a.name.localeCompare(b.name, "es") || a.date.localeCompare(b.date));
   return rows;
 }
-function getRecurringActiveNames(refDate){
-  const start = isoMonthsAgo(refDate, 3);
+function getRecurringActiveNames(from, to){
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
-    const count = dates.filter(d => d >= start && d <= refDate).length;
+    const count = dates.filter(d => d >= from && d <= to).length;
     if (count >= 9){
-      rows.push({name, detail: `${count} asistencias en los últimos 3 meses`});
+      rows.push({name, detail: `${count} asistencias en el período`});
     }
   });
   rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
   return rows;
 }
-function getInactiveRecentNames(refDate){
-  const cutoff = isoDaysAgo(refDate, 21);
+function getInactiveRecentNames(from, to){
+  const cutoff = isoDaysAgo(to, 21);
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
-    const last = dates[dates.length - 1];
-    const hadPrevious = dates.some(d => d < cutoff);
-    const hadRecent = dates.some(d => d >= cutoff && d <= refDate);
+    const relevant = dates.filter(d => d <= to);
+    if (!relevant.length) return;
+    const last = relevant[relevant.length - 1];
+    const hadPrevious = relevant.some(d => d >= from && d < cutoff);
+    const hadRecent = relevant.some(d => d >= cutoff && d <= to);
     if (hadPrevious && !hadRecent){
       rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
     }
@@ -819,27 +821,29 @@ function getInactiveRecentNames(refDate){
   rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
   return rows;
 }
-function getDroppedNames(refDate){
-  const cutoff = isoDaysAgo(refDate, 56);
+function getDroppedNames(from, to){
+  const cutoff = isoDaysAgo(to, 56);
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
-    const last = dates[dates.length - 1];
-    if (last < cutoff){
+    const relevant = dates.filter(d => d <= to);
+    if (!relevant.length) return;
+    const last = relevant[relevant.length - 1];
+    const hadInRange = relevant.some(d => d >= from && d <= to);
+    if (!hadInRange && last < cutoff){
       rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
     }
   });
   rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
   return rows;
 }
-function getFirstTimeNoReturnThisMonth(refDate){
-  const {start, end} = getMonthBounds(refDate);
+function getFirstTimeNoReturnInRange(from, to){
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
-    if (date >= start && date <= end){
+    if (date >= from && date <= to){
       names.forEach(name => {
-        const laterReturns = (byMember[name] || []).filter(d => d > date && d <= end);
+        const laterReturns = (byMember[name] || []).filter(d => d > date && d <= to);
         if (!laterReturns.length){
           rows.push({name, detail: `Primera vez: ${formatDate(date)}`});
         }
@@ -849,15 +853,11 @@ function getFirstTimeNoReturnThisMonth(refDate){
   rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
   return rows;
 }
-function getTopAttendees(refDate, periodValue){
+function getTopAttendees(from, to){
   const byMember = getAttendanceByMember();
-  let start = null;
-  if (periodValue !== "all"){
-    start = isoMonthsAgo(refDate, Number(periodValue));
-  }
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
-    const count = dates.filter(d => (!start || d >= start) && d <= refDate).length;
+    const count = dates.filter(d => d >= from && d <= to).length;
     if (count > 0){
       rows.push({name, count});
     }
@@ -876,35 +876,35 @@ function renderReport(title1, title2, rows, formatter){
   body.innerHTML = rows.map(r => formatter(r)).join("");
 }
 function runReport(type){
-  const refDate = getReferenceDate();
+  const {from, to} = getReportRange();
+
   if (type === "recurring"){
-    const rows = getRecurringActiveNames(refDate);
+    const rows = getRecurringActiveNames(from, to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
   if (type === "inactive"){
-    const rows = getInactiveRecentNames(refDate);
+    const rows = getInactiveRecentNames(from, to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
   if (type === "dropped"){
-    const rows = getDroppedNames(refDate);
+    const rows = getDroppedNames(from, to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
   if (type === "firstMonth"){
-    const rows = getFirstTimersThisMonth(refDate);
+    const rows = getFirstTimersInRange(from, to);
     renderReport("Nombre", "Primera vez", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${formatDate(r.date)}</td></tr>`);
     return;
   }
   if (type === "noReturn"){
-    const rows = getFirstTimeNoReturnThisMonth(refDate);
+    const rows = getFirstTimeNoReturnInRange(from, to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
   if (type === "top"){
-    const period = $("reportTopPeriod").value;
-    const rows = getTopAttendees(refDate, period);
+    const rows = getTopAttendees(from, to);
     renderReport("Nombre", "Asistencias", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td></tr>`);
     return;
   }
@@ -937,34 +937,24 @@ function renderAdminAnalytics(){
   const avg4w = last8.length ? last8.reduce((a, [,v]) => a+v, 0) / last8.length : 0;
   $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
 
-  const recurringRows = getRecurringActiveNames(refDate);
-  const inactiveRows = getInactiveRecentNames(refDate);
-  const droppedRows = getDroppedNames(refDate);
-  const firstMonthRows = getFirstTimersThisMonth(refDate);
-  const noReturnRows = getFirstTimeNoReturnThisMonth(refDate);
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  const recurringRows = getRecurringActiveNames(defaultFrom, refDate);
+  const firstMonthRows = getFirstTimersInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
+  const noReturnRows = getFirstTimeNoReturnInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
 
   $("adminKpiRecurring").textContent = recurringRows.length;
   $("adminKpiFirstMonth").textContent = firstMonthRows.length;
-  $("adminKpiInactiveRecent").textContent = inactiveRows.length;
 
   const returnRate = firstMonthRows.length ? ((firstMonthRows.length - noReturnRows.length) / firstMonthRows.length) * 100 : 0;
   $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
 
-  const totalsObj = Object.fromEntries(meetings);
-  const monthPrefix = refDate.slice(0,7) + "-";
-  const prevMonthDate = new Date(refDate + "T00:00:00");
-  prevMonthDate.setMonth(prevMonthDate.getMonth()-1);
-  const prevMonthPrefix = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth()+1).padStart(2,'0')}-`;
-  const prevYearPrefix = `${Number(refDate.slice(0,4))-1}-${refDate.slice(5,7)}-`;
-
-  const thisMonthTotal = Object.entries(totalsObj).filter(([d]) => d.startsWith(monthPrefix)).reduce((a,[,v])=>a+v,0);
-  const prevMonthTotal = Object.entries(totalsObj).filter(([d]) => d.startsWith(prevMonthPrefix)).reduce((a,[,v])=>a+v,0);
-  const prevYearTotal = Object.entries(totalsObj).filter(([d]) => d.startsWith(prevYearPrefix)).reduce((a,[,v])=>a+v,0);
-  const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d.startsWith(monthPrefix)).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
-
-  $("adminKpiVsPrevMonth").textContent = `${(prevMonthTotal ? ((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100 : 0).toFixed(0)}%`;
-  $("adminKpiVsPrevYear").textContent = `${(prevYearTotal ? ((thisMonthTotal - prevYearTotal) / prevYearTotal) * 100 : 0).toFixed(0)}%`;
+  const monthBounds = getMonthBounds(refDate);
+  const thisMonthTotal = Object.entries(Object.fromEntries(meetings)).filter(([d]) => d >= monthBounds.start && d <= monthBounds.end).reduce((a,[,v])=>a+v,0);
+  const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d >= monthBounds.start && d <= monthBounds.end).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
   $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
+
+  const inactiveRows = getInactiveRecentNames(defaultFrom, refDate);
+  const droppedRows = getDroppedNames(defaultFrom, refDate);
 
   $("adminSummaryTable").innerHTML = [
     ["Recurrentes activos (≥ 9 asistencias / 3 meses)", recurringRows.length],
@@ -1282,8 +1272,9 @@ function wireEvents(){
   $("btnReportFirstMonth").addEventListener("click", () => runReport("firstMonth"));
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
-  $("reportTopPeriod").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) runReport("top"); });
-  document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
+  $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
+  $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
+    document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
 }
 function initializeDefaults(){
   $("fecha").value = new Date().toISOString().slice(0,10);
@@ -1293,6 +1284,8 @@ function initializeDefaults(){
   $("compYearA").value = "2025";
   $("compMonthB").value = mm;
   $("compYearB").value = yy;
+  $("reportDateTo").value = $("fecha").value;
+  $("reportDateFrom").value = isoMonthsAgo($("fecha").value, 3);
   switchTab("operativa");
 }
 function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
