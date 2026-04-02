@@ -56,6 +56,13 @@
   .hidden{display:none !important}
   .alert-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220;margin-bottom:10px}
   .ok{color:#86efac}.bad{color:#fca5a5}.warntext{color:#fcd34d}
+  
+  .save-feedback{display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:13px}
+  .save-feedback.show{display:block}
+  .save-feedback.success{background:rgba(22,163,74,.12);border-color:#166534;color:#dcfce7}
+  .save-feedback.error{background:rgba(153,27,27,.14);border-color:#991b1b;color:#fecaca}
+  .saving #btnSaveDay{opacity:.85}
+
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters{grid-template-columns:1fr}}
 </style>
@@ -118,6 +125,7 @@
           <button id="btnSaveDay" class="primary" type="button">Guardar día</button>
           <span id="saveStatus" class="hint">Sin cambios pendientes</span>
         </div>
+        <div id="saveFeedback" class="save-feedback" role="status" aria-live="polite"></div>
         <div id="peopleList" class="people-list"></div>
         <div id="searchEmptyState" class="hint hidden" style="margin-top:8px;"></div>
       </div>
@@ -502,6 +510,35 @@ function updateSaveStatus(message=null){
   $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
   $("saveStatus").style.color = dirty ? "#fcd34d" : "";
 }
+
+function setSaveFeedback(message="", type="success"){
+  const box = $("saveFeedback");
+  if (!box) return;
+  if (!message){
+    box.textContent = "";
+    box.className = "save-feedback";
+    return;
+  }
+  box.textContent = message;
+  box.className = `save-feedback show ${type}`;
+}
+
+function setSavingUI(isSaving){
+  const root = $("operativaView");
+  if (!root) return;
+  root.classList.toggle("saving", isSaving);
+
+  const controls = root.querySelectorAll('input, textarea, select, button');
+  controls.forEach(el => {
+    if (el.id === "btnLogout") return;
+    if (el.id === "tabOperativa" || el.id === "tabAdmin") return;
+    if (el.id === "btnSaveDay"){
+      el.disabled = isSaving;
+    } else {
+      el.disabled = isSaving;
+    }
+  });
+}
 function isPresent(date, name){ return date === selectedDate() ? draftAttendance.includes(name) : state.attendance.some(x => x.date === date && x.name === name); }
 function togglePresence(name){
   const i = draftAttendance.indexOf(name);
@@ -806,8 +843,10 @@ async function guardarDia(){
   const btn = $("btnSaveDay");
   const originalText = btn ? btn.textContent : "Guardar día";
 
+  setSaveFeedback("", "success");
+  setSavingUI(true);
+
   if (btn){
-    btn.disabled = true;
     btn.textContent = "Guardando...";
   }
 
@@ -921,7 +960,6 @@ async function guardarDia(){
       }
     }
 
-    // Actualización local sin recargar todo desde el servidor
     state.attendance = state.attendance.filter(x => x.date !== date);
     for (const name of names){
       if (nameToId[name]){
@@ -940,14 +978,14 @@ async function guardarDia(){
     loadFirstTimeNamesForDate(date);
     renderAll();
     updateSaveStatus("Día guardado correctamente");
-    alert("Se guardó correctamente el día " + formatDate(date) + ".");
+    setSaveFeedback("Los cambios se guardaron correctamente.", "success");
 
   } catch (err) {
     console.error("guardarDia error:", err);
-    alert(err.message || "Ocurrió un error al guardar.");
+    setSaveFeedback(err.message || "Ocurrió un error al guardar.", "error");
   } finally {
+    setSavingUI(false);
     if (btn){
-      btn.disabled = false;
       btn.textContent = originalText;
     }
   }
