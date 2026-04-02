@@ -381,7 +381,7 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
     fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
-    fetchAllRows("first_time_tracking", "member_id,first_date,returned,return_date", 1000, "first_date")
+    fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
@@ -419,7 +419,7 @@ async function cargarTodoDesdeServidor(){
 
   state.firstTimeByDate = {};
   (firstTimeRows || []).forEach(r => {
-    const name = state.membersById[r.member_id];
+    const name = r.guest_name || state.membersById[r.member_id];
     if (!name) return;
     if (!state.firstTimeByDate[r.first_date]) state.firstTimeByDate[r.first_date] = [];
     state.firstTimeByDate[r.first_date].push(name);
