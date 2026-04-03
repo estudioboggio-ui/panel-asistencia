@@ -63,6 +63,12 @@
   .save-feedback.error{background:rgba(153,27,27,.14);border-color:#991b1b;color:#fecaca}
   .saving #btnSaveDay{opacity:.85}
 
+  /* ESTILOS NUEVOS PARA EL MODAL */
+  .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:1000; }
+  .modal-content { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; width:90%; max-width:600px; max-height:90vh; overflow-y:auto; }
+  .clickable-name { cursor:pointer; color:var(--teal); text-decoration:underline; }
+  .clickable-name:hover { color:var(--text); }
+
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters{grid-template-columns:1fr}}
 </style>
@@ -297,6 +303,38 @@
   </div>
 </div>
 
+<!-- MODAL DE FICHA DE MIEMBRO -->
+<div id="modalFicha" class="modal-overlay hidden">
+  <div class="modal-content">
+    <h2 id="modalTitle">Ficha del Miembro</h2>
+    <div class="stack">
+      <input type="hidden" id="editMemberId">
+      <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
+      <div class="filters">
+        <div><div class="hint">Teléfono</div><input id="editPhone" type="text" style="width:100%"></div>
+        <div><div class="hint">Fecha Nacimiento</div><input id="editBirth" type="date" style="width:100%"></div>
+      </div>
+      <div><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
+      <div>
+        <div class="hint">Categoría / Grupo</div>
+        <select id="editCategory" style="width:100%">
+          <option value="Miembro">Miembro</option>
+          <option value="Líder">Líder</option>
+          <option value="Visita">Visita Recurrente</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div id="memberHistory" class="scroll" style="max-height:150px; margin-top:10px; padding:10px; font-size:13px;">
+        <!-- Historial se carga dinámicamente -->
+      </div>
+      <div class="row-actions" style="margin-top:20px; justify-content:flex-end;">
+        <button onclick="cerrarModal()" class="secondary" type="button">Cancelar</button>
+        <button id="btnSaveMemberData" class="primary" type="button">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const SUPABASE_URL = "https://vscgsnfvojwzkfdsxpvh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM";
@@ -423,7 +461,7 @@ async function fetchAllRows(table, columns, pageSize=1000, orderCol=null){
 async function cargarTodoDesdeServidor(){
   if (!userCanOperative()) return;
   const promises = [
-    fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
+    fetchAllRows("members", "*", 1000, "name"),
     fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
     fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date")
@@ -436,6 +474,7 @@ async function cargarTodoDesdeServidor(){
 
   state.people = [];
   state.membersById = {};
+  state.membersFullData = {}; // Cache para ficha
   state.memberIdsByName = {};
   state.activeFrom = {};
   state.inactiveFrom = {};
@@ -443,6 +482,7 @@ async function cargarTodoDesdeServidor(){
   members.forEach(m => {
     state.people.push(m.name);
     state.membersById[m.id] = m.name;
+    state.membersFullData[m.id] = m;
     state.memberIdsByName[m.name] = m.id;
     state.activeFrom[m.name] = m.active_from || "1900-01-01";
     if (m.inactive_from) state.inactiveFrom[m.name] = m.inactive_from;
@@ -597,6 +637,47 @@ function updateExtraText(kind){
   else state.dayExtras[date].primeraVez.text = $("primeraVezTexto").value;
   dirty = true; updateSaveStatus();
 }
+
+/* MEJORA: ABRIR FICHA DE MIEMBRO */
+function abrirFicha(id) {
+    const member = state.membersFullData[id];
+    if (!member) return;
+
+    $("editMemberId").value = member.id;
+    $("editName").value = member.name || "";
+    $("editPhone").value = member.phone || "";
+    $("editBirth").value = member.birth_date || "";
+    $("editAddress").value = member.address || "";
+    $("editCategory").value = member.category || "Miembro";
+
+    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
+    $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
+        (historial.length ? historial.slice(0,5).map(h => formatDate(h.date)).join(", ") : "Sin registros previos.");
+
+    $("modalFicha").classList.remove("hidden");
+}
+
+function cerrarModal() { $("modalFicha").classList.add("hidden"); }
+
+async function guardarCambiosMiembro() {
+    const id = $("editMemberId").value;
+    const payload = {
+        name: normalizeDisplayName($("editName").value),
+        phone: $("editPhone").value,
+        birth_date: $("editBirth").value || null,
+        address: $("editAddress").value,
+        category: $("editCategory").value
+    };
+
+    const { error } = await supabaseClient.from("members").update(payload).eq("id", id);
+    if (error) { alert("Error al actualizar: " + error.message); return; }
+    
+    alert("Datos actualizados correctamente.");
+    cerrarModal();
+    await cargarTodoDesdeServidor();
+    renderAll();
+}
+
 function renderPeople(){
   const date = selectedDate();
   const query = $("search").value.trim().toLowerCase();
@@ -606,8 +687,9 @@ function renderPeople(){
 
   $("peopleList").innerHTML = people.map(name => {
     const present = isPresent(date, name);
+    const mId = state.memberIdsByName[name];
     return `<div class="person ${present ? "present" : ""}">
-      <div><strong>${escapeHtml(name)}</strong></div>
+      <div class="clickable-name" onclick="abrirFicha('${mId}')"><strong>${escapeHtml(name)}</strong></div>
       <div class="row-actions">
         <span class="badge ${present ? "on" : ""}">${present ? "P" : "—"}</span>
         <button type="button" data-name="${escapeHtml(name)}" class="toggle-presence">${present ? "Quitar" : "Marcar"}</button>
@@ -636,7 +718,7 @@ function buildMonthStats(month, year){
   const totalsByDate = {};
   state.attendance.forEach(x => { if (x.date.startsWith(prefix)) totalsByDate[x.date] = (totalsByDate[x.date] || 0) + 1; });
   Object.keys(state.dayExtras).forEach(date => {
-    if (date.startsWith(prefix)) totalsByDate[date] = (totalsByDate[date] || 0) + Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
+    if (date.startsWith(prefix)) totalsByDate[date] = (totalsByDate[date] || 0) + Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primera_vez_count || 0);
   });
   const dates = Object.keys(totalsByDate).length;
   const total = Object.values(totalsByDate).reduce((a,b)=>a+b,0);
@@ -1178,7 +1260,7 @@ async function guardarDia(){
     }
   }
 }
-function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
+function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión."); }
 async function logout(){ await supabaseClient.auth.signOut(); currentSession = null; currentProfile = null; showLogin(); }
 let __panelEvaluatingSession = false;
 async function evaluateSession(){
@@ -1274,7 +1356,9 @@ function wireEvents(){
   $("btnReportTop").addEventListener("click", () => runReport("top"));
   $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
   $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
-    document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
+  $("btnSaveMemberData").addEventListener("click", guardarCambiosMiembro);
+
+  document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
 }
 function initializeDefaults(){
   $("fecha").value = new Date().toISOString().slice(0,10);
@@ -1335,7 +1419,7 @@ function calcularAdminKPIs(){
       const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
       if (last && last < start4w) inactive++;
     });
-    $("adminKpiInactiveRecent").textContent = inactive;
+    if($("adminKpiInactiveRecent")) $("adminKpiInactiveRecent").textContent = inactive;
 
     let totalFirst = 0;
     let returned = 0;
