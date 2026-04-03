@@ -1,551 +1,1358 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Panel San Martín V2 - Sistema Integral</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --panel: #1e293b;
-      --text: #f8fafc;
-      --accent: #3b82f6;
-      --line: #334155;
-      --present: #10b981;
-      --absent: #ef4444;
-      --gold: #fcd34d;
-      --radius: 12px;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Asistencia San Martín V2</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0f172a; --bg2:#081224; --panel:#111827; --line:#334155; --text:#e5e7eb; --muted:#94a3b8;
+    --green:#16a34a; --teal:#0f766e; --red:#991b1b; --amber:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,var(--bg2),var(--bg));color:var(--text)}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px}
+  h1{margin:0 0 18px 0;font-size:28px}
+  h2{margin:0 0 12px 0;font-size:18px}
+  .panel{background:rgba(17,24,39,.94);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .hint{color:var(--muted);font-size:12px;line-height:1.45}
+  .toolbar,.tabs,.row-actions{display:flex;flex-wrap:wrap;gap:10px}
+  .toolbar,.tabs{margin:0 0 16px 0}
+  .tab-btn{padding:10px 16px;border-radius:999px}
+  .tab-btn.active{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:16px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .card{background:linear-gradient(180deg,rgba(30,41,59,.9),rgba(15,23,42,.95));border:1px solid var(--line);border-radius:18px;padding:16px}
+  .card .label{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .card .value{font-size:30px;font-weight:700}
+  .split{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+  .filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .filters.single{grid-template-columns:1fr}
+  .stack{display:grid;gap:10px}
+  .scroll{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0b1220}
+  .people-list{max-height:580px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0b1220}
+  .person{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(51,65,85,.5);gap:8px}
+  .person:last-child{border-bottom:none}
+  .person.present{background:rgba(34,197,94,.12)}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .badge.on{color:#dcfce7;border-color:#166534;background:rgba(34,197,94,.18)}
+  .counter-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220}
+  .counter-box{display:flex;align-items:center;gap:10px;margin:0 0 8px 0}
+  .counter-value{min-width:56px;text-align:center;font-size:28px;font-weight:700;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#081224}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px;border-bottom:1px solid rgba(51,65,85,.5)}
+  th{color:var(--muted);font-weight:600}
+  input,select,button,textarea{
+    border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:10px 12px;font-size:14px
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1) brightness(1.8);cursor:pointer}
+  button{cursor:pointer;background:linear-gradient(180deg,#1e293b,#111827)}
+  button.primary{background:linear-gradient(180deg,#166534,#14532d);border-color:#166534}
+  button.secondary{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e}
+  button.danger{background:linear-gradient(180deg,#7f1d1d,#111827);border-color:#991b1b}
+  button.warn{background:linear-gradient(180deg,#b45309,#78350f);border-color:#b45309}
+  .login-wrap{max-width:520px;margin:60px auto}
+  .hidden{display:none !important}
+  .alert-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220;margin-bottom:10px}
+  .ok{color:#86efac}.bad{color:#fca5a5}.warntext{color:#fcd34d}
+  
+  .save-feedback{display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:13px}
+  .save-feedback.show{display:block}
+  .save-feedback.success{background:rgba(22,163,74,.12);border-color:#166534;color:#dcfce7}
+  .save-feedback.error{background:rgba(153,27,27,.14);border-color:#991b1b;color:#fecaca}
+  .saving #btnSaveDay{opacity:.85}
 
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 10px;
-      line-height: 1.6;
-      padding-bottom: 80px;
-    }
-
-    /* Utilitarios */
-    .hidden { display: none !important; }
-    .flex { display: flex; }
-    .justify-between { justify-content: space-between; }
-    .items-center { align-items: center; }
-    
-    header {
-      padding: 1rem 0;
-      border-bottom: 1px solid var(--line);
-      margin-bottom: 1.5rem;
-    }
-
-    h1 { font-size: 1.4rem; color: var(--gold); }
-    
-    .panel {
-      background: var(--panel);
-      border-radius: var(--radius);
-      padding: 1.2rem;
-      margin-bottom: 1rem;
-      border: 1px solid var(--line);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-
-    label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
-
-    input, select, button {
-      background: #0f172a;
-      color: white;
-      border: 1px solid var(--line);
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 1rem;
-      width: 100%;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    input:focus { border-color: var(--accent); }
-
-    .btn-primary { background: var(--accent); font-weight: 600; border: none; cursor: pointer; }
-    .btn-secondary { background: #475569; border: none; cursor: pointer; }
-    .btn-danger { background: var(--absent); border: none; cursor: pointer; }
-
-    /* Buscador */
-    .search-container { position: relative; margin-bottom: 1rem; }
-    
-    /* Lista de Personas */
-    .list-container { max-height: 50vh; overflow-y: auto; }
-    
-    .person {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 8px;
-      border-bottom: 1px solid var(--line);
-    }
-    
-    .member-info { display: flex; flex-direction: column; }
-    .member-name-link { 
-      color: var(--gold); 
-      font-weight: 600; 
-      cursor: pointer; 
-      text-decoration: none;
-      font-size: 1.05rem;
-    }
-    .member-name-link:hover { text-decoration: underline; }
-    
-    .row-actions { display: flex; align-items: center; gap: 12px; }
-    
-    .badge {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: #334155;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-      font-weight: bold;
-      transition: 0.3s;
-    }
-    .badge.on { background: var(--present); color: white; transform: scale(1.1); }
-
-    .toggle-presence { 
-      width: auto; 
-      padding: 6px 14px; 
-      font-size: 0.85rem; 
-      background: #334155; 
-    }
-    .toggle-presence.is-present { background: var(--absent); }
-
-    /* Barra Inferior */
-    .save-bar {
-      position: fixed;
-      bottom: 0; left: 0; width: 100%;
-      padding: 1rem;
-      background: rgba(15, 23, 42, 0.9);
-      backdrop-filter: blur(10px);
-      border-top: 2px solid var(--accent);
-      display: flex;
-      gap: 10px;
-      transform: translateY(100%);
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 100;
-    }
-    .save-bar.visible { transform: translateY(0); }
-
-    /* Modal de Ficha */
-    #memberModal {
-      position: fixed;
-      top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.9);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 15px;
-    }
-    #memberModal.active { display: flex; }
-    .modal-content { 
-      width: 100%; 
-      max-width: 550px; 
-      max-height: 85vh; 
-      overflow-y: auto; 
-      position: relative;
-    }
-    .field-group { margin-bottom: 1.2rem; }
-
-    /* Analíticas */
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 1rem; }
-    .stat-card { background: #0f172a; padding: 10px; border-radius: 8px; text-align: center; }
-    .stat-val { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
-    .stat-label { font-size: 0.7rem; color: #94a3b8; }
-
-    /* Tabs */
-    .tabs { display: flex; gap: 5px; margin-bottom: 1.5rem; }
-    .tab { flex: 1; padding: 10px; text-align: center; background: var(--panel); border-radius: 8px; cursor: pointer; border: 1px solid var(--line); font-size: 0.9rem; }
-    .tab.active { background: var(--accent); border-color: var(--accent); font-weight: bold; }
-  </style>
+  @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:700px){.cards,.filters{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-
-  <header class="flex justify-between items-center">
-    <div>
-      <h1>San Martín V2</h1>
-      <p id="connection-indicator" style="font-size: 0.7rem; color: #10b981;">● Online - Database Linked</p>
+<div id="loginView" class="wrap login-wrap">
+  <div class="panel">
+    <h1 style="font-size:30px;margin-bottom:8px;">Panel de Asistencia San Martín</h1>
+    <div class="hint" style="margin-bottom:16px;">Ingreso por email y contraseña.</div>
+    <div class="stack">
+      <input id="loginEmail" type="email" placeholder="tu-email@dominio.com" autocomplete="username">
+      <input id="loginPassword" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <div class="row-actions">
+        <button id="btnLoginPassword" class="primary" type="button">Ingresar</button>
+        <button id="btnRegisterPassword" class="secondary" type="button">Crear cuenta</button>
+      </div>
+      <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
     </div>
-    <button id="btnNewMember" style="width: auto; padding: 8px 15px; background: var(--present); border: none;">+ Nuevo</button>
-  </header>
+  </div>
+</div>
+
+<div id="appView" class="wrap hidden">
+  <div class="row-actions" style="justify-content:space-between; margin-bottom:10px;">
+    <div>
+      <h1 style="margin-bottom:6px;">Panel de Asistencia San Martín</h1>
+      <div class="hint">
+        <span id="sessionEmail">Sin sesión</span> ·
+        <span id="sessionRole">Sin rol</span>
+      </div>
+    </div>
+    <div class="row-actions">
+      <span id="sbStatus" class="hint">Conectando...</span>
+      <button id="btnLogout" class="secondary" type="button">Cerrar sesión</button>
+    </div>
+  </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="asistencia">Asistencia</div>
-    <div class="tab" data-tab="miembros">Miembros</div>
-    <div class="tab" data-tab="reportes">Reportes</div>
+    <button id="tabOperativa" class="tab-btn active" type="button">Operativa</button>
+    <button id="tabAdmin" class="tab-btn hidden" type="button">Administración</button>
   </div>
 
-  <!-- SECCIÓN ASISTENCIA -->
-  <section id="tab-asistencia">
-    <div class="panel grid-2">
+  <div id="operativaView">
+    <div class="toolbar">
+      <button id="btnReload" class="secondary" type="button">Recargar desde servidor</button>
+      <button id="btnExport" type="button">Exportar reporte HTML</button>
+      <button id="btnToday" type="button">Ir a hoy</button>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Registro rápido</h2>
+        <div class="filters single">
+          <div>
+            <div class="hint" style="margin-bottom:6px;">Fecha</div>
+            <input id="fecha" type="date">
+          </div>
+        </div>
+        <input id="search" type="text" placeholder="Buscar apellido o nombre..." style="width:100%;margin-bottom:12px;">
+        <div class="row-actions" style="margin-bottom:12px;">
+          <button id="btnSaveDay" class="primary" type="button">Guardar día</button>
+          <span id="saveStatus" class="hint">Sin cambios pendientes</span>
+        </div>
+        <div id="saveFeedback" class="save-feedback" role="status" aria-live="polite"></div>
+        <div id="peopleList" class="people-list"></div>
+        <div id="searchEmptyState" class="hint hidden" style="margin-top:8px;"></div>
+      </div>
+
       <div>
-        <label>Fecha del Encuentro</label>
-        <input type="date" id="datePicker">
-      </div>
-      <div>
-        <label>Turno</label>
-        <select id="shiftPicker">
-          <option value="Mañana">Mañana</option>
-          <option value="Tarde">Tarde</option>
-          <option value="Noche">Noche</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="search-container">
-        <input type="text" id="search" placeholder="Filtrar por nombre...">
-      </div>
-      <div id="searchEmptyState" class="hidden" style="text-align: center; padding: 2rem; color: #94a3b8;">
-        Sin resultados.
-      </div>
-      <div id="peopleList" class="list-container">
-        <!-- Render dinámico -->
-      </div>
-    </div>
-  </section>
-
-  <!-- SECCIÓN REPORTES (Resumen rápido) -->
-  <section id="tab-reportes" class="hidden">
-    <div class="panel">
-      <h3>Resumen de Asistencia</h3>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div id="stat-presentes" class="stat-val">0</div>
-          <div class="stat-label">Presentes</div>
+        <div class="cards">
+          <div class="card"><div class="label">Asistencia total</div><div id="kpiTotalDia" class="value">0</div></div>
+          <div class="card"><div class="label">Asistencia promedio miércoles</div><div id="kpiAvgWed" class="value">0</div></div>
+          <div class="card"><div class="label">Asistencia promedio domingos</div><div id="kpiAvgSun" class="value">0</div></div>
+          <div class="card"><div class="label">Asistencia promedio general</div><div id="kpiAvgGen" class="value">0</div></div>
         </div>
-        <div class="stat-card">
-          <div id="stat-total" class="stat-val">0</div>
-          <div class="stat-label">Total Activos</div>
-        </div>
-      </div>
-      <canvas id="attendanceChart" style="margin-top: 20px; max-height: 200px;"></canvas>
-    </div>
-  </section>
 
-  <!-- BARRA DE GUARDADO DINÁMICA -->
-  <div id="saveBar" class="save-bar">
-    <button id="btnSaveDay" class="btn-primary">💾 Guardar Cambios</button>
-    <button id="btnDiscard" class="btn-secondary">Descartar</button>
-  </div>
-
-  <!-- MODAL DE FICHA / EDICIÓN -->
-  <div id="memberModal">
-    <div class="panel modal-content">
-      <h2 id="modalTitle" style="color: var(--gold); margin-bottom: 1.5rem;">Ficha de Miembro</h2>
-      <input type="hidden" id="editId">
-      
-      <div class="field-group">
-        <label>Nombre y Apellido</label>
-        <input type="text" id="editNombre" placeholder="Ej: JUAN PEREZ">
-      </div>
-      
-      <div class="grid-2">
-        <div class="field-group">
-          <label>Teléfono</label>
-          <input type="tel" id="editTelefono" placeholder="11...">
-        </div>
-        <div class="field-group">
-          <label>Estado</label>
-          <select id="editEstado">
-            <option value="ACTIVO">ACTIVO</option>
-            <option value="INACTIVO">INACTIVO</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field-group">
-        <label>Dirección</label>
-        <input type="text" id="editDireccion">
-      </div>
-
-      <div class="grid-2">
-        <div class="field-group">
-          <label>F. Nacimiento</label>
-          <input type="date" id="editNacimiento">
-        </div>
-        <div class="field-group">
-          <label>F. Ingreso</label>
-          <input type="date" id="editIngreso">
-        </div>
-      </div>
-
-      <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 10px;">
-        <button id="btnModalSave" class="btn-primary">Guardar Miembro</button>
-        <button id="btnModalCancel" class="btn-secondary">Cancelar</button>
-        <button id="btnDeleteMember" class="btn-danger" style="margin-top: 10px; font-size: 0.8rem; opacity: 0.7;">Eliminar Miembro</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // --- CONFIGURACIÓN ---
-    const SB_URL = 'TU_SUPABASE_URL';
-    const SB_KEY = 'TU_SUPABASE_ANON_KEY';
-    const supabase = lib.supabase.createClient(SB_URL, SB_KEY);
-
-    const $ = id => document.getElementById(id);
-    const escapeHtml = str => str ? str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m])) : '';
-
-    // --- ESTADO GLOBAL ---
-    let state = {
-      members: [],       // Objetos completos de la DB
-      attendance: {},    // { "2023-10-25": { "Mañana": ["Nombre A", "Nombre B"] } }
-      isDirty: false,
-      currentTab: 'asistencia'
-    };
-
-    // --- INICIO ---
-    window.onload = async () => {
-      $("datePicker").valueAsDate = new Date();
-      await initData();
-      attachEventListeners();
-    };
-
-    async function initData() {
-      try {
-        // Cargar Miembros
-        const { data: mData, error: mErr } = await supabase.from('members').select('*').order('nombre', { ascending: true });
-        if (mErr) throw mErr;
-        state.members = mData;
-
-        // Cargar Historial de Asistencia (Últimos 30 días para reportes)
-        const { data: aData, error: aErr } = await supabase.from('attendance').select('*');
-        if (aErr) throw aErr;
-        
-        aData.forEach(row => {
-          if (!state.attendance[row.fecha]) state.attendance[row.fecha] = {};
-          state.attendance[row.fecha][row.turno] = row.presentes || [];
-        });
-
-        renderPeople();
-        updateStats();
-      } catch (err) {
-        console.error("Error inicializando:", err);
-        alert("Error de conexión con Supabase.");
-      }
-    }
-
-    // --- RENDERIZADO ---
-    function renderPeople() {
-      const date = $("datePicker").value;
-      const shift = $("shiftPicker").value;
-      const query = $("search").value.trim().toLowerCase();
-      
-      // Filtrar activos (y que coincidan con búsqueda)
-      let list = state.members.filter(m => m.estado === 'ACTIVO');
-      if (query) list = list.filter(m => m.nombre.toLowerCase().includes(query));
-
-      const presentesHoy = state.attendance[date]?.[shift] || [];
-
-      $("peopleList").innerHTML = list.map(m => {
-        const isPresent = presentesHoy.includes(m.nombre);
-        return `
-          <div class="person" data-id="${m.id}">
-            <div class="member-info">
-              <span class="member-name-link" onclick="abrirFicha('${m.id}')">${escapeHtml(m.nombre)}</span>
-            </div>
-            <div class="row-actions">
-              <div class="badge ${isPresent ? 'on' : ''}">${isPresent ? 'P' : '-'}</div>
-              <button class="toggle-presence ${isPresent ? 'is-present' : ''}" 
-                      onclick="toggleAsistencia('${m.nombre}')">
-                ${isPresent ? 'Quitar' : 'Marcar'}
-              </button>
+        <div class="split">
+          <div class="panel">
+            <h2>Visitas y 1ra. Vez</h2>
+            <div class="stack">
+              <div class="counter-card">
+                <div style="font-weight:600;margin-bottom:8px;">Visitas</div>
+                <div class="counter-box">
+                  <button id="btnVisitasMinus" class="secondary" type="button">−</button>
+                  <div id="visitasCount" class="counter-value">0</div>
+                  <button id="btnVisitasPlus" class="primary" type="button">+</button>
+                </div>
+                <input id="visitasTexto" type="text" placeholder="Texto libre...">
+              </div>
+              <div class="counter-card">
+                <div style="font-weight:600;margin-bottom:8px;">1ra. Vez</div>
+                <div class="counter-box">
+                  <button id="btnPrimeraMinus" class="secondary" type="button">−</button>
+                  <div id="primeraVezCount" class="counter-value">0</div>
+                  <button id="btnPrimeraPlus" class="primary" type="button">+</button>
+                </div>
+                <input id="primeraVezTexto" type="text" placeholder="Texto libre...">
+                <textarea id="primeraVezNombres" placeholder="Nombres 1ra. vez (uno por línea)&#10;Ej:&#10;Juan Pérez&#10;Lucía Gómez" style="margin-top:8px; width:100%; min-height:80px;"></textarea>
+              </div>
             </div>
           </div>
-        `;
-      }).join('');
-      
-      $("searchEmptyState").classList.toggle('hidden', list.length > 0);
-      updateStats();
-    }
 
-    // --- LÓGICA DE ASISTENCIA ---
-    function toggleAsistencia(nombre) {
-      const date = $("datePicker").value;
-      const shift = $("shiftPicker").value;
+          <div class="panel">
+            <h2>Top asistentes</h2>
+            <div class="scroll"><table><thead><tr><th>Nombre</th><th>Asistencias</th></tr></thead><tbody id="topTable"></tbody></table></div>
+          </div>
 
-      if (!state.attendance[date]) state.attendance[date] = {};
-      if (!state.attendance[date][shift]) state.attendance[date][shift] = [];
+          <div class="panel">
+            <h2>Asistencia por fecha</h2>
+            <div class="scroll"><table><thead><tr><th>Fecha</th><th>Asistentes</th></tr></thead><tbody id="dateTable"></tbody></table></div>
+          </div>
+        </div>
 
-      let presentes = state.attendance[date][shift];
-      if (presentes.includes(nombre)) {
-        state.attendance[date][shift] = presentes.filter(n => n !== nombre);
-      } else {
-        state.attendance[date][shift].push(nombre);
+        <div class="split">
+          <div class="panel">
+            <h2>Comparativo de meses</h2>
+            <div class="filters" style="margin-bottom:12px;">
+              <div>
+                <div class="hint" style="margin-bottom:6px;">Período A</div>
+                <div class="filters" style="margin-bottom:0;">
+                  <select id="compMonthA"><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select>
+                  <select id="compYearA"><option value="2025">2025</option><option value="2026">2026</option></select>
+                </div>
+              </div>
+              <div>
+                <div class="hint" style="margin-bottom:6px;">Período B</div>
+                <div class="filters" style="margin-bottom:0;">
+                  <select id="compMonthB"><option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select>
+                  <select id="compYearB"><option value="2025">2025</option><option value="2026">2026</option></select>
+                </div>
+              </div>
+            </div>
+            <div class="scroll"><table><thead><tr><th>Período</th><th>Total mes</th><th>Cantidad de fechas</th><th>Promedio mes</th></tr></thead><tbody id="yearTable"></tbody></table></div>
+          </div>
+
+          <div class="panel">
+            <h2>Gestión de miembros</h2>
+            <div class="stack">
+              <input id="newMemberName" type="text" placeholder="Agregar nuevo miembro manualmente...">
+              <button id="btnAddMember" class="secondary" type="button">Agregar miembro desde esta fecha</button>
+              <div>
+                <input id="removeMemberSearch" type="text" placeholder="Buscar miembro a inactivar..." autocomplete="off">
+                <div id="memberSuggestionsBox" class="scroll suggestions"></div>
+              </div>
+              <button id="btnDeactivateMember" class="danger" type="button">Inactivar miembro desde esta fecha</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Acceso</h2>
+            <div class="hint">Esta solapa la pueden usar perfiles <strong>admin</strong> y <strong>carga</strong>.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminView" class="hidden">
+    <div class="toolbar">
+      <button id="btnAdminReload" class="secondary" type="button">Actualizar analítica</button>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="label">Promedio 4 semanas</div><div id="adminKpiAvg4w" class="value">0</div></div>
+      <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
+      <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
+      <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
+      <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
+    </div>
+
+    <div class="split">
+      <div class="panel">
+        <h2>Seguimiento de miembros</h2>
+        <div class="scroll"><table><thead><tr><th>Métrica</th><th>Cantidad</th></tr></thead><tbody id="adminSummaryTable"></tbody></table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Alertas</h2>
+        <div id="alertsContainer"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Parámetros de alertas</h2>
+        <div class="stack">
+          <div><div class="hint">Asistencia baja</div><input id="alertLowAttendance" type="number"></div>
+          <div><div class="hint">Caída de tendencia (%)</div><input id="alertTrendDrop" type="number" step="0.01"></div>
+          <div><div class="hint">Retorno primera vez (semanas)</div><input id="alertFirstReturnWeeks" type="number"></div>
+          <div><div class="hint">Miembro inactivo (semanas)</div><input id="alertInactiveWeeks" type="number"></div>
+          <div><div class="hint">Pico de visitas</div><input id="alertVisitsSpike" type="number"></div>
+          <button id="btnSaveAlerts" class="warn" type="button">Guardar parámetros</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Reportes de miembros</h2>
+      <div class="filters" style="margin-bottom:12px;">
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Período de análisis</div>
+          <div class="filters" style="margin-bottom:0;">
+            <input id="reportDateFrom" type="date">
+            <input id="reportDateTo" type="date">
+          </div>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Acción</div>
+          <div class="row-actions">
+            <button id="btnReportRecurring" type="button">Ver recurrentes activos</button>
+            <button id="btnReportInactive" type="button">Ver inactivos recientes</button>
+            <button id="btnReportDropped" type="button">Ver dejaron de concurrir</button>
+          </div>
+          <div class="row-actions" style="margin-top:10px;">
+            <button id="btnReportFirstMonth" type="button">Ver primeras veces del mes</button>
+            <button id="btnReportNoReturn" type="button">Ver primeras veces sin retorno</button>
+            <button id="btnReportTop" type="button">Ver top asistentes</button>
+          </div>
+        </div>
+      </div>
+      <div class="scroll" style="max-height:420px;">
+        <table>
+          <thead>
+            <tr>
+              <th id="reportCol1">Nombre</th>
+              <th id="reportCol2">Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="reportTableBody">
+            <tr><td colspan="2" class="hint">Elegí un reporte para ver el listado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://vscgsnfvojwzkfdsxpvh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM";
+const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":"Mayo","06":"Junio","07":"Julio","08":"Agosto","09":"Septiembre","10":"Octubre","11":"Noviembre","12":"Diciembre"};
+
+let supabaseClient = null;
+let currentSession = null;
+let currentProfile = null;
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null };
+let draftAttendance = [];
+let dirty = false;
+
+const $ = id => document.getElementById(id);
+
+function normalizeName(s){ return String(s || "").trim().replace(/\s+/g, " "); }
+function normalizeDisplayName(s){ return normalizeName(s).toUpperCase(); }
+function normalizeComparableName(s){ return normalizeDisplayName(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function formatDate(iso){ if (!iso) return ""; const [y,m,d] = iso.split("-"); return `${d}/${m}/${y}`; }
+function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
+function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; el.className="hint "+cls; }
+function userCanAdmin(){ return currentProfile?.role === "admin"; }
+function userCanOperative(){ return currentProfile?.role === "admin" || currentProfile?.role === "carga"; }
+function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
+function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); }
+function switchTab(tab){
+  $("tabOperativa").classList.toggle("active", tab==="operativa");
+  $("tabAdmin").classList.toggle("active", tab==="admin");
+  $("operativaView").classList.toggle("hidden", tab!=="operativa");
+  $("adminView").classList.toggle("hidden", tab!=="admin");
+}
+
+async function initSupabase(){
+  if (!window.__panelSupabaseClient) {
+    window.__panelSupabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        auth: {
+          storageKey: "panel-asistencia-auth",
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false
+        }
       }
+    );
+  }
+  supabaseClient = window.__panelSupabaseClient;
+}
 
-      state.isDirty = true;
-      $("saveBar").classList.add("visible");
-      renderPeople();
+async function loginWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Ingresando...";
+  $("loginStatus").className = "hint";
+
+  const res = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Ingreso correcto";
+  $("loginStatus").className = "hint ok";
+  window.location.reload();
+}
+
+async function registerWithPassword(){
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+
+  if (!email || !password){
+    $("loginStatus").textContent = "Ingresá email y contraseña";
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Creando cuenta...";
+  $("loginStatus").className = "hint";
+
+  const res = await supabaseClient.auth.signUp({ email, password });
+
+  if (res.error){
+    $("loginStatus").textContent = "Error: " + res.error.message;
+    $("loginStatus").className = "hint bad";
+    return;
+  }
+
+  $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
+  $("loginStatus").className = "hint ok";
+}
+
+async function fetchProfile(){
+  if (!currentSession?.user?.id) return null;
+  const res = await supabaseClient.from("user_profiles").select("id,user_id,email,role,is_active").eq("user_id", currentSession.user.id).maybeSingle();
+  if (res.error) throw res.error;
+  return res.data;
+}
+
+async function fetchAllRows(table, columns, pageSize=1000, orderCol=null){
+  let all = [], from = 0;
+  while (true){
+    let q = supabaseClient.from(table).select(columns).range(from, from + pageSize - 1);
+    if (orderCol) q = q.order(orderCol);
+    const res = await q;
+    if (res.error) throw res.error;
+    const rows = res.data || [];
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+async function cargarTodoDesdeServidor(){
+  if (!userCanOperative()) return;
+  const promises = [
+    fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
+    fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
+    fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
+    fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date")
+  ];
+  if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
+  else promises.push(Promise.resolve({data:null,error:null}));
+
+  const [members, attendanceRows, extras, firstTimeRows, alertSettings] = await Promise.all(promises);
+  if (alertSettings.error) throw alertSettings.error;
+
+  state.people = [];
+  state.membersById = {};
+  state.memberIdsByName = {};
+  state.activeFrom = {};
+  state.inactiveFrom = {};
+
+  members.forEach(m => {
+    state.people.push(m.name);
+    state.membersById[m.id] = m.name;
+    state.memberIdsByName[m.name] = m.id;
+    state.activeFrom[m.name] = m.active_from || "1900-01-01";
+    if (m.inactive_from) state.inactiveFrom[m.name] = m.inactive_from;
+  });
+
+  state.attendance = attendanceRows.map(r => ({
+    date: r.attendance_date,
+    member_id: r.member_id,
+    name: state.membersById[r.member_id] || null
+  })).filter(x => x.name);
+
+  state.dayExtras = {};
+  extras.forEach(e => {
+    state.dayExtras[e.attendance_date] = {
+      visitas: { count: e.visitas_count || 0, text: e.visitas_text || "" },
+      primeraVez: { count: e.primera_vez_count || 0, text: e.primera_vez_text || "" }
+    };
+  });
+
+  state.firstTimeByDate = {};
+  (firstTimeRows || []).forEach(r => {
+    const name = r.guest_name || state.membersById[r.member_id];
+    if (!name) return;
+    if (!state.firstTimeByDate[r.first_date]) state.firstTimeByDate[r.first_date] = [];
+    state.firstTimeByDate[r.first_date].push(name);
+  });
+  Object.keys(state.firstTimeByDate).forEach(date => {
+    state.firstTimeByDate[date] = [...new Set(state.firstTimeByDate[date])].sort((a,b) => a.localeCompare(b, "es"));
+  });
+
+  state.alertSettings = alertSettings.data || null;
+}
+
+function ensureDayExtras(date){
+  if (!state.dayExtras[date]) state.dayExtras[date] = { visitas:{count:0,text:""}, primeraVez:{count:0,text:""} };
+}
+function loadExtrasUI(date){
+  ensureDayExtras(date);
+  $("visitasCount").textContent = state.dayExtras[date].visitas.count || 0;
+  $("primeraVezCount").textContent = state.dayExtras[date].primeraVez.count || 0;
+  $("visitasTexto").value = state.dayExtras[date].visitas.text || "";
+  $("primeraVezTexto").value = state.dayExtras[date].primeraVez.text || "";
+}
+function loadFirstTimeNamesForDate(date){
+  if (!$("primeraVezNombres")) return;
+  const names = state.firstTimeByDate[date] || [];
+  $("primeraVezNombres").value = names.join("\n");
+}
+function clearFirstTimeNames(){
+  if ($("primeraVezNombres")) $("primeraVezNombres").value = "";
+}
+function parseNombresPrimeraVez(){
+  const raw = $("primeraVezNombres") ? ($("primeraVezNombres").value || "") : "";
+  return raw
+    .split("\n")
+    .map(x => x.trim())
+    .filter(x => x.length > 0)
+    .map(x => x.toUpperCase());
+}
+function syncPrimeraVezCountFromNames(){
+  if (!$("primeraVezNombres")) return;
+  const qty = parseNombresPrimeraVez().length;
+  const date = selectedDate();
+  ensureDayExtras(date);
+  if (qty > 0){
+    state.dayExtras[date].primeraVez.count = qty;
+    $("primeraVezCount").textContent = qty;
+  }
+}
+function dayRecords(date){ return state.attendance.filter(x => x.date === date).map(x => x.name); }
+function isMemberActiveOn(name, date){
+  const start = state.activeFrom[name] || "1900-01-01";
+  const end = state.inactiveFrom[name] || null;
+  if (date < start) return false;
+  if (end && date >= end) return false;
+  return true;
+}
+function cargarBorradorDelDia(){
+  const date = selectedDate();
+  draftAttendance = dayRecords(date).filter(n => isMemberActiveOn(n, date));
+  ensureDayExtras(date);
+  loadExtrasUI(date);
+  loadFirstTimeNamesForDate(date);
+  dirty = false;
+  updateSaveStatus();
+}
+let saveStatusTimeout = null;
+function updateSaveStatus(message=null){
+  if (saveStatusTimeout){
+    clearTimeout(saveStatusTimeout);
+    saveStatusTimeout = null;
+  }
+  if (message){
+    $("saveStatus").textContent = message;
+    $("saveStatus").style.color = "#86efac";
+    saveStatusTimeout = setTimeout(() => {
+      $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
+      $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+    }, 2500);
+    return;
+  }
+  $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
+  $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+}
+
+function setSaveFeedback(message="", type="success"){
+  const box = $("saveFeedback");
+  if (!box) return;
+  if (!message){
+    box.textContent = "";
+    box.className = "save-feedback";
+    return;
+  }
+  box.textContent = message;
+  box.className = `save-feedback show ${type}`;
+}
+
+function setSavingUI(isSaving){
+  const root = $("operativaView");
+  if (!root) return;
+  root.classList.toggle("saving", isSaving);
+
+  const controls = root.querySelectorAll('input, textarea, select, button');
+  controls.forEach(el => {
+    if (el.id === "btnLogout") return;
+    if (el.id === "tabOperativa" || el.id === "tabAdmin") return;
+    if (el.id === "btnSaveDay"){
+      el.disabled = isSaving;
+    } else {
+      el.disabled = isSaving;
     }
+  });
+}
+function isPresent(date, name){ return date === selectedDate() ? draftAttendance.includes(name) : state.attendance.some(x => x.date === date && x.name === name); }
+function togglePresence(name){
+  const i = draftAttendance.indexOf(name);
+  if (i >= 0) draftAttendance.splice(i, 1); else draftAttendance.push(name);
+  draftAttendance.sort((a,b)=>a.localeCompare(b,"es"));
+  dirty = true; updateSaveStatus(); renderPeople(); resumen();
+}
+function changeCounter(kind, delta){
+  const date = selectedDate();
+  ensureDayExtras(date);
+  const current = Number(state.dayExtras[date][kind].count || 0);
+  state.dayExtras[date][kind].count = Math.max(0, current + delta);
+  dirty = true; updateSaveStatus(); loadExtrasUI(date); resumen();
+}
+function updateExtraText(kind){
+  const date = selectedDate();
+  ensureDayExtras(date);
+  if (kind === "visitas") state.dayExtras[date].visitas.text = $("visitasTexto").value;
+  else state.dayExtras[date].primeraVez.text = $("primeraVezTexto").value;
+  dirty = true; updateSaveStatus();
+}
+function renderPeople(){
+  const date = selectedDate();
+  const query = $("search").value.trim().toLowerCase();
+  let people = state.people.filter(name => isMemberActiveOn(name, date));
+  if (query) people = people.filter(n => n.toLowerCase().includes(query));
+  people.sort((a,b)=>a.localeCompare(b,"es"));
 
-    async function guardarDia() {
-      const date = $("datePicker").value;
-      const shift = $("shiftPicker").value;
-      const presentes = state.attendance[date]?.[shift] || [];
+  $("peopleList").innerHTML = people.map(name => {
+    const present = isPresent(date, name);
+    return `<div class="person ${present ? "present" : ""}">
+      <div><strong>${escapeHtml(name)}</strong></div>
+      <div class="row-actions">
+        <span class="badge ${present ? "on" : ""}">${present ? "P" : "—"}</span>
+        <button type="button" data-name="${escapeHtml(name)}" class="toggle-presence">${present ? "Quitar" : "Marcar"}</button>
+      </div>
+    </div>`;
+  }).join("");
 
-      const { error } = await supabase.from('attendance').upsert({
-        fecha: date,
-        turno: shift,
-        presentes: presentes,
-        updated_at: new Date()
-      }, { onConflict: 'fecha,turno' });
+  document.querySelectorAll(".toggle-presence").forEach(btn => btn.addEventListener("click", ()=>togglePresence(btn.getAttribute("data-name"))));
 
-      if (error) {
-        alert("Error al guardar: " + error.message);
-      } else {
-        state.isDirty = false;
-        $("saveBar").classList.remove("visible");
-        alert("Día guardado correctamente.");
-      }
+  if (people.length === 0 && query){
+    $("searchEmptyState").classList.remove("hidden");
+    $("searchEmptyState").innerHTML = `No hay coincidencias. Podés agregar manualmente a <strong>${escapeHtml(query.toUpperCase())}</strong>.`;
+  } else {
+    $("searchEmptyState").classList.add("hidden");
+    $("searchEmptyState").innerHTML = "";
+  }
+}
+
+function ultimosTresMesesDesde(fechaStr){
+  const end = new Date(fechaStr + "T00:00:00");
+  const start = new Date(end); start.setMonth(start.getMonth()-3);
+  return {start,end};
+}
+function buildMonthStats(month, year){
+  const prefix = `${String(year)}-${String(month).padStart(2,"0")}-`;
+  const totalsByDate = {};
+  state.attendance.forEach(x => { if (x.date.startsWith(prefix)) totalsByDate[x.date] = (totalsByDate[x.date] || 0) + 1; });
+  Object.keys(state.dayExtras).forEach(date => {
+    if (date.startsWith(prefix)) totalsByDate[date] = (totalsByDate[date] || 0) + Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
+  });
+  const dates = Object.keys(totalsByDate).length;
+  const total = Object.values(totalsByDate).reduce((a,b)=>a+b,0);
+  return { total, dates, avg: dates ? (total/dates).toFixed(1) : "0" };
+}
+function safePct(num, den){ return den ? (num/den)*100 : 0; }
+
+function resumen(){
+  const fecha = selectedDate();
+  ensureDayExtras(fecha);
+  const totalDia = draftAttendance.length + Number(state.dayExtras[fecha].visitas.count || 0) + Number(state.dayExtras[fecha].primeraVez.count || 0);
+  $("kpiTotalDia").textContent = totalDia;
+
+  const rango = ultimosTresMesesDesde(fecha);
+  const inRange = state.attendance.filter(x => {
+    const d = new Date(x.date + "T00:00:00");
+    return d >= rango.start && d <= rango.end;
+  });
+
+  const byDate = {};
+  inRange.forEach(x => byDate[x.date] = (byDate[x.date] || 0) + 1);
+  Object.keys(byDate).forEach(date => {
+    ensureDayExtras(date);
+    byDate[date] += Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
+  });
+
+  const byPerson = {};
+  inRange.forEach(x => byPerson[x.name] = (byPerson[x.name] || 0) + 1);
+
+  const datesWed = {}, datesSun = {};
+  Object.keys(byDate).forEach(date => {
+    const day = new Date(date + "T00:00:00").getDay();
+    if (day === 3) datesWed[date] = byDate[date];
+    if (day === 0) datesSun[date] = byDate[date];
+  });
+  const avg = obj => {
+    const vals = Object.values(obj);
+    return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
+  };
+
+  $("kpiAvgWed").textContent = avg(datesWed).toFixed(1);
+  $("kpiAvgSun").textContent = avg(datesSun).toFixed(1);
+  $("kpiAvgGen").textContent = avg(byDate).toFixed(1);
+
+  $("topTable").innerHTML = Object.entries(byPerson).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],'es')).slice(0,20)
+    .map(([name,qty]) => `<tr><td>${escapeHtml(name)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
+
+  $("dateTable").innerHTML = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30)
+    .map(([date,qty]) => `<tr><td>${formatDate(date)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
+
+  const monthA = $("compMonthA").value;
+  const yearA = $("compYearA").value;
+  const monthB = $("compMonthB").value;
+  const yearB = $("compYearB").value;
+  const statsA = buildMonthStats(monthA, yearA);
+  const statsB = buildMonthStats(monthB, yearB);
+  $("yearTable").innerHTML = `<tr><td>${MONTH_NAMES[String(monthA).padStart(2,"0")]} ${yearA}</td><td>${statsA.total}</td><td>${statsA.dates}</td><td>${statsA.avg}</td></tr>
+<tr><td>${MONTH_NAMES[String(monthB).padStart(2,"0")]} ${yearB}</td><td>${statsB.total}</td><td>${statsB.dates}</td><td>${statsB.avg}</td></tr>`;
+
+  if (userCanAdmin()) renderAdminAnalytics();
+}
+
+function getMeetingTotalsSorted(){
+  const totals = {};
+  state.attendance.forEach(x => totals[x.date] = (totals[x.date] || 0) + 1);
+  Object.keys(state.dayExtras).forEach(date => {
+    totals[date] = (totals[date] || 0) + Number(state.dayExtras[date]?.visitas?.count || 0) + Number(state.dayExtras[date]?.primeraVez?.count || 0);
+  });
+  return Object.entries(totals).sort((a,b)=>a[0].localeCompare(b[0]));
+}
+function nucleusShare(){
+  const end = new Date(selectedDate()+"T00:00:00");
+  const start = new Date(end); start.setMonth(start.getMonth()-3);
+  const counts = {}; let total = 0;
+  state.attendance.forEach(r => {
+    const dt = new Date(r.date + "T00:00:00");
+    if (dt >= start && dt <= end){ counts[r.name] = (counts[r.name] || 0) + 1; total++; }
+  });
+  const top10 = Object.values(counts).sort((a,b)=>b-a).slice(0,10).reduce((a,b)=>a+b,0);
+  return safePct(top10, total);
+}
+function retentionEstimate(){
+  const end = new Date(selectedDate()+"T00:00:00");
+  const aStart = new Date(end); aStart.setMonth(aStart.getMonth()-2);
+  const aEnd = new Date(end); aEnd.setMonth(aEnd.getMonth()-1);
+  const bStart = new Date(end); bStart.setMonth(bStart.getMonth()-1);
+  const setA = new Set(), setB = new Set();
+  state.attendance.forEach(r => {
+    const dt = new Date(r.date + "T00:00:00");
+    if (dt >= aStart && dt < aEnd) setA.add(r.name);
+    if (dt >= bStart && dt <= end) setB.add(r.name);
+  });
+  const intersection = [...setA].filter(x => setB.has(x)).length;
+  return safePct(intersection, setA.size);
+}
+function loadAlertSettingsUI(){
+  const s = state.alertSettings; if (!s) return;
+  $("alertLowAttendance").value = s.low_attendance_threshold ?? 20;
+  $("alertTrendDrop").value = s.trend_drop_percent ?? 15;
+  $("alertFirstReturnWeeks").value = s.first_time_return_weeks ?? 4;
+  $("alertInactiveWeeks").value = s.inactive_member_weeks ?? 8;
+  $("alertVisitsSpike").value = s.visits_spike_threshold ?? 5;
+}
+
+function isoDaysAgo(baseIso, days){
+  const d = new Date(baseIso + "T00:00:00");
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0,10);
+}
+function isoMonthsAgo(baseIso, months){
+  const d = new Date(baseIso + "T00:00:00");
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0,10);
+}
+function getReferenceDate(){
+  return selectedDate() || new Date().toISOString().slice(0,10);
+}
+function getAttendanceByMember(){
+  const map = {};
+  state.attendance.forEach(r => {
+    if (!map[r.name]) map[r.name] = [];
+    map[r.name].push(r.date);
+  });
+  Object.keys(map).forEach(name => map[name].sort());
+  return map;
+}
+function getMonthBounds(isoDate){
+  const d = new Date(isoDate + "T00:00:00");
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  const last = new Date(next.getTime() - 86400000);
+  return {
+    start: first.toISOString().slice(0,10),
+    end: last.toISOString().slice(0,10),
+    prefix: first.toISOString().slice(0,7)
+  };
+}
+function getReportRange(){
+  const refDate = getReferenceDate();
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  let from = $("reportDateFrom")?.value || defaultFrom;
+  let to = $("reportDateTo")?.value || refDate;
+  if (from > to) [from, to] = [to, from];
+  return {from, to, refDate};
+}
+function getFirstTimersInRange(from, to){
+  const rows = [];
+  Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
+    if (date >= from && date <= to){
+      names.forEach(name => rows.push({name, date}));
     }
-
-    // --- GESTIÓN DE MIEMBROS (FICHA) ---
-    function abrirFicha(id) {
-      const m = id ? state.members.find(x => String(x.id) === String(id)) : null;
-      
-      $("editId").value = m ? m.id : '';
-      $("editNombre").value = m ? m.nombre : '';
-      $("editTelefono").value = m ? m.telefono || '' : '';
-      $("editDireccion").value = m ? m.direccion || '' : '';
-      $("editNacimiento").value = m ? m.fecha_nacimiento || '' : '';
-      $("editIngreso").value = m ? m.fecha_ingreso || '' : '';
-      $("editEstado").value = m ? m.estado : 'ACTIVO';
-      
-      $("modalTitle").innerText = m ? 'Editar Miembro' : 'Nuevo Miembro';
-      $("btnDeleteMember").classList.toggle('hidden', !m);
-      $("memberModal").classList.add("active");
+  });
+  rows.sort((a,b) => a.name.localeCompare(b.name, "es") || a.date.localeCompare(b.date));
+  return rows;
+}
+function getRecurringActiveNames(from, to){
+  const byMember = getAttendanceByMember();
+  const rows = [];
+  Object.entries(byMember).forEach(([name, dates]) => {
+    const count = dates.filter(d => d >= from && d <= to).length;
+    if (count >= 9){
+      rows.push({name, detail: `${count} asistencias en el período`});
     }
-
-    async function salvarMiembro() {
-      const id = $("editId").value;
-      const payload = {
-        nombre: $("editNombre").value.trim().toUpperCase(),
-        telefono: $("editTelefono").value.trim(),
-        direccion: $("editDireccion").value.trim(),
-        fecha_nacimiento: $("editNacimiento").value || null,
-        fecha_ingreso: $("editIngreso").value || null,
-        estado: $("editEstado").value
-      };
-
-      if (!payload.nombre) return alert("El nombre es obligatorio");
-
-      let error;
-      if (id) {
-        const res = await supabase.from('members').update(payload).eq('id', id);
-        error = res.error;
-      } else {
-        const res = await supabase.from('members').insert([payload]);
-        error = res.error;
-      }
-
-      if (error) alert("Error: " + error.message);
-      else {
-        $("memberModal").classList.remove("active");
-        await initData();
-      }
+  });
+  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+function getInactiveRecentNames(from, to){
+  const cutoff = isoDaysAgo(to, 21);
+  const byMember = getAttendanceByMember();
+  const rows = [];
+  Object.entries(byMember).forEach(([name, dates]) => {
+    const relevant = dates.filter(d => d <= to);
+    if (!relevant.length) return;
+    const last = relevant[relevant.length - 1];
+    const hadPrevious = relevant.some(d => d >= from && d < cutoff);
+    const hadRecent = relevant.some(d => d >= cutoff && d <= to);
+    if (hadPrevious && !hadRecent){
+      rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
     }
-
-    async function eliminarMiembro() {
-      if (!confirm("¿Seguro que querés eliminar a este miembro? Esta acción no se puede deshacer.")) return;
-      const id = $("editId").value;
-      const { error } = await supabase.from('members').delete().eq('id', id);
-      if (error) alert(error.message);
-      else {
-        $("memberModal").classList.remove("active");
-        await initData();
-      }
+  });
+  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+function getDroppedNames(from, to){
+  const cutoff = isoDaysAgo(to, 56);
+  const byMember = getAttendanceByMember();
+  const rows = [];
+  Object.entries(byMember).forEach(([name, dates]) => {
+    const relevant = dates.filter(d => d <= to);
+    if (!relevant.length) return;
+    const last = relevant[relevant.length - 1];
+    const hadInRange = relevant.some(d => d >= from && d <= to);
+    if (!hadInRange && last < cutoff){
+      rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
     }
-
-    // --- UI & EVENTOS ---
-    function attachEventListeners() {
-      $("datePicker").onchange = renderPeople;
-      $("shiftPicker").onchange = renderPeople;
-      $("search").oninput = renderPeople;
-      $("btnSaveDay").onclick = guardarDia;
-      $("btnDiscard").onclick = () => { if(confirm("¿Descartar cambios?")) location.reload(); };
-      $("btnNewMember").onclick = () => abrirFicha(null);
-      $("btnModalCancel").onclick = () => $("memberModal").classList.remove("active");
-      $("btnModalSave").onclick = salvarMiembro;
-      $("btnDeleteMember").onclick = eliminarMiembro;
-
-      // Navegación Tabs
-      document.querySelectorAll(".tab").forEach(t => {
-        t.onclick = () => {
-          document.querySelectorAll(".tab, section").forEach(el => el.classList.remove('active', 'hidden'));
-          t.classList.add('active');
-          const target = t.dataset.tab;
-          
-          if(target === 'asistencia') {
-            $("tab-asistencia").classList.remove('hidden');
-            $("tab-reportes").classList.add('hidden');
-          } else if(target === 'reportes') {
-            $("tab-asistencia").classList.add('hidden');
-            $("tab-reportes").classList.remove('hidden');
-            renderChart();
-          }
-          // Nota: La tab "Miembros" aquí simplemente filtra la lista principal o podrías expandirla.
-        };
-      });
-    }
-
-    function updateStats() {
-      const date = $("datePicker").value;
-      const shift = $("shiftPicker").value;
-      const presentes = state.attendance[date]?.[shift]?.length || 0;
-      const total = state.members.filter(m => m.estado === 'ACTIVO').length;
-      
-      $("stat-presentes").innerText = presentes;
-      $("stat-total").innerText = total;
-    }
-
-    // --- GRÁFICO (Opcional pero potente) ---
-    let myChart = null;
-    function renderChart() {
-      const ctx = $("attendanceChart").getContext('2d');
-      if (myChart) myChart.destroy();
-
-      const dates = Object.keys(state.attendance).sort().slice(-7); // Últimos 7 días
-      const data = dates.map(d => {
-        const shifts = state.attendance[d];
-        // Sumar todos los turnos del día (o elegir uno)
-        return Object.values(shifts).reduce((acc, curr) => acc + curr.length, 0);
-      });
-
-      myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: dates,
-          datasets: [{
-            label: 'Asistencia Total por Día',
-            data: data,
-            borderColor: '#3b82f6',
-            tension: 0.3,
-            fill: true,
-            backgroundColor: 'rgba(59, 130, 246, 0.1)'
-          }]
-        },
-        options: {
-          scales: { y: { beginAtZero: true, grid: { color: '#334155' } }, x: { grid: { display: false } } },
-          plugins: { legend: { display: false } }
+  });
+  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+function getFirstTimeNoReturnInRange(from, to){
+  const byMember = getAttendanceByMember();
+  const rows = [];
+  Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
+    if (date >= from && date <= to){
+      names.forEach(name => {
+        const laterReturns = (byMember[name] || []).filter(d => d > date && d <= to);
+        if (!laterReturns.length){
+          rows.push({name, detail: `Primera vez: ${formatDate(date)}`});
         }
       });
     }
+  });
+  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+function getTopAttendees(from, to){
+  const byMember = getAttendanceByMember();
+  const rows = [];
+  Object.entries(byMember).forEach(([name, dates]) => {
+    const count = dates.filter(d => d >= from && d <= to).length;
+    if (count > 0){
+      rows.push({name, count});
+    }
+  });
+  rows.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+function renderReport(title1, title2, rows, formatter){
+  $("reportCol1").textContent = title1;
+  $("reportCol2").textContent = title2;
+  const body = $("reportTableBody");
+  if (!rows.length){
+    body.innerHTML = '<tr><td colspan="2" class="hint">Sin resultados para el criterio elegido.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => formatter(r)).join("");
+}
+function runReport(type){
+  const {from, to} = getReportRange();
 
-  </script>
+  if (type === "recurring"){
+    const rows = getRecurringActiveNames(from, to);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+    return;
+  }
+  if (type === "inactive"){
+    const rows = getInactiveRecentNames(from, to);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+    return;
+  }
+  if (type === "dropped"){
+    const rows = getDroppedNames(from, to);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+    return;
+  }
+  if (type === "firstMonth"){
+    const rows = getFirstTimersInRange(from, to);
+    renderReport("Nombre", "Primera vez", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${formatDate(r.date)}</td></tr>`);
+    return;
+  }
+  if (type === "noReturn"){
+    const rows = getFirstTimeNoReturnInRange(from, to);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+    return;
+  }
+  if (type === "top"){
+    const rows = getTopAttendees(from, to);
+    renderReport("Nombre", "Asistencias", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td></tr>`);
+    return;
+  }
+}
+
+function renderAlerts(){
+  const c = $("alertsContainer");
+  const s = state.alertSettings || {low_attendance_threshold:20, trend_drop_percent:15, first_time_return_weeks:4, inactive_member_weeks:8, visits_spike_threshold:5};
+  const alerts = [];
+  const today = selectedDate();
+  const todayTotal = Number($("kpiTotalDia").textContent || 0);
+  if (todayTotal && todayTotal < Number(s.low_attendance_threshold || 20)) alerts.push({title:"Asistencia baja", text:"La reunión del día quedó por debajo del umbral.", level:"bad"});
+  const meetings = getMeetingTotalsSorted();
+  const last8 = meetings.slice(-8).map(x=>x[1]), prev8 = meetings.slice(-16,-8).map(x=>x[1]);
+  if (last8.length && prev8.length){
+    const avgLast = last8.reduce((a,b)=>a+b,0)/last8.length;
+    const avgPrev = prev8.reduce((a,b)=>a+b,0)/prev8.length;
+    const drop = avgPrev ? ((avgPrev-avgLast)/avgPrev)*100 : 0;
+    if (drop >= Number(s.trend_drop_percent || 15)) alerts.push({title:"Caída de tendencia", text:`La caída reciente fue de ${drop.toFixed(1)}%.`, level:"warntext"});
+  }
+  const spikeVisits = Number(state.dayExtras[today]?.visitas?.count || 0);
+  if (spikeVisits >= Number(s.visits_spike_threshold || 5)) alerts.push({title:"Pico de visitas", text:`Las visitas del día alcanzaron ${spikeVisits}.`, level:"ok"});
+  c.innerHTML = alerts.length ? alerts.map(a => `<div class="alert-card"><div class="${a.level}"><strong>${a.title}</strong></div><div class="hint" style="margin-top:6px;">${a.text}</div></div>`).join("") : `<div class="hint">Sin alertas activas por ahora.</div>`;
+}
+
+function renderAdminAnalytics(){
+  const refDate = getReferenceDate();
+  const meetings = getMeetingTotalsSorted().filter(([d]) => d <= refDate);
+  const last8 = meetings.slice(-8);
+  const avg4w = last8.length ? last8.reduce((a, [,v]) => a+v, 0) / last8.length : 0;
+  $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
+
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  const recurringRows = getRecurringActiveNames(defaultFrom, refDate);
+  const firstMonthRows = getFirstTimersInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
+  const noReturnRows = getFirstTimeNoReturnInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
+
+  $("adminKpiRecurring").textContent = recurringRows.length;
+  $("adminKpiFirstMonth").textContent = firstMonthRows.length;
+
+  const returnRate = firstMonthRows.length ? ((firstMonthRows.length - noReturnRows.length) / firstMonthRows.length) * 100 : 0;
+  $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
+
+  const monthBounds = getMonthBounds(refDate);
+  const thisMonthTotal = Object.entries(Object.fromEntries(meetings)).filter(([d]) => d >= monthBounds.start && d <= monthBounds.end).reduce((a,[,v])=>a+v,0);
+  const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d >= monthBounds.start && d <= monthBounds.end).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
+  $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
+
+  const inactiveRows = getInactiveRecentNames(defaultFrom, refDate);
+  const droppedRows = getDroppedNames(defaultFrom, refDate);
+
+  $("adminSummaryTable").innerHTML = [
+    ["Recurrentes activos (≥ 9 asistencias / 3 meses)", recurringRows.length],
+    ["Inactivos recientes (sin asistir 3 semanas)", inactiveRows.length],
+    ["Dejaron de concurrir (> 8 semanas)", droppedRows.length],
+    ["Primeras veces del mes", firstMonthRows.length],
+    ["Primeras veces sin retorno dentro del mes", noReturnRows.length],
+    ["Peso primeras veces sobre total mes", `${safePct(firstMonthRows.length, thisMonthTotal).toFixed(1)}%`],
+    ["Concentración núcleo duro (top 10 / total 3 meses)", nucleusShare().toFixed(1) + "%"],
+    ["Tasa de retención estimada", retentionEstimate().toFixed(1) + "%"]
+  ].map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+
+  renderAlerts();
+  loadAlertSettingsUI();
+}
+
+function calcularAdminKPIs(){ renderAdminAnalytics(); }
+
+async function saveAlertSettings(){
+  if (!userCanAdmin()) return;
+  const payload = {
+    id: state.alertSettings?.id || undefined,
+    low_attendance_threshold: Number($("alertLowAttendance").value || 20),
+    trend_drop_percent: Number($("alertTrendDrop").value || 15),
+    first_time_return_weeks: Number($("alertFirstReturnWeeks").value || 4),
+    inactive_member_weeks: Number($("alertInactiveWeeks").value || 8),
+    visits_spike_threshold: Number($("alertVisitsSpike").value || 5),
+    updated_at: new Date().toISOString(),
+    updated_by: currentProfile?.id || null
+  };
+  const res = await supabaseClient.from("alert_settings").upsert(payload).select().single();
+  if (res.error){ alert("No pude guardar parámetros de alertas: " + res.error.message); return; }
+  state.alertSettings = res.data;
+  renderAdminAnalytics();
+  alert("Parámetros guardados.");
+}
+function actualizarSugerenciasInactivar(){
+  const q = normalizeName($("removeMemberSearch").value).toLowerCase();
+  const box = $("memberSuggestionsBox");
+  if (!q){ box.style.display = "none"; box.innerHTML = ""; return; }
+  const fecha = selectedDate();
+  const items = state.people.filter(name => isMemberActiveOn(name, fecha)).filter(name => name.toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b,"es")).slice(0,12);
+  if (!items.length){ box.style.display = "none"; box.innerHTML = ""; return; }
+  box.style.display = "block";
+  box.innerHTML = items.map(name => `<div class="suggestion-item" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`).join("");
+  box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", ()=>{ $("removeMemberSearch").value = el.getAttribute("data-name"); box.style.display="none"; box.innerHTML=""; }));
+}
+async function agregarNuevoMiembro(){
+  if (!userCanOperative()) return;
+  const name = normalizeDisplayName($("newMemberName").value);
+  const date = selectedDate();
+  if (!name){ alert("Ingresá un nombre válido."); return; }
+  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  const res = existing
+    ? await supabaseClient.from("members").update({ active_from: date, inactive_from: null }).eq("name", existing)
+    : await supabaseClient.from("members").insert({ name, active_from: date });
+  if (res.error){ alert("No pude guardar el miembro: " + res.error.message); return; }
+  $("newMemberName").value = "";
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); if (!draftAttendance.includes(name)) draftAttendance.push(name); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
+}
+async function inactivarMiembro(){
+  if (!userCanOperative()) return;
+  const name = normalizeName($("removeMemberSearch").value);
+  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  if (!existing){ alert("No encontré ese miembro."); return; }
+  const res = await supabaseClient.from("members").update({ inactive_from: selectedDate() }).eq("name", existing);
+  if (res.error){ alert("No pude inactivar el miembro: " + res.error.message); return; }
+  $("removeMemberSearch").value = "";
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
+}
+async function guardarDia(){
+  if (!userCanOperative()) return;
+
+  const btn = $("btnSaveDay");
+  const originalText = btn ? btn.textContent : "Guardar día";
+
+  setSaveFeedback("", "success");
+  setSavingUI(true);
+
+  if (btn){
+    btn.textContent = "Guardando...";
+  }
+
+  const date = selectedDate();
+  ensureDayExtras(date);
+
+  try {
+    const names = [...new Set(draftAttendance)].filter(Boolean);
+    const nombresPrimera = [...new Set(parseNombresPrimeraVez())].filter(Boolean);
+
+    if (nombresPrimera.length){
+      state.dayExtras[date].primeraVez.count = nombresPrimera.length;
+      $("primeraVezCount").textContent = nombresPrimera.length;
+    }
+
+    let membersData = [];
+    if (names.length){
+      const membersRes = await supabaseClient
+        .from("members")
+        .select("id,name")
+        .in("name", names);
+
+      if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
+      membersData = membersRes.data || [];
+    }
+
+    const nameToId = {};
+    membersData.forEach(m => {
+      nameToId[m.name] = m.id;
+    });
+
+    const delAttendance = await supabaseClient
+      .from("attendance_records")
+      .delete()
+      .eq("attendance_date", date);
+
+    if (delAttendance.error) throw new Error("No pude limpiar asistencias del día: " + delAttendance.error.message);
+
+    const attendanceRows = names
+      .filter(name => isMemberActiveOn(name, date) && nameToId[name])
+      .map(name => ({
+        attendance_date: date,
+        member_id: nameToId[name]
+      }));
+
+    if (attendanceRows.length){
+      const insAttendance = await supabaseClient
+        .from("attendance_records")
+        .insert(attendanceRows);
+
+      if (insAttendance.error) throw new Error("No pude guardar asistencias: " + insAttendance.error.message);
+    }
+
+    const saveExtras = await supabaseClient
+      .from("day_extras")
+      .upsert({
+        attendance_date: date,
+        visitas_count: Number(state.dayExtras[date].visitas.count || 0),
+        visitas_text: state.dayExtras[date].visitas.text || "",
+        primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
+        primera_vez_text: state.dayExtras[date].primeraVez.text || ""
+      }, { onConflict: "attendance_date" });
+
+    if (saveExtras.error) throw new Error("No pude guardar visitas / 1ra. vez: " + saveExtras.error.message);
+
+    const deleteTracking = await supabaseClient
+      .from("first_time_tracking")
+      .delete()
+      .eq("first_date", date);
+
+    if (deleteTracking.error) throw new Error("No pude actualizar primeras veces del día: " + deleteTracking.error.message);
+
+    if (nombresPrimera.length){
+      const trackingRows = nombresPrimera.map(name => ({
+        guest_name: name,
+        guest_name_normalized: normalizeComparableName(name),
+        first_date: date,
+        returned: false
+      }));
+
+      const insTracking = await supabaseClient
+        .from("first_time_tracking")
+        .insert(trackingRows);
+
+      if (insTracking.error) throw new Error("No pude guardar primeras veces: " + insTracking.error.message);
+    }
+
+    const presentComparableNames = [...new Set(names.map(normalizeComparableName))];
+
+    if (presentComparableNames.length){
+      const unresolved = await supabaseClient
+        .from("first_time_tracking")
+        .select("id, guest_name_normalized, first_date, returned")
+        .eq("returned", false)
+        .in("guest_name_normalized", presentComparableNames);
+
+      if (unresolved.error) throw new Error("No pude consultar retorno automático: " + unresolved.error.message);
+
+      for (const row of (unresolved.data || [])){
+        if (row.first_date !== date){
+          const upd = await supabaseClient
+            .from("first_time_tracking")
+            .update({
+              returned: true,
+              return_date: date
+            })
+            .eq("id", row.id);
+
+          if (upd.error) throw new Error("No pude marcar retorno automático: " + upd.error.message);
+        }
+      }
+    }
+
+    state.attendance = state.attendance.filter(x => x.date !== date);
+    for (const name of names){
+      if (nameToId[name]){
+        state.attendance.push({
+          date,
+          member_id: nameToId[name],
+          name
+        });
+      }
+    }
+
+    state.firstTimeByDate[date] = [...nombresPrimera];
+
+    dirty = false;
+    loadExtrasUI(date);
+    loadFirstTimeNamesForDate(date);
+    renderAll(); calcularAdminKPIs();
+    updateSaveStatus("Día guardado correctamente");
+    setSaveFeedback("Los cambios se guardaron correctamente.", "success");
+
+  } catch (err) {
+    console.error("guardarDia error:", err);
+    setSaveFeedback(err.message || "Ocurrió un error al guardar.", "error");
+  } finally {
+    setSavingUI(false);
+    if (btn){
+      btn.textContent = originalText;
+    }
+  }
+}
+function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
+async function logout(){ await supabaseClient.auth.signOut(); currentSession = null; currentProfile = null; showLogin(); }
+let __panelEvaluatingSession = false;
+async function evaluateSession(){
+  if (__panelEvaluatingSession) return;
+  __panelEvaluatingSession = true;
+
+  try {
+    const sessionRes = await supabaseClient.auth.getSession();
+    currentSession = sessionRes.data.session;
+
+    if (!currentSession){
+      showLogin();
+      setStatus("Sin sesión", "warntext");
+      return;
+    }
+
+    try {
+      currentProfile = await fetchProfile();
+    } catch (e) {
+      console.error("fetchProfile error:", e);
+      showLogin();
+      $("loginStatus").textContent = "Error leyendo perfil";
+      $("loginStatus").className = "hint bad";
+      return;
+    }
+
+    if (!currentProfile || !currentProfile.is_active){
+      showLogin();
+      $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
+      $("loginStatus").className = "hint bad";
+      return;
+    }
+
+    $("sessionEmail").textContent = currentProfile.email;
+    $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
+
+    showApp();
+
+    if (userCanAdmin()) {
+      $("tabAdmin").classList.remove("hidden");
+    } else {
+      $("tabAdmin").classList.add("hidden");
+      switchTab("operativa");
+    }
+
+    await cargarTodoDesdeServidor();
+    cargarBorradorDelDia();
+    renderAll(); calcularAdminKPIs();
+    setStatus("Conectado correctamente", "ok");
+  } finally {
+    __panelEvaluatingSession = false;
+  }
+}
+function wireEvents(){
+  $("btnLoginPassword").addEventListener("click", loginWithPassword);
+  $("btnRegisterPassword").addEventListener("click", registerWithPassword);
+  $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
+  $("btnLogout").addEventListener("click", logout);
+  $("btnReload").addEventListener("click", async ()=>{ await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
+  $("btnExport").addEventListener("click", exportarReporteHTML);
+  $("btnToday").addEventListener("click", ()=>{ $("fecha").value = new Date().toISOString().slice(0,10); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
+  $("btnSaveDay").addEventListener("click", guardarDia);
+  $("btnAddMember").addEventListener("click", agregarNuevoMiembro);
+  $("btnDeactivateMember").addEventListener("click", inactivarMiembro);
+  $("btnVisitasMinus").addEventListener("click", ()=>changeCounter("visitas",-1));
+  $("btnVisitasPlus").addEventListener("click", ()=>changeCounter("visitas",1));
+  $("btnPrimeraMinus").addEventListener("click", ()=>changeCounter("primeraVez",-1));
+  $("btnPrimeraPlus").addEventListener("click", ()=>changeCounter("primeraVez",1));
+  $("visitasTexto").addEventListener("input", ()=>updateExtraText("visitas"));
+  $("primeraVezTexto").addEventListener("input", ()=>updateExtraText("primeraVez"));
+  if ($("primeraVezNombres")) $("primeraVezNombres").addEventListener("input", ()=>{
+    syncPrimeraVezCountFromNames();
+    dirty = true;
+    updateSaveStatus();
+    resumen();
+  });
+  $("search").addEventListener("input", renderPeople);
+  $("fecha").addEventListener("change", ()=>{ cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
+  $("compMonthA").addEventListener("change", resumen);
+  $("compYearA").addEventListener("change", resumen);
+  $("compMonthB").addEventListener("change", resumen);
+  $("compYearB").addEventListener("change", resumen);
+  $("removeMemberSearch").addEventListener("input", actualizarSugerenciasInactivar);
+  $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
+  $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
+  $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
+  $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
+  $("btnReportRecurring").addEventListener("click", () => runReport("recurring"));
+  $("btnReportInactive").addEventListener("click", () => runReport("inactive"));
+  $("btnReportDropped").addEventListener("click", () => runReport("dropped"));
+  $("btnReportFirstMonth").addEventListener("click", () => runReport("firstMonth"));
+  $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
+  $("btnReportTop").addEventListener("click", () => runReport("top"));
+  $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
+  $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
+    document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
+}
+function initializeDefaults(){
+  $("fecha").value = new Date().toISOString().slice(0,10);
+  const mm = $("fecha").value.slice(5,7);
+  const yy = $("fecha").value.slice(0,4);
+  $("compMonthA").value = mm;
+  $("compYearA").value = "2025";
+  $("compMonthB").value = mm;
+  $("compYearB").value = yy;
+  $("reportDateTo").value = $("fecha").value;
+  $("reportDateFrom").value = isoMonthsAgo($("fecha").value, 3);
+  switchTab("operativa");
+}
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
+async function initialize(){
+  if (window.__panelInitialized) return;
+  window.__panelInitialized = true;
+
+  await initSupabase();
+  wireEvents();
+  initializeDefaults();
+
+  try {
+    await evaluateSession();
+  } catch (e) {
+    console.error("initialize error:", e);
+  }
+}
+document.addEventListener("DOMContentLoaded", initialize);
+
+function calcularAdminKPIs(){
+  try{
+    const today = new Date();
+    const now = today.toISOString().slice(0,10);
+
+    const fourWeeksAgo = new Date(today);
+    fourWeeksAgo.setDate(today.getDate()-28);
+    const start4w = fourWeeksAgo.toISOString().slice(0,10);
+
+    const last4w = state.attendance.filter(x => x.date >= start4w && x.date <= now);
+    const total4w = last4w.length;
+    const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
+    const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
+    $("adminKpiAvg4w").textContent = avg4w;
+
+    const month = now.slice(0,7);
+    let firstMonth = 0;
+    Object.keys(state.firstTimeByDate).forEach(d=>{
+      if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
+    });
+    $("adminKpiFirstMonth").textContent = firstMonth;
+
+    const names = [...new Set(state.attendance.map(x=>x.name))];
+    $("adminKpiRecurring").textContent = names.length;
+
+    let inactive = 0;
+    names.forEach(n=>{
+      const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
+      if (last && last < start4w) inactive++;
+    });
+    $("adminKpiInactiveRecent").textContent = inactive;
+
+    let totalFirst = 0;
+    let returned = 0;
+    Object.values(state.firstTimeByDate).forEach(arr=>{
+      totalFirst += arr.length;
+      arr.forEach(n=>{
+        const count = state.attendance.filter(x=>x.name===n).length;
+        if (count>1) returned++;
+      });
+    });
+    const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
+    $("adminKpiReturnRate").textContent = rate+"%";
+  }catch(e){
+    console.error("KPIs error", e);
+  }
+}
+
+</script>
 </body>
 </html>
