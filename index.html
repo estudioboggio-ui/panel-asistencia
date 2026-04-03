@@ -660,11 +660,16 @@ function getSelectedCategories(){
   return Array.from(document.querySelectorAll('.category-checkbox:checked')).map(chk => chk.value);
 }
 
-function setSelectedCategories(rawValue){
-  const selected = String(rawValue || "")
+function normalizeCategoryValue(rawValue){
+  if (Array.isArray(rawValue)) return rawValue.map(x => String(x).trim()).filter(Boolean);
+  return String(rawValue || "")
     .split(',')
     .map(x => x.trim())
     .filter(Boolean);
+}
+
+function setSelectedCategories(rawValue){
+  const selected = normalizeCategoryValue(rawValue);
   document.querySelectorAll('.category-checkbox').forEach(chk => {
     chk.checked = selected.includes(chk.value);
   });
@@ -688,7 +693,7 @@ function abrirFicha(id) {
     $("editPhone").value = member.phone || "";
     $("editBirth").value = member.birth_date || "";
     $("editAddress").value = member.address || "";
-    setSelectedCategories(member.category || "");
+    setSelectedCategories(member.category);
 
     const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
@@ -703,14 +708,22 @@ async function guardarCambiosMiembro() {
     const id = $("editMemberId").value;
     const payload = {
         name: normalizeDisplayName($("editName").value),
-        phone: $("editPhone").value,
+        phone: $("editPhone").value.trim(),
         birth_date: $("editBirth").value || null,
-        address: $("editAddress").value,
+        address: $("editAddress").value.trim(),
         category: getSelectedCategories().join(", ")
     };
 
     const { error } = await supabaseClient.from("members").update(payload).eq("id", id);
-    if (error) { alert("Error al actualizar: " + error.message); return; }
+    if (error) {
+      const msg = String(error.message || "");
+      if (msg.includes("Could not find the 'category' column")) {
+        alert("Error al actualizar: falta la columna category en la tabla members. Ejecutá en Supabase: alter table public.members add column if not exists category text;");
+      } else {
+        alert("Error al actualizar: " + msg);
+      }
+      return;
+    }
     
     alert("Datos actualizados correctamente.");
     cerrarModal();
