@@ -66,8 +66,18 @@
   /* ESTILOS NUEVOS PARA EL MODAL */
   .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:1000; }
   .modal-content { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; width:90%; max-width:600px; max-height:90vh; overflow-y:auto; }
-  .clickable-name { cursor:pointer; color:var(--teal); text-decoration:underline; }
-  .clickable-name:hover { color:var(--text); }
+  .clickable-name { cursor:pointer; color:#ffffff; text-decoration:none; flex:1; min-width:0; white-space:normal; overflow-wrap:anywhere; }
+  .clickable-name strong { color:#ffffff; font-weight:700; }
+  .clickable-name:hover { color:#ffffff; text-decoration:none; }
+  .person { align-items:flex-start; }
+  .person .row-actions { flex-shrink:0; }
+  .multi-select { border:1px solid var(--line); border-radius:12px; background:#0b1220; overflow:hidden; }
+  .multi-select summary { list-style:none; cursor:pointer; padding:10px 12px; user-select:none; }
+  .multi-select summary::-webkit-details-marker { display:none; }
+  .multi-select[open] summary { border-bottom:1px solid rgba(51,65,85,.5); }
+  .checkbox-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; padding:12px; }
+  .checkbox-item { display:flex; align-items:center; gap:8px; font-size:14px; }
+  .checkbox-item input[type="checkbox"] { width:16px; height:16px; margin:0; accent-color:#16a34a; }
 
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters{grid-template-columns:1fr}}
@@ -181,7 +191,7 @@
           </div>
         </div>
 
-        <div class="split">
+        <div class="split" style="grid-template-columns:repeat(2,1fr);">
           <div class="panel">
             <h2>Comparativo de meses</h2>
             <div class="filters" style="margin-bottom:12px;">
@@ -216,10 +226,6 @@
             </div>
           </div>
 
-          <div class="panel">
-            <h2>Acceso</h2>
-            <div class="hint">Esta solapa la pueden usar perfiles <strong>admin</strong> y <strong>carga</strong>.</div>
-          </div>
         </div>
       </div>
     </div>
@@ -317,12 +323,10 @@
       <div><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
       <div>
         <div class="hint">Categoría / Grupo</div>
-        <select id="editCategory" style="width:100%">
-          <option value="Miembro">Miembro</option>
-          <option value="Líder">Líder</option>
-          <option value="Visita">Visita Recurrente</option>
-          <option value="Otro">Otro</option>
-        </select>
+        <details class="multi-select" id="categoryMultiSelect">
+          <summary id="categorySummary">Seleccionar categorías o grupos</summary>
+          <div id="categoryCheckboxes" class="checkbox-grid"></div>
+        </details>
       </div>
       <div id="memberHistory" class="scroll" style="max-height:150px; margin-top:10px; padding:10px; font-size:13px;">
         <!-- Historial se carga dinámicamente -->
@@ -339,6 +343,7 @@
 const SUPABASE_URL = "https://vscgsnfvojwzkfdsxpvh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM";
 const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":"Mayo","06":"Junio","07":"Julio","08":"Agosto","09":"Septiembre","10":"Octubre","11":"Noviembre","12":"Diciembre"};
+const CATEGORY_OPTIONS = ["PED","ED","ER","AC","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración"];
 
 let supabaseClient = null;
 let currentSession = null;
@@ -638,6 +643,41 @@ function updateExtraText(kind){
   dirty = true; updateSaveStatus();
 }
 
+function initCategorySelector(){
+  const container = $("categoryCheckboxes");
+  if (!container) return;
+  container.innerHTML = CATEGORY_OPTIONS.map(option => `
+    <label class="checkbox-item">
+      <input type="checkbox" value="${escapeHtml(option)}" class="category-checkbox">
+      <span>${escapeHtml(option)}</span>
+    </label>
+  `).join("");
+  container.querySelectorAll('.category-checkbox').forEach(chk => chk.addEventListener('change', updateCategorySummary));
+  updateCategorySummary();
+}
+
+function getSelectedCategories(){
+  return Array.from(document.querySelectorAll('.category-checkbox:checked')).map(chk => chk.value);
+}
+
+function setSelectedCategories(rawValue){
+  const selected = String(rawValue || "")
+    .split(',')
+    .map(x => x.trim())
+    .filter(Boolean);
+  document.querySelectorAll('.category-checkbox').forEach(chk => {
+    chk.checked = selected.includes(chk.value);
+  });
+  updateCategorySummary();
+}
+
+function updateCategorySummary(){
+  const selected = getSelectedCategories();
+  const summary = $("categorySummary");
+  if (!summary) return;
+  summary.textContent = selected.length ? selected.join(', ') : 'Seleccionar categorías o grupos';
+}
+
 /* MEJORA: ABRIR FICHA DE MIEMBRO */
 function abrirFicha(id) {
     const member = state.membersFullData[id];
@@ -648,7 +688,7 @@ function abrirFicha(id) {
     $("editPhone").value = member.phone || "";
     $("editBirth").value = member.birth_date || "";
     $("editAddress").value = member.address || "";
-    $("editCategory").value = member.category || "Miembro";
+    setSelectedCategories(member.category || "");
 
     const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
@@ -666,7 +706,7 @@ async function guardarCambiosMiembro() {
         phone: $("editPhone").value,
         birth_date: $("editBirth").value || null,
         address: $("editAddress").value,
-        category: $("editCategory").value
+        category: getSelectedCategories().join(", ")
     };
 
     const { error } = await supabaseClient.from("members").update(payload).eq("id", id);
@@ -1380,6 +1420,7 @@ async function initialize(){
   await initSupabase();
   wireEvents();
   initializeDefaults();
+  initCategorySelector();
 
   try {
     await evaluateSession();
