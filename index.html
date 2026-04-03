@@ -607,7 +607,7 @@ function renderPeople(){
   $("peopleList").innerHTML = people.map(name => {
     const present = isPresent(date, name);
     return `<div class="person ${present ? "present" : ""}">
-      <div><strong class="member-name-link" data-id="${state.memberIdsByName[name]}&quot; style=&quot;cursor:pointer; color:#fcd34d; text-decoration:underline;&quot;&gt;${escapeHtml(name)}
+      <div><strong>${escapeHtml(name)}</strong></div>
       <div class="row-actions">
         <span class="badge ${present ? "on" : ""}">${present ? "P" : "—"}</span>
         <button type="button" data-name="${escapeHtml(name)}" class="toggle-presence">${present ? "Quitar" : "Marcar"}</button>
@@ -1025,61 +1025,7 @@ async function inactivarMiembro(){
   $("removeMemberSearch").value = "";
   await cargarTodoDesdeServidor(); cargarBorradorDelDia(); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
 }
-// --- NUEVAS FUNCIONES PARA LA FICHA DE MIEMBRO ---
-async function abrirFichaMiembro(id) {
-  if (!id) return;
-  // Buscamos los datos completos del miembro en Supabase
-  const { data, error } = await supabaseClient.from("members").select("*").eq("id", id).maybeSingle();
-  
-  if (error || !data) {
-    console.error("Error al cargar datos:", error);
-    return;
-  }
-
-  // Llenamos los campos del modal que agregaste en el Paso 1
-  $("editMemberId").value = data.id;
-  $("editName").value = data.name || "";
-  $("editPhone").value = data.phone || "";
-  $("editBirth").value = data.birth_date || "";
-  $("editAddress").value = data.address || "";
-  $("editNotes").value = data.notes || "";
-  
-  // Mostramos el modal quitando la clase 'hidden'
-  $("memberModal").classList.remove("hidden");
-}
-
-async function guardarCambiosMiembro() {
-  const id = $("editMemberId").value;
-  const btn = $("btnSaveMemberDetails");
-  const originalText = btn.textContent;
-  
-  btn.disabled = true;
-  btn.textContent = "Guardando...";
-
-  const payload = {
-    name: $("editName").value.toUpperCase().trim(),
-    phone: $("editPhone").value.trim(),
-    birth_date: $("editBirth").value || null,
-    address: $("editAddress").value.trim(),
-    notes: $("editNotes").value.trim()
-  };
-
-  const { error } = await supabaseClient.from("members").update(payload).eq("id", id);
-  
-  if (error) {
-    alert("Error al guardar: " + error.message);
-    btn.disabled = false;
-    btn.textContent = originalText;
-  } else {
-    // Si guardó bien, cerramos, recargamos datos y refrescamos la lista
-    $("memberModal").classList.add("hidden");
-    btn.disabled = false;
-    btn.textContent = originalText;
-    await cargarTodoDesdeServidor();
-    renderAll();
-  }
-}
-  async function guardarDia(){
+async function guardarDia(){
   if (!userCanOperative()) return;
 
   const btn = $("btnSaveDay");
@@ -1329,17 +1275,6 @@ function wireEvents(){
   $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
   $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
     document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
-// Evento para el botón 'Guardar' dentro del modal
-  $("btnSaveMemberDetails").addEventListener("click", guardarCambiosMiembro);
-
-  // Evento para detectar clics en los nombres de la lista
-  $("peopleList").addEventListener("click", e => {
-    // Si el elemento clickeado tiene la clase que pusimos en renderPeople...
-    if (e.target.classList.contains("member-name-link")) {
-      const memberId = e.target.getAttribute("data-id");
-      abrirFichaMiembro(memberId);
-    }
-  });
 }
 function initializeDefaults(){
   $("fecha").value = new Date().toISOString().slice(0,10);
@@ -1417,31 +1352,7 @@ function calcularAdminKPIs(){
     console.error("KPIs error", e);
   }
 }
-<!-- Modal de Ficha de Miembro -->
-<div id="memberModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:1000;">
-  <div class="panel" style="width:90%; max-width:500px; background:var(--bg); padding:24px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h2 id="modalTitle" style="margin:0;">Ficha del Miembro</h2>
-      <button onclick="$('memberModal').classList.add('hidden')" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer;">&times;</button>
-    </div>
-    
-    <div class="stack">
-      <input type="hidden" id="editMemberId">
-      <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div><div class="hint">Teléfono</div><input id="editPhone" type="text" style="width:100%"></div>
-        <div><div class="hint">Cumpleaños</div><input id="editBirth" type="date" style="width:100%"></div>
-      </div>
-      <div><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
-      <div><div class="hint">Notas / Observaciones</div><textarea id="editNotes" style="width:100%; min-height:80px;"></textarea></div>
-      
-      <div class="row-actions" style="margin-top:20px; justify-content: flex-end;">
-        <button onclick="$('memberModal').classList.add('hidden')" class="secondary">Cancelar</button>
-        <button id="btnSaveMemberDetails" class="primary">Guardar Cambios</button>
-      </div>
-    </div>
-  </div>
-</div>
+
 </script>
 </body>
 </html>
