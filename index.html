@@ -390,7 +390,9 @@
 const SUPABASE_URL = "https://vscgsnfvojwzkfdsxpvh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM";
 const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":"Mayo","06":"Junio","07":"Julio","08":"Agosto","09":"Septiembre","10":"Octubre","11":"Noviembre","12":"Diciembre"};
-const CATEGORY_OPTIONS = ["PED","ED","ER","AC","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración","Maestros"];
+const CATEGORY_OPTIONS = ["Enseñanza","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración","Maestros"]
+const ENSEÑANZA_SUBGROUPS = ["PED","ED","ER","AC"];
+const ALL_GROUP_OPTIONS = [...CATEGORY_OPTIONS, ...ENSEÑANZA_SUBGROUPS];
 
 let supabaseClient = null;
 let currentSession = null;
@@ -693,26 +695,63 @@ function updateExtraText(kind){
 function initCategorySelector(){
   const container = $("categoryCheckboxes");
   if (!container) return;
-  container.innerHTML = CATEGORY_OPTIONS.map(option => `
-    <label class="checkbox-item">
-      <input type="checkbox" value="${escapeHtml(option)}" class="category-checkbox">
-      <span>${escapeHtml(option)}</span>
-    </label>
-  `).join("");
-  container.querySelectorAll('.category-checkbox').forEach(chk => chk.addEventListener('change', updateCategorySummary));
+  container.innerHTML = `
+    ${CATEGORY_OPTIONS.map(option => {
+      if (option !== "Enseñanza") {
+        return `
+          <label class="checkbox-item">
+            <input type="checkbox" value="${escapeHtml(option)}" class="category-checkbox">
+            <span>${escapeHtml(option)}</span>
+          </label>
+        `;
+      }
+      return `
+        <div class="checkbox-item" style="display:block; grid-column:1/-1;">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:700; margin-bottom:8px;">
+            <input type="checkbox" value="Enseñanza" class="category-checkbox category-parent" id="categoryParentEnsenanza">
+            <span>Enseñanza</span>
+          </label>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; padding-left:24px;">
+            ${ENSEÑANZA_SUBGROUPS.map(sub => `
+              <label class="checkbox-item" style="margin:0;">
+                <input type="checkbox" value="${escapeHtml(sub)}" class="category-checkbox category-subgroup" data-parent="Enseñanza">
+                <span>${escapeHtml(sub)}</span>
+              </label>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }).join("")}
+  `;
+
+  container.querySelectorAll('.category-checkbox').forEach(chk => chk.addEventListener('change', handleCategoryChange));
   updateCategorySummary();
 }
 
 function getSelectedCategories(){
-  return Array.from(document.querySelectorAll('.category-checkbox:checked')).map(chk => chk.value);
+  const selected = Array.from(document.querySelectorAll('.category-checkbox:checked')).map(chk => chk.value);
+  return normalizeCategoryValue(selected);
 }
 
 function normalizeCategoryValue(rawValue){
-  if (Array.isArray(rawValue)) return rawValue.map(x => String(x).trim()).filter(Boolean);
-  return String(rawValue || "")
-    .split(',')
-    .map(x => x.trim())
-    .filter(Boolean);
+  const values = Array.isArray(rawValue)
+    ? rawValue.map(x => String(x).trim()).filter(Boolean)
+    : String(rawValue || "")
+        .split(',')
+        .map(x => x.trim())
+        .filter(Boolean);
+
+  const unique = [...new Set(values)];
+  const hasTeachingSubgroup = ENSEÑANZA_SUBGROUPS.some(sub => unique.includes(sub));
+  if (hasTeachingSubgroup && !unique.includes("Enseñanza")) unique.unshift("Enseñanza");
+  return unique.sort((a,b) => {
+    const ai = ALL_GROUP_OPTIONS.indexOf(a);
+    const bi = ALL_GROUP_OPTIONS.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b, 'es');
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 }
 
 function setSelectedCategories(rawValue){
@@ -720,14 +759,45 @@ function setSelectedCategories(rawValue){
   document.querySelectorAll('.category-checkbox').forEach(chk => {
     chk.checked = selected.includes(chk.value);
   });
+  syncTeachingCategoryState();
   updateCategorySummary();
+}
+
+function handleCategoryChange(event){
+  const target = event?.target;
+  if (!target) return;
+  if (target.classList.contains('category-parent') && target.value === 'Enseñanza' && !target.checked) {
+    document.querySelectorAll('.category-subgroup[data-parent="Enseñanza"]').forEach(chk => chk.checked = false);
+  }
+  syncTeachingCategoryState(target);
+  updateCategorySummary();
+}
+
+function syncTeachingCategoryState(trigger){
+  const parent = $('categoryParentEnsenanza');
+  const children = Array.from(document.querySelectorAll('.category-subgroup[data-parent="Enseñanza"]'));
+  if (!parent) return;
+  const anyChildChecked = children.some(chk => chk.checked);
+  if (trigger?.classList?.contains('category-subgroup') && trigger.checked) parent.checked = true;
+  if (!parent.checked && anyChildChecked) parent.checked = true;
+  if (parent.checked && !anyChildChecked && trigger?.classList?.contains('category-parent') && trigger.checked) {
+    // permitir seleccionar Enseñanza sin subgrupo
+  }
+  if (!parent.checked) children.forEach(chk => chk.checked = false);
 }
 
 function updateCategorySummary(){
   const selected = getSelectedCategories();
   const summary = $("categorySummary");
   if (!summary) return;
-  summary.textContent = selected.length ? selected.join(', ') : 'Seleccionar categorías o grupos';
+  const teachingSubs = selected.filter(x => ENSEÑANZA_SUBGROUPS.includes(x));
+  const others = selected.filter(x => !ENSEÑANZA_SUBGROUPS.includes(x) && x !== 'Enseñanza');
+  const parts = [];
+  if (selected.includes('Enseñanza')) {
+    parts.push(teachingSubs.length ? `Enseñanza (${teachingSubs.join(', ')})` : 'Enseñanza');
+  }
+  parts.push(...others);
+  summary.textContent = parts.length ? parts.join(' · ') : 'Seleccionar categorías o grupos';
 }
 
 /* MEJORA: ABRIR FICHA DE MIEMBRO */
@@ -1053,7 +1123,9 @@ function getMemberCategories(member){
 }
 function memberBelongsToGroup(member, group){
   if (!group) return false;
-  return getMemberCategories(member).includes(group);
+  const categories = getMemberCategories(member);
+  if (group === "Enseñanza") return categories.includes("Enseñanza") || ENSEÑANZA_SUBGROUPS.some(sub => categories.includes(sub));
+  return categories.includes(group);
 }
 function getMembersInGroup(group){
   return Object.values(state.membersFullData || {}).filter(member => memberBelongsToGroup(member, group))
@@ -1071,8 +1143,8 @@ function fillGroupSelect(){
   const sel = $("groupReportSelect");
   if (!sel) return;
   const current = sel.value;
-  sel.innerHTML = `<option value="">Seleccionar grupo...</option>` + CATEGORY_OPTIONS.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join("");
-  if (CATEGORY_OPTIONS.includes(current)) sel.value = current;
+  sel.innerHTML = `<option value="">Seleccionar grupo...</option>` + ALL_GROUP_OPTIONS.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join("");
+  if (ALL_GROUP_OPTIONS.includes(current)) sel.value = current;
 }
 function updateGroupKPIs(group, from, to){
   const members = getMembersInGroup(group);
