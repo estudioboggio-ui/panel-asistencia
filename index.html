@@ -29,6 +29,8 @@
   .split{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
   .filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
   .filters.single{grid-template-columns:1fr}
+  .report-actions-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .report-actions-grid button{width:100%}
   .stack{display:grid;gap:10px}
   .scroll{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0b1220}
   .people-list{max-height:580px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:#0b1220}
@@ -80,7 +82,7 @@
   .checkbox-item input[type="checkbox"] { width:16px; height:16px; margin:0; accent-color:#16a34a; }
 
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
-  @media (max-width:700px){.cards,.filters{grid-template-columns:1fr}}
+  @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -290,7 +292,7 @@
       </div>
       <div class="cards" style="grid-template-columns:repeat(4,1fr); margin-bottom:12px;">
         <div class="card"><div class="label">Miembros del grupo</div><div id="groupKpiMembers" class="value">0</div></div>
-        <div class="card"><div class="label">Asistencias en período</div><div id="groupKpiAttendances" class="value">0</div></div>
+        <div class="card"><div class="label">Asistencia del grupo</div><div id="groupKpiAttendances" class="value">0%</div></div>
         <div class="card"><div class="label">Fechas con asistencia</div><div id="groupKpiDates" class="value">0</div></div>
         <div class="card"><div class="label">Promedio por reunión</div><div id="groupKpiAverage" class="value">0</div></div>
       </div>
@@ -388,7 +390,7 @@
 const SUPABASE_URL = "https://vscgsnfvojwzkfdsxpvh.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_KDNx1VDhGGffiAwhKMQUvA_nNrMw2HM";
 const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":"Mayo","06":"Junio","07":"Julio","08":"Agosto","09":"Septiembre","10":"Octubre","11":"Noviembre","12":"Diciembre"};
-const CATEGORY_OPTIONS = ["PED","ED","ER","AC","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración"];
+const CATEGORY_OPTIONS = ["PED","ED","ER","AC","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración","Maestros"];
 
 let supabaseClient = null;
 let currentSession = null;
@@ -1078,9 +1080,11 @@ function updateGroupKPIs(group, from, to){
   const attendanceRows = state.attendance.filter(r => memberIds.has(r.member_id) && r.date >= from && r.date <= to);
   const dates = new Set(attendanceRows.map(r => r.date));
   const totalAttendances = attendanceRows.length;
+  const optimalAttendances = members.length * dates.size;
+  const attendancePct = optimalAttendances ? (totalAttendances / optimalAttendances) * 100 : 0;
   const avg = dates.size ? (totalAttendances / dates.size) : 0;
   $("groupKpiMembers").textContent = members.length;
-  $("groupKpiAttendances").textContent = totalAttendances;
+  $("groupKpiAttendances").textContent = `${attendancePct.toFixed(1)}%`;
   $("groupKpiDates").textContent = dates.size;
   $("groupKpiAverage").textContent = avg.toFixed(1);
 }
@@ -1217,16 +1221,19 @@ function renderAdminAnalytics(){
 
   const defaultFrom = isoMonthsAgo(refDate, 3);
   const recurringRows = getRecurringActiveNames(defaultFrom, refDate);
-  const firstMonthRows = getFirstTimersInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
-  const noReturnRows = getFirstTimeNoReturnInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
+  const monthBounds = getMonthBounds(refDate);
+  const firstMonthRows = getFirstTimersInRange(monthBounds.start, monthBounds.end);
+  const noReturnRows = getFirstTimeNoReturnInRange(monthBounds.start, monthBounds.end);
+  const firstMonthCount = Object.entries(state.dayExtras)
+    .filter(([d]) => d >= monthBounds.start && d <= monthBounds.end)
+    .reduce((acc, [,extra]) => acc + Number(extra?.primeraVez?.count || 0), 0);
 
   $("adminKpiRecurring").textContent = recurringRows.length;
-  $("adminKpiFirstMonth").textContent = firstMonthRows.length;
+  $("adminKpiFirstMonth").textContent = firstMonthCount;
 
-  const returnRate = firstMonthRows.length ? ((firstMonthRows.length - noReturnRows.length) / firstMonthRows.length) * 100 : 0;
+  const returnRate = firstMonthCount ? ((firstMonthCount - noReturnRows.length) / firstMonthCount) * 100 : 0;
   $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
 
-  const monthBounds = getMonthBounds(refDate);
   const thisMonthTotal = Object.entries(Object.fromEntries(meetings)).filter(([d]) => d >= monthBounds.start && d <= monthBounds.end).reduce((a,[,v])=>a+v,0);
   const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d >= monthBounds.start && d <= monthBounds.end).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
   $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
@@ -1238,9 +1245,9 @@ function renderAdminAnalytics(){
     ["Recurrentes activos (≥ 9 asistencias / 3 meses)", recurringRows.length],
     ["Inactivos recientes (sin asistir 3 semanas)", inactiveRows.length],
     ["Dejaron de concurrir (> 8 semanas)", droppedRows.length],
-    ["Primeras veces del mes", firstMonthRows.length],
+    ["Primeras veces del mes", firstMonthCount],
     ["Primeras veces sin retorno dentro del mes", noReturnRows.length],
-    ["Peso primeras veces sobre total mes", `${safePct(firstMonthRows.length, thisMonthTotal).toFixed(1)}%`],
+    ["Peso primeras veces sobre total mes", `${safePct(firstMonthCount, thisMonthTotal).toFixed(1)}%`],
     ["Concentración núcleo duro (top 10 / total 3 meses)", nucleusShare().toFixed(1) + "%"],
     ["Tasa de retención estimada", retentionEstimate().toFixed(1) + "%"]
   ].map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
