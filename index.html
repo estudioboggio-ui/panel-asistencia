@@ -67,7 +67,7 @@
 
   /* ESTILOS NUEVOS PARA EL MODAL */
   .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:1000; }
-  .modal-content { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; width:90%; max-width:600px; max-height:90vh; overflow-y:auto; }
+  .modal-content { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; width:90%; max-width:760px; max-height:90vh; overflow-y:auto; }
   .clickable-name { cursor:pointer; color:#ffffff; text-decoration:none; flex:1; min-width:0; white-space:normal; overflow-wrap:anywhere; }
   .clickable-name strong { color:#ffffff; font-weight:700; }
   .clickable-name:hover { color:#ffffff; text-decoration:none; }
@@ -80,6 +80,15 @@
   .checkbox-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; padding:12px; }
   .checkbox-item { display:flex; align-items:center; gap:8px; font-size:14px; }
   .checkbox-item input[type="checkbox"] { width:16px; height:16px; margin:0; accent-color:#16a34a; }
+  .duplicate-alert{display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid #92400e;background:rgba(245,158,11,.12);color:#fde68a;font-size:13px;line-height:1.45}
+  .duplicate-alert.show{display:block}
+  .relation-card{border:1px solid rgba(51,65,85,.6);border-radius:12px;padding:10px 12px;background:#0b1220;margin-bottom:8px}
+  .relation-card:last-child{margin-bottom:0}
+  .relation-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .chips-wrap{display:flex;flex-wrap:wrap;gap:8px}
+  .chip-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#0b1220;color:#e5e7eb;font-size:12px;cursor:pointer}
+  .chip-btn:hover{border-color:#0f766e}
+  .suggestions{max-height:140px;display:none}
 
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
@@ -219,6 +228,7 @@
             <h2>Gestión de miembros</h2>
             <div class="stack">
               <input id="newMemberName" type="text" placeholder="Agregar nuevo miembro manualmente...">
+              <div id="duplicateWarningBox" class="duplicate-alert"></div>
               <button id="btnAddMember" class="secondary" type="button">Agregar miembro desde esta fecha</button>
               <div>
                 <input id="removeMemberSearch" type="text" placeholder="Buscar miembro a inactivar..." autocomplete="off">
@@ -375,6 +385,29 @@
           <div id="categoryCheckboxes" class="checkbox-grid"></div>
         </details>
       </div>
+      <div class="panel" style="padding:14px; margin-top:4px;">
+        <div class="hint" style="margin-bottom:8px;">Grupo familiar / vínculos</div>
+        <div id="familyCircle" class="chips-wrap" style="margin-bottom:10px;"></div>
+        <div id="memberRelationsList" class="scroll" style="max-height:170px; padding:10px; margin-bottom:10px;"></div>
+        <div class="filters">
+          <div>
+            <div class="hint">Vincular con otro miembro</div>
+            <input id="relatedMemberSearch" type="text" placeholder="Buscar miembro para vincular..." autocomplete="off" style="width:100%">
+            <div id="relatedMemberSuggestions" class="scroll suggestions"></div>
+          </div>
+          <div>
+            <div class="hint">Tipo de vínculo</div>
+            <select id="relationType" style="width:100%"></select>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <div class="hint">Observación del vínculo (opcional)</div>
+          <input id="relationNotes" type="text" placeholder="Ej.: viven juntos / referente del grupo familiar" style="width:100%">
+        </div>
+        <div class="row-actions" style="margin-top:12px;">
+          <button id="btnAddRelation" type="button">Agregar vínculo familiar</button>
+        </div>
+      </div>
       <div id="memberHistory" class="scroll" style="max-height:150px; margin-top:10px; padding:10px; font-size:13px;">
         <!-- Historial se carga dinámicamente -->
       </div>
@@ -393,11 +426,14 @@ const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":
 const CATEGORY_OPTIONS = ["Enseñanza","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración","Maestros"]
 const ENSEÑANZA_SUBGROUPS = ["PED","ED","ER","AC"];
 const ALL_GROUP_OPTIONS = [...CATEGORY_OPTIONS, ...ENSEÑANZA_SUBGROUPS];
+const RELATIONSHIP_TYPES = ["Progenitor/a","Hijo/a","Hermano/a","Cónyuge","Abuelo/a","Nieto/a","Tío/a","Sobrino/a","Tutor/a","Tutelado/a","Familiar"];
+const RELATIONSHIP_INVERSE = {"Progenitor/a":"Hijo/a","Hijo/a":"Progenitor/a","Hermano/a":"Hermano/a","Cónyuge":"Cónyuge","Abuelo/a":"Nieto/a","Nieto/a":"Abuelo/a","Tío/a":"Sobrino/a","Sobrino/a":"Tío/a","Tutor/a":"Tutelado/a","Tutelado/a":"Tutor/a","Familiar":"Familiar"};
 
 let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
-let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null };
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [] };
+let selectedRelatedMemberId = null;
 let draftAttendance = [];
 let dirty = false;
 
@@ -405,7 +441,38 @@ const $ = id => document.getElementById(id);
 
 function normalizeName(s){ return String(s || "").trim().replace(/\s+/g, " "); }
 function normalizeDisplayName(s){ return normalizeName(s).toUpperCase(); }
-function normalizeComparableName(s){ return normalizeDisplayName(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function normalizeComparableName(s){ return normalizeDisplayName(s).normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function tokenSignature(s){ return normalizeComparableName(s).split(/\s+/).filter(Boolean).sort().join(" "); }
+function levenshtein(a,b){
+  a = String(a || ""); b = String(b || "");
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({length:m+1}, ()=>Array(n+1).fill(0));
+  for (let i=0;i<=m;i++) dp[i][0]=i;
+  for (let j=0;j<=n;j++) dp[0][j]=j;
+  for (let i=1;i<=m;i++) for (let j=1;j<=n;j++){
+    const cost = a[i-1] === b[j-1] ? 0 : 1;
+    dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+  }
+  return dp[m][n];
+}
+function findPotentialDuplicateMembers(name){
+  const norm = normalizeComparableName(name);
+  const sig = tokenSignature(name);
+  if (!norm) return [];
+  return state.people.map(existing => {
+    const existingNorm = normalizeComparableName(existing);
+    const existingSig = tokenSignature(existing);
+    const reasons = [];
+    if (existingNorm === norm) reasons.push("coincidencia exacta");
+    if (existingSig && existingSig === sig && existingNorm !== norm) reasons.push("mismas palabras en distinto orden");
+    if ((existingNorm.includes(norm) || norm.includes(existingNorm)) && existingNorm !== norm && norm.length >= 6) reasons.push("nombre muy parecido");
+    const dist = levenshtein(existingNorm, norm);
+    const maxLen = Math.max(existingNorm.length, norm.length);
+    if (maxLen >= 8 && dist <= 2 && existingSig !== sig && existingNorm !== norm) reasons.push("diferencia mínima de escritura");
+    return reasons.length ? {name: existing, reasons:[...new Set(reasons)]} : null;
+  }).filter(Boolean).sort((a,b) => a.name.localeCompare(b.name, "es"));
+}
 function formatDate(iso){ if (!iso) return ""; const [y,m,d] = iso.split("-"); return `${d}/${m}/${y}`; }
 function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
@@ -511,6 +578,15 @@ async function fetchAllRows(table, columns, pageSize=1000, orderCol=null){
   }
   return all;
 }
+async function fetchOptionalAllRows(table, columns, pageSize=1000, orderCol=null){
+  try {
+    return await fetchAllRows(table, columns, pageSize, orderCol);
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (msg.includes("schema cache") || msg.includes("does not exist") || msg.includes("Could not find") || msg.includes("relation") || msg.includes("42P01")) return [];
+    throw err;
+  }
+}
 
 async function cargarTodoDesdeServidor(){
   if (!userCanOperative()) return;
@@ -518,12 +594,13 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("members", "*", 1000, "name"),
     fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
-    fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date")
+    fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date"),
+    fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
 
-  const [members, attendanceRows, extras, firstTimeRows, alertSettings] = await Promise.all(promises);
+  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, alertSettings] = await Promise.all(promises);
   if (alertSettings.error) throw alertSettings.error;
 
   state.people = [];
@@ -557,6 +634,7 @@ async function cargarTodoDesdeServidor(){
   });
 
   state.firstTimeByDate = {};
+  state.relationships = (relationshipRows || []).filter(r => r.member_id && r.related_member_id);
   (firstTimeRows || []).forEach(r => {
     const name = r.guest_name || state.membersById[r.member_id];
     if (!name) return;
@@ -800,6 +878,124 @@ function updateCategorySummary(){
   summary.textContent = parts.length ? parts.join(' · ') : 'Seleccionar categorías o grupos';
 }
 
+function renderDuplicateWarning(){
+  const box = $("duplicateWarningBox");
+  if (!box || !$("newMemberName")) return;
+  const name = normalizeDisplayName($("newMemberName").value);
+  if (!name){ box.classList.remove("show"); box.innerHTML = ""; return; }
+  const matches = findPotentialDuplicateMembers(name).slice(0,5);
+  if (!matches.length){ box.classList.remove("show"); box.innerHTML = ""; return; }
+  box.classList.add("show");
+  box.innerHTML = `<strong>Posible duplicado:</strong> ${matches.map(m => `${escapeHtml(m.name)} <span class="hint">(${escapeHtml(m.reasons.join(", "))})</span>`).join("<br>")}<div class="hint" style="margin-top:6px;">Si es la misma persona, conviene editar la ficha existente y no crear un miembro nuevo.</div>`;
+}
+function populateRelationTypeOptions(){
+  if (!$("relationType")) return;
+  $("relationType").innerHTML = RELATIONSHIP_TYPES.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+}
+function renderRelatedMemberSuggestions(){
+  const box = $("relatedMemberSuggestions");
+  const input = $("relatedMemberSearch");
+  if (!box || !input) return;
+  const currentId = Number($("editMemberId").value || 0);
+  const q = normalizeName(input.value).toLowerCase();
+  if (!q){ box.style.display = "none"; box.innerHTML = ""; return; }
+  const items = Object.values(state.membersFullData || {})
+    .filter(m => Number(m.id) !== currentId)
+    .filter(m => String(m.name || "").toLowerCase().includes(q))
+    .sort((a,b)=> String(a.name||"").localeCompare(String(b.name||""), "es"))
+    .slice(0,12);
+  if (!items.length){ box.style.display = "none"; box.innerHTML = ""; return; }
+  box.style.display = "block";
+  box.innerHTML = items.map(m => `<div class="suggestion-item" data-id="${m.id}" data-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || "")}</div>`).join("");
+  box.querySelectorAll('.suggestion-item').forEach(el => el.addEventListener('click', ()=>{
+    selectedRelatedMemberId = Number(el.getAttribute('data-id'));
+    input.value = el.getAttribute('data-name');
+    box.style.display = 'none';
+    box.innerHTML = '';
+  }));
+}
+function getDirectRelations(memberId){
+  return (state.relationships || []).filter(r => Number(r.member_id) === Number(memberId));
+}
+function buildFamilyCircle(memberId){
+  const seen = new Set([Number(memberId)]);
+  const queue = [Number(memberId)];
+  while (queue.length){
+    const current = queue.shift();
+    (state.relationships || []).forEach(r => {
+      if (Number(r.member_id) === current && !seen.has(Number(r.related_member_id))){
+        seen.add(Number(r.related_member_id));
+        queue.push(Number(r.related_member_id));
+      }
+      if (Number(r.related_member_id) === current && !seen.has(Number(r.member_id))){
+        seen.add(Number(r.member_id));
+        queue.push(Number(r.member_id));
+      }
+    });
+  }
+  return [...seen].filter(id => id !== Number(memberId)).map(id => state.membersFullData[id]).filter(Boolean).sort((a,b)=> String(a.name||"").localeCompare(String(b.name||""), "es"));
+}
+function renderFamilySection(memberId){
+  const list = $("memberRelationsList");
+  const circle = $("familyCircle");
+  if (!list || !circle) return;
+  const direct = getDirectRelations(memberId).sort((a,b)=> String(state.membersById[a.related_member_id] || '').localeCompare(String(state.membersById[b.related_member_id] || ''), 'es'));
+  if (!direct.length) list.innerHTML = '<div class="hint">Todavía no hay vínculos cargados para este miembro.</div>';
+  else list.innerHTML = direct.map(r => {
+    const relatedName = state.membersById[r.related_member_id] || `ID ${r.related_member_id}`;
+    const note = r.notes ? `<div class="hint" style="margin-top:4px;">${escapeHtml(r.notes)}</div>` : '';
+    return `<div class="relation-card"><div class="relation-header"><div><strong>${escapeHtml(r.relationship_type || 'Familiar')}</strong> · ${escapeHtml(relatedName)}</div><button type="button" data-member="${r.member_id}" data-related="${r.related_member_id}" class="danger btnDeleteRelation">Quitar</button></div>${note}</div>`;
+  }).join('');
+  list.querySelectorAll('.btnDeleteRelation').forEach(btn => btn.addEventListener('click', ()=> deleteRelationPair(Number(btn.dataset.member), Number(btn.dataset.related))));
+
+  const familyMembers = buildFamilyCircle(memberId);
+  if (!familyMembers.length) circle.innerHTML = '<span class="hint">Sin círculo familiar cargado.</span>';
+  else circle.innerHTML = familyMembers.map(m => `<button type="button" class="chip-btn family-open" data-id="${m.id}">${escapeHtml(m.name || '')}</button>`).join('');
+  circle.querySelectorAll('.family-open').forEach(btn => btn.addEventListener('click', ()=> abrirFicha(Number(btn.dataset.id))));
+}
+async function addFamilyRelation(){
+  const memberId = Number($("editMemberId").value || 0);
+  const inputName = normalizeName($("relatedMemberSearch").value);
+  const exactByName = Object.values(state.membersFullData || {}).find(m => String(m.name || '').toLowerCase() === inputName.toLowerCase());
+  const relatedId = selectedRelatedMemberId || Number(exactByName?.id || 0);
+  const relationshipType = $("relationType").value;
+  const notes = normalizeName($("relationNotes").value);
+  if (!memberId || !relatedId){ alert('Seleccioná el miembro relacionado.'); return; }
+  if (memberId === relatedId){ alert('No podés vincular un miembro consigo mismo.'); return; }
+  if (!relationshipType){ alert('Elegí el tipo de vínculo.'); return; }
+  const already = (state.relationships || []).some(r => Number(r.member_id) === memberId && Number(r.related_member_id) === relatedId && String(r.relationship_type || '') === relationshipType);
+  if (already){ alert('Ese vínculo ya está cargado.'); return; }
+  const inverseType = RELATIONSHIP_INVERSE[relationshipType] || relationshipType;
+  const payload = [
+    { member_id: memberId, related_member_id: relatedId, relationship_type: relationshipType, notes: notes || null },
+    { member_id: relatedId, related_member_id: memberId, relationship_type: inverseType, notes: notes || null }
+  ];
+  const res = await supabaseClient.from('member_relationships').insert(payload);
+  if (res.error){
+    const msg = String(res.error.message || res.error || '');
+    if (msg.includes('schema cache') || msg.includes('does not exist') || msg.includes('Could not find')){
+      alert('Falta crear la tabla member_relationships en Supabase. Ejecutá primero el SQL de vínculos familiares y luego volvé a intentar.');
+    } else {
+      alert('No pude guardar el vínculo familiar: ' + msg);
+    }
+    return;
+  }
+  selectedRelatedMemberId = null;
+  $("relatedMemberSearch").value = '';
+  $("relationNotes").value = '';
+  await cargarTodoDesdeServidor();
+  renderFamilySection(memberId);
+}
+async function deleteRelationPair(memberId, relatedId){
+  if (!confirm('¿Querés eliminar este vínculo familiar?')) return;
+  const res1 = await supabaseClient.from('member_relationships').delete().eq('member_id', memberId).eq('related_member_id', relatedId);
+  if (res1.error){ alert('No pude eliminar el vínculo: ' + res1.error.message); return; }
+  const res2 = await supabaseClient.from('member_relationships').delete().eq('member_id', relatedId).eq('related_member_id', memberId);
+  if (res2.error){ alert('No pude eliminar el vínculo inverso: ' + res2.error.message); return; }
+  await cargarTodoDesdeServidor();
+  renderFamilySection(Number($("editMemberId").value || 0));
+}
+
 /* MEJORA: ABRIR FICHA DE MIEMBRO */
 function abrirFicha(id) {
     const member = state.membersFullData[id];
@@ -811,6 +1007,11 @@ function abrirFicha(id) {
     $("editBirth").value = member.birth_date || "";
     $("editAddress").value = member.address || "";
     setSelectedCategories(member.category);
+    selectedRelatedMemberId = null;
+    if ($("relatedMemberSearch")) $("relatedMemberSearch").value = "";
+    if ($("relationNotes")) $("relationNotes").value = "";
+    populateRelationTypeOptions();
+    renderFamilySection(id);
 
     const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
@@ -819,7 +1020,7 @@ function abrirFicha(id) {
     $("modalFicha").classList.remove("hidden");
 }
 
-function cerrarModal() { $("modalFicha").classList.add("hidden"); }
+function cerrarModal() { $("modalFicha").classList.add("hidden"); if ($("relatedMemberSuggestions")) { $("relatedMemberSuggestions").style.display="none"; $("relatedMemberSuggestions").innerHTML=""; } }
 
 async function guardarCambiosMiembro() {
     const id = $("editMemberId").value;
@@ -1364,14 +1565,26 @@ async function agregarNuevoMiembro(){
   const name = normalizeDisplayName($("newMemberName").value);
   const date = selectedDate();
   if (!name){ alert("Ingresá un nombre válido."); return; }
-  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  const duplicates = findPotentialDuplicateMembers(name);
+  const existing = duplicates.find(d => d.reasons.includes("coincidencia exacta"))?.name || state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  if (!existing && duplicates.length){
+    const duplicateLines = duplicates.slice(0,5).map(d => `- ${d.name} (${d.reasons.join(", ")})`).join("\n");
+    const proceed = confirm(`Atención: hay posibles duplicados para este nombre:
+
+${duplicateLines}
+
+¿Querés crear el miembro igual?`);
+    if (!proceed) return;
+  }
   const res = existing
     ? await supabaseClient.from("members").update({ active_from: date, inactive_from: null }).eq("name", existing)
     : await supabaseClient.from("members").insert({ name, active_from: date });
   if (res.error){ alert("No pude guardar el miembro: " + res.error.message); return; }
   $("newMemberName").value = "";
-  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); if (!draftAttendance.includes(name)) draftAttendance.push(name); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
+  renderDuplicateWarning();
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); if (!draftAttendance.includes(existing || name)) draftAttendance.push(existing || name); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
 }
+
 async function inactivarMiembro(){
   if (!userCanOperative()) return;
   const name = normalizeName($("removeMemberSearch").value);
@@ -1599,6 +1812,7 @@ function wireEvents(){
   $("btnToday").addEventListener("click", ()=>{ $("fecha").value = new Date().toISOString().slice(0,10); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
   $("btnSaveDay").addEventListener("click", guardarDia);
   $("btnAddMember").addEventListener("click", agregarNuevoMiembro);
+  $("newMemberName").addEventListener("input", renderDuplicateWarning);
   $("btnDeactivateMember").addEventListener("click", inactivarMiembro);
   $("btnVisitasMinus").addEventListener("click", ()=>changeCounter("visitas",-1));
   $("btnVisitasPlus").addEventListener("click", ()=>changeCounter("visitas",1));
@@ -1650,8 +1864,13 @@ function wireEvents(){
 
   $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
   $("btnSaveMemberData").addEventListener("click", guardarCambiosMiembro);
+  if ($("relatedMemberSearch")) $("relatedMemberSearch").addEventListener("input", ()=>{ selectedRelatedMemberId = null; renderRelatedMemberSuggestions(); });
+  if ($("btnAddRelation")) $("btnAddRelation").addEventListener("click", addFamilyRelation);
 
-  document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
+  document.addEventListener("click", e => {
+    if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; }
+    if ($("relatedMemberSuggestions") && !$("relatedMemberSuggestions").contains(e.target) && e.target !== $("relatedMemberSearch")) { $("relatedMemberSuggestions").style.display="none"; }
+  });
 }
 function initializeDefaults(){
   $("fecha").value = new Date().toISOString().slice(0,10);
@@ -1676,6 +1895,7 @@ async function initialize(){
   wireEvents();
   initializeDefaults();
   initCategorySelector();
+  populateRelationTypeOptions();
 
   try {
     await evaluateSession();
