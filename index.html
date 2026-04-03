@@ -268,6 +268,51 @@
     </div>
 
     <div class="panel" style="margin-top:16px;">
+      <h2>Reportes por grupo</h2>
+      <div class="filters" style="margin-bottom:12px;">
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Grupo / categoría</div>
+          <select id="groupReportSelect">
+            <option value="">Seleccionar grupo...</option>
+          </select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Período para asistencia</div>
+          <div class="filters" style="margin-bottom:0;">
+            <input id="groupDateFrom" type="date">
+            <input id="groupDateTo" type="date">
+          </div>
+        </div>
+      </div>
+      <div class="row-actions" style="margin-bottom:12px;">
+        <button id="btnGroupAttendanceReport" type="button">Ver asistencia por grupo</button>
+        <button id="btnGroupMembersReport" type="button">Ver miembros del grupo</button>
+      </div>
+      <div class="cards" style="grid-template-columns:repeat(4,1fr); margin-bottom:12px;">
+        <div class="card"><div class="label">Miembros del grupo</div><div id="groupKpiMembers" class="value">0</div></div>
+        <div class="card"><div class="label">Asistencias en período</div><div id="groupKpiAttendances" class="value">0</div></div>
+        <div class="card"><div class="label">Fechas con asistencia</div><div id="groupKpiDates" class="value">0</div></div>
+        <div class="card"><div class="label">Promedio por reunión</div><div id="groupKpiAverage" class="value">0</div></div>
+      </div>
+      <div class="scroll" style="max-height:420px;">
+        <table>
+          <thead>
+            <tr>
+              <th id="groupReportCol1">Nombre</th>
+              <th id="groupReportCol2">Detalle</th>
+              <th id="groupReportCol3">Dato adicional</th>
+            </tr>
+          </thead>
+          <tbody id="groupReportTableBody">
+            <tr><td colspan="3" class="hint">Elegí un grupo y el tipo de reporte.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+
+
+    <div class="panel" style="margin-top:16px;">
       <h2>Reportes de miembros</h2>
       <div class="filters" style="margin-bottom:12px;">
         <div>
@@ -1000,6 +1045,104 @@ function getTopAttendees(from, to){
   rows.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name, "es"));
   return rows;
 }
+
+function getMemberCategories(member){
+  return normalizeCategoryValue(member?.category);
+}
+function memberBelongsToGroup(member, group){
+  if (!group) return false;
+  return getMemberCategories(member).includes(group);
+}
+function getMembersInGroup(group){
+  return Object.values(state.membersFullData || {}).filter(member => memberBelongsToGroup(member, group))
+    .sort((a,b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
+}
+function getGroupRange(){
+  const refDate = getReferenceDate();
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  let from = $("groupDateFrom")?.value || defaultFrom;
+  let to = $("groupDateTo")?.value || refDate;
+  if (from > to) [from, to] = [to, from];
+  return {from, to, refDate};
+}
+function fillGroupSelect(){
+  const sel = $("groupReportSelect");
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Seleccionar grupo...</option>` + CATEGORY_OPTIONS.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join("");
+  if (CATEGORY_OPTIONS.includes(current)) sel.value = current;
+}
+function updateGroupKPIs(group, from, to){
+  const members = getMembersInGroup(group);
+  const memberIds = new Set(members.map(m => m.id));
+  const attendanceRows = state.attendance.filter(r => memberIds.has(r.member_id) && r.date >= from && r.date <= to);
+  const dates = new Set(attendanceRows.map(r => r.date));
+  const totalAttendances = attendanceRows.length;
+  const avg = dates.size ? (totalAttendances / dates.size) : 0;
+  $("groupKpiMembers").textContent = members.length;
+  $("groupKpiAttendances").textContent = totalAttendances;
+  $("groupKpiDates").textContent = dates.size;
+  $("groupKpiAverage").textContent = avg.toFixed(1);
+}
+function renderGroupTable(headers, rows){
+  $("groupReportCol1").textContent = headers[0];
+  $("groupReportCol2").textContent = headers[1];
+  $("groupReportCol3").textContent = headers[2];
+  const body = $("groupReportTableBody");
+  if (!rows.length){
+    body.innerHTML = `<tr><td colspan="3" class="hint">Sin datos para los filtros elegidos.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(row => `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td></tr>`).join("");
+}
+function runGroupAttendanceReport(){
+  const group = $("groupReportSelect")?.value || "";
+  if (!group){
+    alert("Elegí un grupo para generar el reporte.");
+    return;
+  }
+  const {from, to} = getGroupRange();
+  const members = getMembersInGroup(group);
+  const memberIds = new Set(members.map(m => m.id));
+  const byMember = {};
+  members.forEach(m => byMember[m.id] = { member: m, count: 0, last: "" });
+  state.attendance.forEach(r => {
+    if (!memberIds.has(r.member_id) || r.date < from || r.date > to) return;
+    byMember[r.member_id].count += 1;
+    if (!byMember[r.member_id].last || r.date > byMember[r.member_id].last) byMember[r.member_id].last = r.date;
+  });
+  const rows = Object.values(byMember)
+    .filter(x => x.count > 0)
+    .sort((a,b) => b.count - a.count || String(a.member.name || "").localeCompare(String(b.member.name || ""), "es"))
+    .map(x => [
+      escapeHtml(x.member.name || ""),
+      `${x.count} asistencia${x.count === 1 ? "" : "s"}`,
+      x.last ? `Última: ${formatDate(x.last)}` : "-"
+    ]);
+  updateGroupKPIs(group, from, to);
+  renderGroupTable(["Miembro", "Asistencias", "Última asistencia"], rows);
+}
+function runGroupMembersReport(){
+  const group = $("groupReportSelect")?.value || "";
+  if (!group){
+    alert("Elegí un grupo para generar el reporte.");
+    return;
+  }
+  const {from, to, refDate} = getGroupRange();
+  const members = getMembersInGroup(group);
+  updateGroupKPIs(group, from, to);
+  const rows = members.map(member => {
+    const status = isMemberActiveOn(member.name, refDate) ? "Activo" : "Inactivo";
+    const phone = member.phone ? escapeHtml(member.phone) : "-";
+    return [
+      escapeHtml(member.name || ""),
+      phone,
+      status
+    ];
+  });
+  renderGroupTable(["Miembro", "Teléfono", "Estado"], rows);
+}
+
 function renderReport(title1, title2, rows, formatter){
   $("reportCol1").textContent = title1;
   $("reportCol2").textContent = title2;
@@ -1408,6 +1551,24 @@ function wireEvents(){
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
   $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
+
+  if ($("groupDateFrom")) $("groupDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) updateGroupKPIs($("groupReportSelect").value || "", getGroupRange().from, getGroupRange().to); });
+  if ($("groupDateTo")) $("groupDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) updateGroupKPIs($("groupReportSelect").value || "", getGroupRange().from, getGroupRange().to); });
+  if ($("groupReportSelect")) $("groupReportSelect").addEventListener("change", () => {
+    const group = $("groupReportSelect").value || "";
+    const {from, to} = getGroupRange();
+    if (group) updateGroupKPIs(group, from, to);
+    else {
+      $("groupKpiMembers").textContent = "0";
+      $("groupKpiAttendances").textContent = "0";
+      $("groupKpiDates").textContent = "0";
+      $("groupKpiAverage").textContent = "0";
+      $("groupReportTableBody").innerHTML = '<tr><td colspan="3" class="hint">Elegí un grupo y el tipo de reporte.</td></tr>';
+    }
+  });
+  if ($("btnGroupAttendanceReport")) $("btnGroupAttendanceReport").addEventListener("click", runGroupAttendanceReport);
+  if ($("btnGroupMembersReport")) $("btnGroupMembersReport").addEventListener("click", runGroupMembersReport);
+
   $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
   $("btnSaveMemberData").addEventListener("click", guardarCambiosMiembro);
 
@@ -1423,9 +1584,11 @@ function initializeDefaults(){
   $("compYearB").value = yy;
   $("reportDateTo").value = $("fecha").value;
   $("reportDateFrom").value = isoMonthsAgo($("fecha").value, 3);
+  if ($("groupDateFrom")) $("groupDateFrom").value = isoMonthsAgo($("fecha").value, 3);
+  if ($("groupDateTo")) $("groupDateTo").value = $("fecha").value;
   switchTab("operativa");
 }
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); fillGroupSelect(); resumen(); updateSaveStatus(); }
 async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
