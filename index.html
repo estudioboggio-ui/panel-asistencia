@@ -426,8 +426,8 @@ const MONTH_NAMES = {"01":"Enero","02":"Febrero","03":"Marzo","04":"Abril","05":
 const CATEGORY_OPTIONS = ["Enseñanza","Juventud","Coro","Limpieza","Diacono","Pastor","Flores","Mantenimiento","Administración","Maestros"]
 const ENSEÑANZA_SUBGROUPS = ["PED","ED","ER","AC"];
 const ALL_GROUP_OPTIONS = [...CATEGORY_OPTIONS, ...ENSEÑANZA_SUBGROUPS];
-const RELATIONSHIP_TYPES = ["Progenitor/a","Hijo/a","Hermano/a","Cónyuge","Abuelo/a","Nieto/a","Tío/a","Sobrino/a","Tutor/a","Tutelado/a","Familiar"];
-const RELATIONSHIP_INVERSE = {"Progenitor/a":"Hijo/a","Hijo/a":"Progenitor/a","Hermano/a":"Hermano/a","Cónyuge":"Cónyuge","Abuelo/a":"Nieto/a","Nieto/a":"Abuelo/a","Tío/a":"Sobrino/a","Sobrino/a":"Tío/a","Tutor/a":"Tutelado/a","Tutelado/a":"Tutor/a","Familiar":"Familiar"};
+const RELATIONSHIP_TYPES = ["Padre","Madre","Hijo/a","Hermano/a","Cónyuge","Abuelo/a","Nieto/a","Tío/a","Sobrino/a","Tutor/a","Tutelado/a","Familiar"];
+const RELATIONSHIP_INVERSE = {"Padre":"Hijo/a","Madre":"Hijo/a","Hijo/a":"Padre/Madre","Hermano/a":"Hermano/a","Cónyuge":"Cónyuge","Abuelo/a":"Nieto/a","Nieto/a":"Abuelo/a","Tío/a":"Sobrino/a","Sobrino/a":"Tío/a","Tutor/a":"Tutelado/a","Tutelado/a":"Tutor/a","Familiar":"Familiar"};
 
 let supabaseClient = null;
 let currentSession = null;
@@ -896,44 +896,48 @@ function renderRelatedMemberSuggestions(){
   const box = $("relatedMemberSuggestions");
   const input = $("relatedMemberSearch");
   if (!box || !input) return;
-  const currentId = Number($("editMemberId").value || 0);
+  const currentId = String($("editMemberId").value || "");
   const q = normalizeName(input.value).toLowerCase();
   if (!q){ box.style.display = "none"; box.innerHTML = ""; return; }
   const items = Object.values(state.membersFullData || {})
-    .filter(m => Number(m.id) !== currentId)
+    .filter(m => String(m.id) !== currentId)
     .filter(m => String(m.name || "").toLowerCase().includes(q))
     .sort((a,b)=> String(a.name||"").localeCompare(String(b.name||""), "es"))
     .slice(0,12);
   if (!items.length){ box.style.display = "none"; box.innerHTML = ""; return; }
   box.style.display = "block";
-  box.innerHTML = items.map(m => `<div class="suggestion-item" data-id="${m.id}" data-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || "")}</div>`).join("");
+  box.innerHTML = items.map(m => `<div class="suggestion-item" data-id="${escapeHtml(String(m.id))}" data-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || "")}</div>`).join("");
   box.querySelectorAll('.suggestion-item').forEach(el => el.addEventListener('click', ()=>{
-    selectedRelatedMemberId = Number(el.getAttribute('data-id'));
+    selectedRelatedMemberId = String(el.getAttribute('data-id') || '');
     input.value = el.getAttribute('data-name');
     box.style.display = 'none';
     box.innerHTML = '';
   }));
 }
 function getDirectRelations(memberId){
-  return (state.relationships || []).filter(r => Number(r.member_id) === Number(memberId));
+  const memberKey = String(memberId || "");
+  return (state.relationships || []).filter(r => String(r.member_id) === memberKey);
 }
 function buildFamilyCircle(memberId){
-  const seen = new Set([Number(memberId)]);
-  const queue = [Number(memberId)];
+  const rootId = String(memberId || "");
+  const seen = new Set([rootId]);
+  const queue = [rootId];
   while (queue.length){
     const current = queue.shift();
     (state.relationships || []).forEach(r => {
-      if (Number(r.member_id) === current && !seen.has(Number(r.related_member_id))){
-        seen.add(Number(r.related_member_id));
-        queue.push(Number(r.related_member_id));
+      const fromId = String(r.member_id || "");
+      const toId = String(r.related_member_id || "");
+      if (fromId === current && toId && !seen.has(toId)){
+        seen.add(toId);
+        queue.push(toId);
       }
-      if (Number(r.related_member_id) === current && !seen.has(Number(r.member_id))){
-        seen.add(Number(r.member_id));
-        queue.push(Number(r.member_id));
+      if (toId === current && fromId && !seen.has(fromId)){
+        seen.add(fromId);
+        queue.push(fromId);
       }
     });
   }
-  return [...seen].filter(id => id !== Number(memberId)).map(id => state.membersFullData[id]).filter(Boolean).sort((a,b)=> String(a.name||"").localeCompare(String(b.name||""), "es"));
+  return [...seen].filter(id => id !== rootId).map(id => state.membersFullData[id]).filter(Boolean).sort((a,b)=> String(a.name||"").localeCompare(String(b.name||""), "es"));
 }
 function renderFamilySection(memberId){
   const list = $("memberRelationsList");
@@ -944,26 +948,26 @@ function renderFamilySection(memberId){
   else list.innerHTML = direct.map(r => {
     const relatedName = state.membersById[r.related_member_id] || `ID ${r.related_member_id}`;
     const note = r.notes ? `<div class="hint" style="margin-top:4px;">${escapeHtml(r.notes)}</div>` : '';
-    return `<div class="relation-card"><div class="relation-header"><div><strong>${escapeHtml(r.relationship_type || 'Familiar')}</strong> · ${escapeHtml(relatedName)}</div><button type="button" data-member="${r.member_id}" data-related="${r.related_member_id}" class="danger btnDeleteRelation">Quitar</button></div>${note}</div>`;
+    return `<div class="relation-card"><div class="relation-header"><div><strong>${escapeHtml(r.relationship_type || 'Familiar')}</strong> · ${escapeHtml(relatedName)}</div><button type="button" data-member="${escapeHtml(String(r.member_id))}" data-related="${escapeHtml(String(r.related_member_id))}" class="danger btnDeleteRelation">Quitar</button></div>${note}</div>`;
   }).join('');
-  list.querySelectorAll('.btnDeleteRelation').forEach(btn => btn.addEventListener('click', ()=> deleteRelationPair(Number(btn.dataset.member), Number(btn.dataset.related))));
+  list.querySelectorAll('.btnDeleteRelation').forEach(btn => btn.addEventListener('click', ()=> deleteRelationPair(String(btn.dataset.member || ''), String(btn.dataset.related || ''))));
 
   const familyMembers = buildFamilyCircle(memberId);
   if (!familyMembers.length) circle.innerHTML = '<span class="hint">Sin círculo familiar cargado.</span>';
-  else circle.innerHTML = familyMembers.map(m => `<button type="button" class="chip-btn family-open" data-id="${m.id}">${escapeHtml(m.name || '')}</button>`).join('');
-  circle.querySelectorAll('.family-open').forEach(btn => btn.addEventListener('click', ()=> abrirFicha(Number(btn.dataset.id))));
+  else circle.innerHTML = familyMembers.map(m => `<button type="button" class="chip-btn family-open" data-id="${escapeHtml(String(m.id))}">${escapeHtml(m.name || '')}</button>`).join('');
+  circle.querySelectorAll('.family-open').forEach(btn => btn.addEventListener('click', ()=> abrirFicha(String(btn.dataset.id || ''))));
 }
 async function addFamilyRelation(){
-  const memberId = Number($("editMemberId").value || 0);
+  const memberId = String($("editMemberId").value || "");
   const inputName = normalizeName($("relatedMemberSearch").value);
-  const exactByName = Object.values(state.membersFullData || {}).find(m => String(m.name || '').toLowerCase() === inputName.toLowerCase());
-  const relatedId = selectedRelatedMemberId || Number(exactByName?.id || 0);
+  const exactByName = Object.values(state.membersFullData || {}).find(m => String(m.name || '').trim().toLowerCase() === inputName.toLowerCase());
+  const relatedId = String(selectedRelatedMemberId || exactByName?.id || "");
   const relationshipType = $("relationType").value;
   const notes = normalizeName($("relationNotes").value);
   if (!memberId || !relatedId){ alert('Seleccioná el miembro relacionado.'); return; }
   if (memberId === relatedId){ alert('No podés vincular un miembro consigo mismo.'); return; }
   if (!relationshipType){ alert('Elegí el tipo de vínculo.'); return; }
-  const already = (state.relationships || []).some(r => Number(r.member_id) === memberId && Number(r.related_member_id) === relatedId && String(r.relationship_type || '') === relationshipType);
+  const already = (state.relationships || []).some(r => String(r.member_id) === memberId && String(r.related_member_id) === relatedId && String(r.relationship_type || '') === relationshipType);
   if (already){ alert('Ese vínculo ya está cargado.'); return; }
   const inverseType = RELATIONSHIP_INVERSE[relationshipType] || relationshipType;
   const payload = [
@@ -993,12 +997,12 @@ async function deleteRelationPair(memberId, relatedId){
   const res2 = await supabaseClient.from('member_relationships').delete().eq('member_id', relatedId).eq('related_member_id', memberId);
   if (res2.error){ alert('No pude eliminar el vínculo inverso: ' + res2.error.message); return; }
   await cargarTodoDesdeServidor();
-  renderFamilySection(Number($("editMemberId").value || 0));
+  renderFamilySection(String($("editMemberId").value || ""));
 }
 
 /* MEJORA: ABRIR FICHA DE MIEMBRO */
 function abrirFicha(id) {
-    const member = state.membersFullData[id];
+    const member = state.membersFullData[String(id)];
     if (!member) return;
 
     $("editMemberId").value = member.id;
