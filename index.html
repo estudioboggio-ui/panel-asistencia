@@ -56,6 +56,7 @@
   .hidden{display:none !important}
   .alert-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220;margin-bottom:10px}
   .ok{color:#86efac}.bad{color:#fca5a5}.warntext{color:#fcd34d}
+  .member-name-link{color:var(--amber);text-decoration:underline;cursor:pointer;}
   
   .save-feedback{display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:13px}
   .save-feedback.show{display:block}
@@ -254,46 +255,29 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
 
-    <div class="panel" style="margin-top:16px;">
-      <h2>Reportes de miembros</h2>
-      <div class="filters" style="margin-bottom:12px;">
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Período de análisis</div>
-          <div class="filters" style="margin-bottom:0;">
-            <input id="reportDateFrom" type="date">
-            <input id="reportDateTo" type="date">
-          </div>
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Acción</div>
-          <div class="row-actions">
-            <button id="btnReportRecurring" type="button">Ver recurrentes activos</button>
-            <button id="btnReportInactive" type="button">Ver inactivos recientes</button>
-            <button id="btnReportDropped" type="button">Ver dejaron de concurrir</button>
-          </div>
-          <div class="row-actions" style="margin-top:10px;">
-            <button id="btnReportFirstMonth" type="button">Ver primeras veces del mes</button>
-            <button id="btnReportNoReturn" type="button">Ver primeras veces sin retorno</button>
-            <button id="btnReportTop" type="button">Ver top asistentes</button>
-          </div>
-        </div>
+<div id="memberModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:2000;">
+  <div class="panel" style="width:90%; max-width:500px; background:var(--bg); padding:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h2 style="margin:0;">Ficha del Miembro</h2>
+      <button onclick="document.getElementById('memberModal').classList.add('hidden')" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer;">&times;</button>
+    </div>
+    <div class="stack">
+      <input type="hidden" id="editMemberId">
+      <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div><div class="hint">Teléfono</div><input id="editPhone" type="text" style="width:100%"></div>
+        <div><div class="hint">Cumpleaños</div><input id="editBirth" type="date" style="width:100%"></div>
       </div>
-      <div class="scroll" style="max-height:420px;">
-        <table>
-          <thead>
-            <tr>
-              <th id="reportCol1">Nombre</th>
-              <th id="reportCol2">Detalle</th>
-            </tr>
-          </thead>
-          <tbody id="reportTableBody">
-            <tr><td colspan="2" class="hint">Elegí un reporte para ver el listado.</td></tr>
-          </tbody>
-        </table>
+      <div><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
+      <div><div class="hint">Notas / Observaciones</div><textarea id="editNotes" style="width:100%; min-height:80px;"></textarea></div>
+      <div class="row-actions" style="margin-top:20px; justify-content: flex-end;">
+        <button onclick="document.getElementById('memberModal').classList.add('hidden')" class="secondary">Cancelar</button>
+        <button id="btnSaveMemberDetails" class="primary">Guardar Cambios</button>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -311,6 +295,7 @@ let dirty = false;
 
 const $ = id => document.getElementById(id);
 
+// Utilidades
 function normalizeName(s){ return String(s || "").trim().replace(/\s+/g, " "); }
 function normalizeDisplayName(s){ return normalizeName(s).toUpperCase(); }
 function normalizeComparableName(s){ return normalizeDisplayName(s).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
@@ -322,6 +307,7 @@ function userCanAdmin(){ return currentProfile?.role === "admin"; }
 function userCanOperative(){ return currentProfile?.role === "admin" || currentProfile?.role === "carga"; }
 function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
 function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); }
+
 function switchTab(tab){
   $("tabOperativa").classList.toggle("active", tab==="operativa");
   $("tabAdmin").classList.toggle("active", tab==="admin");
@@ -331,90 +317,46 @@ function switchTab(tab){
 
 async function initSupabase(){
   if (!window.__panelSupabaseClient) {
-    window.__panelSupabaseClient = window.supabase.createClient(
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY,
-      {
-        auth: {
-          storageKey: "panel-asistencia-auth",
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: false
-        }
-      }
-    );
+    window.__panelSupabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { storageKey: "panel-asistencia-auth", persistSession: true, autoRefreshToken: true }
+    });
   }
   supabaseClient = window.__panelSupabaseClient;
 }
 
+// Auth
 async function loginWithPassword(){
   const email = $("loginEmail").value.trim();
   const password = $("loginPassword").value;
-
-  if (!email || !password){
-    $("loginStatus").textContent = "Ingresá email y contraseña";
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("loginStatus").textContent = "Ingresando...";
-  $("loginStatus").className = "hint";
-
+  if (!email || !password){ $("loginStatus").textContent = "Ingresá email y contraseña"; return; }
   const res = await supabaseClient.auth.signInWithPassword({ email, password });
-
-  if (res.error){
-    $("loginStatus").textContent = "Error: " + res.error.message;
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("loginStatus").textContent = "Ingreso correcto";
-  $("loginStatus").className = "hint ok";
+  if (res.error){ $("loginStatus").textContent = "Error: " + res.error.message; return; }
   window.location.reload();
 }
 
 async function registerWithPassword(){
   const email = $("loginEmail").value.trim();
   const password = $("loginPassword").value;
-
-  if (!email || !password){
-    $("loginStatus").textContent = "Ingresá email y contraseña";
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
-  $("loginStatus").textContent = "Creando cuenta...";
-  $("loginStatus").className = "hint";
-
   const res = await supabaseClient.auth.signUp({ email, password });
-
-  if (res.error){
-    $("loginStatus").textContent = "Error: " + res.error.message;
-    $("loginStatus").className = "hint bad";
-    return;
-  }
-
+  if (res.error){ $("loginStatus").textContent = "Error: " + res.error.message; return; }
   $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
-  $("loginStatus").className = "hint ok";
 }
 
 async function fetchProfile(){
-  if (!currentSession?.user?.id) return null;
-  const res = await supabaseClient.from("user_profiles").select("id,user_id,email,role,is_active").eq("user_id", currentSession.user.id).maybeSingle();
-  if (res.error) throw res.error;
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+  const res = await supabaseClient.from("user_profiles").select("*").eq("user_id", user.id).maybeSingle();
   return res.data;
 }
 
-async function fetchAllRows(table, columns, pageSize=1000, orderCol=null){
-  let all = [], from = 0;
+// Carga de datos
+async function fetchAllRows(table, columns){
+  let all = [], from = 0, pageSize = 1000;
   while (true){
-    let q = supabaseClient.from(table).select(columns).range(from, from + pageSize - 1);
-    if (orderCol) q = q.order(orderCol);
-    const res = await q;
+    const res = await supabaseClient.from(table).select(columns).range(from, from + pageSize - 1);
     if (res.error) throw res.error;
-    const rows = res.data || [];
-    all = all.concat(rows);
-    if (rows.length < pageSize) break;
+    all = all.concat(res.data);
+    if (res.data.length < pageSize) break;
     from += pageSize;
   }
   return all;
@@ -422,17 +364,12 @@ async function fetchAllRows(table, columns, pageSize=1000, orderCol=null){
 
 async function cargarTodoDesdeServidor(){
   if (!userCanOperative()) return;
-  const promises = [
-    fetchAllRows("members", "id,name,active_from,inactive_from", 1000, "name"),
-    fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
-    fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
-    fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date")
-  ];
-  if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
-  else promises.push(Promise.resolve({data:null,error:null}));
-
-  const [members, attendanceRows, extras, firstTimeRows, alertSettings] = await Promise.all(promises);
-  if (alertSettings.error) throw alertSettings.error;
+  const [members, attendanceRows, extras, alertSettings] = await Promise.all([
+    fetchAllRows("members", "*"),
+    fetchAllRows("attendance_records", "*"),
+    fetchAllRows("day_extras", "*"),
+    supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle()
+  ]);
 
   state.people = [];
   state.membersById = {};
@@ -451,7 +388,7 @@ async function cargarTodoDesdeServidor(){
   state.attendance = attendanceRows.map(r => ({
     date: r.attendance_date,
     member_id: r.member_id,
-    name: state.membersById[r.member_id] || null
+    name: state.membersById[r.member_id]
   })).filter(x => x.name);
 
   state.dayExtras = {};
@@ -461,601 +398,62 @@ async function cargarTodoDesdeServidor(){
       primeraVez: { count: e.primera_vez_count || 0, text: e.primera_vez_text || "" }
     };
   });
-
-  state.firstTimeByDate = {};
-  (firstTimeRows || []).forEach(r => {
-    const name = r.guest_name || state.membersById[r.member_id];
-    if (!name) return;
-    if (!state.firstTimeByDate[r.first_date]) state.firstTimeByDate[r.first_date] = [];
-    state.firstTimeByDate[r.first_date].push(name);
-  });
-  Object.keys(state.firstTimeByDate).forEach(date => {
-    state.firstTimeByDate[date] = [...new Set(state.firstTimeByDate[date])].sort((a,b) => a.localeCompare(b, "es"));
-  });
-
-  state.alertSettings = alertSettings.data || null;
+  state.alertSettings = alertSettings.data;
 }
 
-function ensureDayExtras(date){
-  if (!state.dayExtras[date]) state.dayExtras[date] = { visitas:{count:0,text:""}, primeraVez:{count:0,text:""} };
-}
-function loadExtrasUI(date){
-  ensureDayExtras(date);
-  $("visitasCount").textContent = state.dayExtras[date].visitas.count || 0;
-  $("primeraVezCount").textContent = state.dayExtras[date].primeraVez.count || 0;
-  $("visitasTexto").value = state.dayExtras[date].visitas.text || "";
-  $("primeraVezTexto").value = state.dayExtras[date].primeraVez.text || "";
-}
-function loadFirstTimeNamesForDate(date){
-  if (!$("primeraVezNombres")) return;
-  const names = state.firstTimeByDate[date] || [];
-  $("primeraVezNombres").value = names.join("\n");
-}
-function clearFirstTimeNames(){
-  if ($("primeraVezNombres")) $("primeraVezNombres").value = "";
-}
-function parseNombresPrimeraVez(){
-  const raw = $("primeraVezNombres") ? ($("primeraVezNombres").value || "") : "";
-  return raw
-    .split("\n")
-    .map(x => x.trim())
-    .filter(x => x.length > 0)
-    .map(x => x.toUpperCase());
-}
-function syncPrimeraVezCountFromNames(){
-  if (!$("primeraVezNombres")) return;
-  const qty = parseNombresPrimeraVez().length;
-  const date = selectedDate();
-  ensureDayExtras(date);
-  if (qty > 0){
-    state.dayExtras[date].primeraVez.count = qty;
-    $("primeraVezCount").textContent = qty;
-  }
-}
-function dayRecords(date){ return state.attendance.filter(x => x.date === date).map(x => x.name); }
-function isMemberActiveOn(name, date){
-  const start = state.activeFrom[name] || "1900-01-01";
-  const end = state.inactiveFrom[name] || null;
-  if (date < start) return false;
-  if (end && date >= end) return false;
-  return true;
-}
-function cargarBorradorDelDia(){
-  const date = selectedDate();
-  draftAttendance = dayRecords(date).filter(n => isMemberActiveOn(n, date));
-  ensureDayExtras(date);
-  loadExtrasUI(date);
-  loadFirstTimeNamesForDate(date);
-  dirty = false;
-  updateSaveStatus();
-}
-let saveStatusTimeout = null;
-function updateSaveStatus(message=null){
-  if (saveStatusTimeout){
-    clearTimeout(saveStatusTimeout);
-    saveStatusTimeout = null;
-  }
-  if (message){
-    $("saveStatus").textContent = message;
-    $("saveStatus").style.color = "#86efac";
-    saveStatusTimeout = setTimeout(() => {
-      $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
-      $("saveStatus").style.color = dirty ? "#fcd34d" : "";
-    }, 2500);
-    return;
-  }
-  $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
-  $("saveStatus").style.color = dirty ? "#fcd34d" : "";
-}
-
-function setSaveFeedback(message="", type="success"){
-  const box = $("saveFeedback");
-  if (!box) return;
-  if (!message){
-    box.textContent = "";
-    box.className = "save-feedback";
-    return;
-  }
-  box.textContent = message;
-  box.className = `save-feedback show ${type}`;
-}
-
-function setSavingUI(isSaving){
-  const root = $("operativaView");
-  if (!root) return;
-  root.classList.toggle("saving", isSaving);
-
-  const controls = root.querySelectorAll('input, textarea, select, button');
-  controls.forEach(el => {
-    if (el.id === "btnLogout") return;
-    if (el.id === "tabOperativa" || el.id === "tabAdmin") return;
-    if (el.id === "btnSaveDay"){
-      el.disabled = isSaving;
-    } else {
-      el.disabled = isSaving;
-    }
-  });
-}
-function isPresent(date, name){ return date === selectedDate() ? draftAttendance.includes(name) : state.attendance.some(x => x.date === date && x.name === name); }
-function togglePresence(name){
-  const i = draftAttendance.indexOf(name);
-  if (i >= 0) draftAttendance.splice(i, 1); else draftAttendance.push(name);
-  draftAttendance.sort((a,b)=>a.localeCompare(b,"es"));
-  dirty = true; updateSaveStatus(); renderPeople(); resumen();
-}
-function changeCounter(kind, delta){
-  const date = selectedDate();
-  ensureDayExtras(date);
-  const current = Number(state.dayExtras[date][kind].count || 0);
-  state.dayExtras[date][kind].count = Math.max(0, current + delta);
-  dirty = true; updateSaveStatus(); loadExtrasUI(date); resumen();
-}
-function updateExtraText(kind){
-  const date = selectedDate();
-  ensureDayExtras(date);
-  if (kind === "visitas") state.dayExtras[date].visitas.text = $("visitasTexto").value;
-  else state.dayExtras[date].primeraVez.text = $("primeraVezTexto").value;
-  dirty = true; updateSaveStatus();
-}
 function renderPeople(){
   const date = selectedDate();
   const query = $("search").value.trim().toLowerCase();
-  let people = state.people.filter(name => isMemberActiveOn(name, date));
+  let people = state.people.filter(name => {
+      const start = state.activeFrom[name] || "1900-01-01";
+      const end = state.inactiveFrom[name] || null;
+      return date >= start && (!end || date < end);
+  });
+  
   if (query) people = people.filter(n => n.toLowerCase().includes(query));
   people.sort((a,b)=>a.localeCompare(b,"es"));
 
   $("peopleList").innerHTML = people.map(name => {
-    const present = isPresent(date, name);
+    const present = draftAttendance.includes(name);
+    const mId = state.memberIdsByName[name];
     return `<div class="person ${present ? "present" : ""}">
-      <div><strong class="member-name-link" data-id="${state.memberIdsByName[name]}&quot; style=&quot;cursor:pointer; color:#fcd34d; text-decoration:underline;&quot;&gt;${escapeHtml(name)}
+      <div>
+        <strong class="member-name-link" data-id="${mId}">${escapeHtml(name)}</strong>
+      </div>
       <div class="row-actions">
         <span class="badge ${present ? "on" : ""}">${present ? "P" : "—"}</span>
-        <button type="button" data-name="${escapeHtml(name)}" class="toggle-presence">${present ? "Quitar" : "Marcar"}</button>
+        <button type="button" class="toggle-presence" data-name="${escapeHtml(name)}">${present ? "Quitar" : "Marcar"}</button>
       </div>
     </div>`;
   }).join("");
 
-  document.querySelectorAll(".toggle-presence").forEach(btn => btn.addEventListener("click", ()=>togglePresence(btn.getAttribute("data-name"))));
-
-  if (people.length === 0 && query){
-    $("searchEmptyState").classList.remove("hidden");
-    $("searchEmptyState").innerHTML = `No hay coincidencias. Podés agregar manualmente a <strong>${escapeHtml(query.toUpperCase())}</strong>.`;
-  } else {
-    $("searchEmptyState").classList.add("hidden");
-    $("searchEmptyState").innerHTML = "";
-  }
-}
-
-function ultimosTresMesesDesde(fechaStr){
-  const end = new Date(fechaStr + "T00:00:00");
-  const start = new Date(end); start.setMonth(start.getMonth()-3);
-  return {start,end};
-}
-function buildMonthStats(month, year){
-  const prefix = `${String(year)}-${String(month).padStart(2,"0")}-`;
-  const totalsByDate = {};
-  state.attendance.forEach(x => { if (x.date.startsWith(prefix)) totalsByDate[x.date] = (totalsByDate[x.date] || 0) + 1; });
-  Object.keys(state.dayExtras).forEach(date => {
-    if (date.startsWith(prefix)) totalsByDate[date] = (totalsByDate[date] || 0) + Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
+  document.querySelectorAll(".toggle-presence").forEach(btn => {
+      btn.onclick = () => {
+          const n = btn.dataset.name;
+          const idx = draftAttendance.indexOf(n);
+          if (idx >= 0) draftAttendance.splice(idx, 1); else draftAttendance.push(n);
+          dirty = true;
+          renderAll();
+      };
   });
-  const dates = Object.keys(totalsByDate).length;
-  const total = Object.values(totalsByDate).reduce((a,b)=>a+b,0);
-  return { total, dates, avg: dates ? (total/dates).toFixed(1) : "0" };
-}
-function safePct(num, den){ return den ? (num/den)*100 : 0; }
-
-function resumen(){
-  const fecha = selectedDate();
-  ensureDayExtras(fecha);
-  const totalDia = draftAttendance.length + Number(state.dayExtras[fecha].visitas.count || 0) + Number(state.dayExtras[fecha].primeraVez.count || 0);
-  $("kpiTotalDia").textContent = totalDia;
-
-  const rango = ultimosTresMesesDesde(fecha);
-  const inRange = state.attendance.filter(x => {
-    const d = new Date(x.date + "T00:00:00");
-    return d >= rango.start && d <= rango.end;
-  });
-
-  const byDate = {};
-  inRange.forEach(x => byDate[x.date] = (byDate[x.date] || 0) + 1);
-  Object.keys(byDate).forEach(date => {
-    ensureDayExtras(date);
-    byDate[date] += Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primeraVez.count || 0);
-  });
-
-  const byPerson = {};
-  inRange.forEach(x => byPerson[x.name] = (byPerson[x.name] || 0) + 1);
-
-  const datesWed = {}, datesSun = {};
-  Object.keys(byDate).forEach(date => {
-    const day = new Date(date + "T00:00:00").getDay();
-    if (day === 3) datesWed[date] = byDate[date];
-    if (day === 0) datesSun[date] = byDate[date];
-  });
-  const avg = obj => {
-    const vals = Object.values(obj);
-    return vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
-  };
-
-  $("kpiAvgWed").textContent = avg(datesWed).toFixed(1);
-  $("kpiAvgSun").textContent = avg(datesSun).toFixed(1);
-  $("kpiAvgGen").textContent = avg(byDate).toFixed(1);
-
-  $("topTable").innerHTML = Object.entries(byPerson).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],'es')).slice(0,20)
-    .map(([name,qty]) => `<tr><td>${escapeHtml(name)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
-
-  $("dateTable").innerHTML = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30)
-    .map(([date,qty]) => `<tr><td>${formatDate(date)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
-
-  const monthA = $("compMonthA").value;
-  const yearA = $("compYearA").value;
-  const monthB = $("compMonthB").value;
-  const yearB = $("compYearB").value;
-  const statsA = buildMonthStats(monthA, yearA);
-  const statsB = buildMonthStats(monthB, yearB);
-  $("yearTable").innerHTML = `<tr><td>${MONTH_NAMES[String(monthA).padStart(2,"0")]} ${yearA}</td><td>${statsA.total}</td><td>${statsA.dates}</td><td>${statsA.avg}</td></tr>
-<tr><td>${MONTH_NAMES[String(monthB).padStart(2,"0")]} ${yearB}</td><td>${statsB.total}</td><td>${statsB.dates}</td><td>${statsB.avg}</td></tr>`;
-
-  if (userCanAdmin()) renderAdminAnalytics();
 }
 
-function getMeetingTotalsSorted(){
-  const totals = {};
-  state.attendance.forEach(x => totals[x.date] = (totals[x.date] || 0) + 1);
-  Object.keys(state.dayExtras).forEach(date => {
-    totals[date] = (totals[date] || 0) + Number(state.dayExtras[date]?.visitas?.count || 0) + Number(state.dayExtras[date]?.primeraVez?.count || 0);
-  });
-  return Object.entries(totals).sort((a,b)=>a[0].localeCompare(b[0]));
-}
-function nucleusShare(){
-  const end = new Date(selectedDate()+"T00:00:00");
-  const start = new Date(end); start.setMonth(start.getMonth()-3);
-  const counts = {}; let total = 0;
-  state.attendance.forEach(r => {
-    const dt = new Date(r.date + "T00:00:00");
-    if (dt >= start && dt <= end){ counts[r.name] = (counts[r.name] || 0) + 1; total++; }
-  });
-  const top10 = Object.values(counts).sort((a,b)=>b-a).slice(0,10).reduce((a,b)=>a+b,0);
-  return safePct(top10, total);
-}
-function retentionEstimate(){
-  const end = new Date(selectedDate()+"T00:00:00");
-  const aStart = new Date(end); aStart.setMonth(aStart.getMonth()-2);
-  const aEnd = new Date(end); aEnd.setMonth(aEnd.getMonth()-1);
-  const bStart = new Date(end); bStart.setMonth(bStart.getMonth()-1);
-  const setA = new Set(), setB = new Set();
-  state.attendance.forEach(r => {
-    const dt = new Date(r.date + "T00:00:00");
-    if (dt >= aStart && dt < aEnd) setA.add(r.name);
-    if (dt >= bStart && dt <= end) setB.add(r.name);
-  });
-  const intersection = [...setA].filter(x => setB.has(x)).length;
-  return safePct(intersection, setA.size);
-}
-function loadAlertSettingsUI(){
-  const s = state.alertSettings; if (!s) return;
-  $("alertLowAttendance").value = s.low_attendance_threshold ?? 20;
-  $("alertTrendDrop").value = s.trend_drop_percent ?? 15;
-  $("alertFirstReturnWeeks").value = s.first_time_return_weeks ?? 4;
-  $("alertInactiveWeeks").value = s.inactive_member_weeks ?? 8;
-  $("alertVisitsSpike").value = s.visits_spike_threshold ?? 5;
-}
-
-function isoDaysAgo(baseIso, days){
-  const d = new Date(baseIso + "T00:00:00");
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0,10);
-}
-function isoMonthsAgo(baseIso, months){
-  const d = new Date(baseIso + "T00:00:00");
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0,10);
-}
-function getReferenceDate(){
-  return selectedDate() || new Date().toISOString().slice(0,10);
-}
-function getAttendanceByMember(){
-  const map = {};
-  state.attendance.forEach(r => {
-    if (!map[r.name]) map[r.name] = [];
-    map[r.name].push(r.date);
-  });
-  Object.keys(map).forEach(name => map[name].sort());
-  return map;
-}
-function getMonthBounds(isoDate){
-  const d = new Date(isoDate + "T00:00:00");
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-  const last = new Date(next.getTime() - 86400000);
-  return {
-    start: first.toISOString().slice(0,10),
-    end: last.toISOString().slice(0,10),
-    prefix: first.toISOString().slice(0,7)
-  };
-}
-function getReportRange(){
-  const refDate = getReferenceDate();
-  const defaultFrom = isoMonthsAgo(refDate, 3);
-  let from = $("reportDateFrom")?.value || defaultFrom;
-  let to = $("reportDateTo")?.value || refDate;
-  if (from > to) [from, to] = [to, from];
-  return {from, to, refDate};
-}
-function getFirstTimersInRange(from, to){
-  const rows = [];
-  Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
-    if (date >= from && date <= to){
-      names.forEach(name => rows.push({name, date}));
-    }
-  });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es") || a.date.localeCompare(b.date));
-  return rows;
-}
-function getRecurringActiveNames(from, to){
-  const byMember = getAttendanceByMember();
-  const rows = [];
-  Object.entries(byMember).forEach(([name, dates]) => {
-    const count = dates.filter(d => d >= from && d <= to).length;
-    if (count >= 9){
-      rows.push({name, detail: `${count} asistencias en el período`});
-    }
-  });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
-  return rows;
-}
-function getInactiveRecentNames(from, to){
-  const cutoff = isoDaysAgo(to, 21);
-  const byMember = getAttendanceByMember();
-  const rows = [];
-  Object.entries(byMember).forEach(([name, dates]) => {
-    const relevant = dates.filter(d => d <= to);
-    if (!relevant.length) return;
-    const last = relevant[relevant.length - 1];
-    const hadPrevious = relevant.some(d => d >= from && d < cutoff);
-    const hadRecent = relevant.some(d => d >= cutoff && d <= to);
-    if (hadPrevious && !hadRecent){
-      rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
-    }
-  });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
-  return rows;
-}
-function getDroppedNames(from, to){
-  const cutoff = isoDaysAgo(to, 56);
-  const byMember = getAttendanceByMember();
-  const rows = [];
-  Object.entries(byMember).forEach(([name, dates]) => {
-    const relevant = dates.filter(d => d <= to);
-    if (!relevant.length) return;
-    const last = relevant[relevant.length - 1];
-    const hadInRange = relevant.some(d => d >= from && d <= to);
-    if (!hadInRange && last < cutoff){
-      rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
-    }
-  });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
-  return rows;
-}
-function getFirstTimeNoReturnInRange(from, to){
-  const byMember = getAttendanceByMember();
-  const rows = [];
-  Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
-    if (date >= from && date <= to){
-      names.forEach(name => {
-        const laterReturns = (byMember[name] || []).filter(d => d > date && d <= to);
-        if (!laterReturns.length){
-          rows.push({name, detail: `Primera vez: ${formatDate(date)}`});
-        }
-      });
-    }
-  });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
-  return rows;
-}
-function getTopAttendees(from, to){
-  const byMember = getAttendanceByMember();
-  const rows = [];
-  Object.entries(byMember).forEach(([name, dates]) => {
-    const count = dates.filter(d => d >= from && d <= to).length;
-    if (count > 0){
-      rows.push({name, count});
-    }
-  });
-  rows.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name, "es"));
-  return rows;
-}
-function renderReport(title1, title2, rows, formatter){
-  $("reportCol1").textContent = title1;
-  $("reportCol2").textContent = title2;
-  const body = $("reportTableBody");
-  if (!rows.length){
-    body.innerHTML = '<tr><td colspan="2" class="hint">Sin resultados para el criterio elegido.</td></tr>';
-    return;
-  }
-  body.innerHTML = rows.map(r => formatter(r)).join("");
-}
-function runReport(type){
-  const {from, to} = getReportRange();
-
-  if (type === "recurring"){
-    const rows = getRecurringActiveNames(from, to);
-    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
-    return;
-  }
-  if (type === "inactive"){
-    const rows = getInactiveRecentNames(from, to);
-    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
-    return;
-  }
-  if (type === "dropped"){
-    const rows = getDroppedNames(from, to);
-    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
-    return;
-  }
-  if (type === "firstMonth"){
-    const rows = getFirstTimersInRange(from, to);
-    renderReport("Nombre", "Primera vez", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${formatDate(r.date)}</td></tr>`);
-    return;
-  }
-  if (type === "noReturn"){
-    const rows = getFirstTimeNoReturnInRange(from, to);
-    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
-    return;
-  }
-  if (type === "top"){
-    const rows = getTopAttendees(from, to);
-    renderReport("Nombre", "Asistencias", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.count}</td></tr>`);
-    return;
-  }
-}
-
-function renderAlerts(){
-  const c = $("alertsContainer");
-  const s = state.alertSettings || {low_attendance_threshold:20, trend_drop_percent:15, first_time_return_weeks:4, inactive_member_weeks:8, visits_spike_threshold:5};
-  const alerts = [];
-  const today = selectedDate();
-  const todayTotal = Number($("kpiTotalDia").textContent || 0);
-  if (todayTotal && todayTotal < Number(s.low_attendance_threshold || 20)) alerts.push({title:"Asistencia baja", text:"La reunión del día quedó por debajo del umbral.", level:"bad"});
-  const meetings = getMeetingTotalsSorted();
-  const last8 = meetings.slice(-8).map(x=>x[1]), prev8 = meetings.slice(-16,-8).map(x=>x[1]);
-  if (last8.length && prev8.length){
-    const avgLast = last8.reduce((a,b)=>a+b,0)/last8.length;
-    const avgPrev = prev8.reduce((a,b)=>a+b,0)/prev8.length;
-    const drop = avgPrev ? ((avgPrev-avgLast)/avgPrev)*100 : 0;
-    if (drop >= Number(s.trend_drop_percent || 15)) alerts.push({title:"Caída de tendencia", text:`La caída reciente fue de ${drop.toFixed(1)}%.`, level:"warntext"});
-  }
-  const spikeVisits = Number(state.dayExtras[today]?.visitas?.count || 0);
-  if (spikeVisits >= Number(s.visits_spike_threshold || 5)) alerts.push({title:"Pico de visitas", text:`Las visitas del día alcanzaron ${spikeVisits}.`, level:"ok"});
-  c.innerHTML = alerts.length ? alerts.map(a => `<div class="alert-card"><div class="${a.level}"><strong>${a.title}</strong></div><div class="hint" style="margin-top:6px;">${a.text}</div></div>`).join("") : `<div class="hint">Sin alertas activas por ahora.</div>`;
-}
-
-function renderAdminAnalytics(){
-  const refDate = getReferenceDate();
-  const meetings = getMeetingTotalsSorted().filter(([d]) => d <= refDate);
-  const last8 = meetings.slice(-8);
-  const avg4w = last8.length ? last8.reduce((a, [,v]) => a+v, 0) / last8.length : 0;
-  $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
-
-  const defaultFrom = isoMonthsAgo(refDate, 3);
-  const recurringRows = getRecurringActiveNames(defaultFrom, refDate);
-  const firstMonthRows = getFirstTimersInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
-  const noReturnRows = getFirstTimeNoReturnInRange(...Object.values(getMonthBounds(refDate)).slice(0,2));
-
-  $("adminKpiRecurring").textContent = recurringRows.length;
-  $("adminKpiFirstMonth").textContent = firstMonthRows.length;
-
-  const returnRate = firstMonthRows.length ? ((firstMonthRows.length - noReturnRows.length) / firstMonthRows.length) * 100 : 0;
-  $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
-
-  const monthBounds = getMonthBounds(refDate);
-  const thisMonthTotal = Object.entries(Object.fromEntries(meetings)).filter(([d]) => d >= monthBounds.start && d <= monthBounds.end).reduce((a,[,v])=>a+v,0);
-  const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d >= monthBounds.start && d <= monthBounds.end).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
-  $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
-
-  const inactiveRows = getInactiveRecentNames(defaultFrom, refDate);
-  const droppedRows = getDroppedNames(defaultFrom, refDate);
-
-  $("adminSummaryTable").innerHTML = [
-    ["Recurrentes activos (≥ 9 asistencias / 3 meses)", recurringRows.length],
-    ["Inactivos recientes (sin asistir 3 semanas)", inactiveRows.length],
-    ["Dejaron de concurrir (> 8 semanas)", droppedRows.length],
-    ["Primeras veces del mes", firstMonthRows.length],
-    ["Primeras veces sin retorno dentro del mes", noReturnRows.length],
-    ["Peso primeras veces sobre total mes", `${safePct(firstMonthRows.length, thisMonthTotal).toFixed(1)}%`],
-    ["Concentración núcleo duro (top 10 / total 3 meses)", nucleusShare().toFixed(1) + "%"],
-    ["Tasa de retención estimada", retentionEstimate().toFixed(1) + "%"]
-  ].map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
-
-  renderAlerts();
-  loadAlertSettingsUI();
-}
-
-function calcularAdminKPIs(){ renderAdminAnalytics(); }
-
-async function saveAlertSettings(){
-  if (!userCanAdmin()) return;
-  const payload = {
-    id: state.alertSettings?.id || undefined,
-    low_attendance_threshold: Number($("alertLowAttendance").value || 20),
-    trend_drop_percent: Number($("alertTrendDrop").value || 15),
-    first_time_return_weeks: Number($("alertFirstReturnWeeks").value || 4),
-    inactive_member_weeks: Number($("alertInactiveWeeks").value || 8),
-    visits_spike_threshold: Number($("alertVisitsSpike").value || 5),
-    updated_at: new Date().toISOString(),
-    updated_by: currentProfile?.id || null
-  };
-  const res = await supabaseClient.from("alert_settings").upsert(payload).select().single();
-  if (res.error){ alert("No pude guardar parámetros de alertas: " + res.error.message); return; }
-  state.alertSettings = res.data;
-  renderAdminAnalytics();
-  alert("Parámetros guardados.");
-}
-function actualizarSugerenciasInactivar(){
-  const q = normalizeName($("removeMemberSearch").value).toLowerCase();
-  const box = $("memberSuggestionsBox");
-  if (!q){ box.style.display = "none"; box.innerHTML = ""; return; }
-  const fecha = selectedDate();
-  const items = state.people.filter(name => isMemberActiveOn(name, fecha)).filter(name => name.toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b,"es")).slice(0,12);
-  if (!items.length){ box.style.display = "none"; box.innerHTML = ""; return; }
-  box.style.display = "block";
-  box.innerHTML = items.map(name => `<div class="suggestion-item" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`).join("");
-  box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", ()=>{ $("removeMemberSearch").value = el.getAttribute("data-name"); box.style.display="none"; box.innerHTML=""; }));
-}
-async function agregarNuevoMiembro(){
-  if (!userCanOperative()) return;
-  const name = normalizeDisplayName($("newMemberName").value);
-  const date = selectedDate();
-  if (!name){ alert("Ingresá un nombre válido."); return; }
-  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
-  const res = existing
-    ? await supabaseClient.from("members").update({ active_from: date, inactive_from: null }).eq("name", existing)
-    : await supabaseClient.from("members").insert({ name, active_from: date });
-  if (res.error){ alert("No pude guardar el miembro: " + res.error.message); return; }
-  $("newMemberName").value = "";
-  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); if (!draftAttendance.includes(name)) draftAttendance.push(name); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
-}
-async function inactivarMiembro(){
-  if (!userCanOperative()) return;
-  const name = normalizeName($("removeMemberSearch").value);
-  const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
-  if (!existing){ alert("No encontré ese miembro."); return; }
-  const res = await supabaseClient.from("members").update({ inactive_from: selectedDate() }).eq("name", existing);
-  if (res.error){ alert("No pude inactivar el miembro: " + res.error.message); return; }
-  $("removeMemberSearch").value = "";
-  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
-}
-// --- NUEVAS FUNCIONES PARA LA FICHA DE MIEMBRO ---
 async function abrirFichaMiembro(id) {
   if (!id) return;
-  // Buscamos los datos completos del miembro en Supabase
   const { data, error } = await supabaseClient.from("members").select("*").eq("id", id).maybeSingle();
-  
-  if (error || !data) {
-    console.error("Error al cargar datos:", error);
-    return;
-  }
+  if (error || !data) return;
 
-  // Llenamos los campos del modal que agregaste en el Paso 1
   $("editMemberId").value = data.id;
   $("editName").value = data.name || "";
   $("editPhone").value = data.phone || "";
   $("editBirth").value = data.birth_date || "";
   $("editAddress").value = data.address || "";
   $("editNotes").value = data.notes || "";
-  
-  // Mostramos el modal quitando la clase 'hidden'
   $("memberModal").classList.remove("hidden");
 }
 
 async function guardarCambiosMiembro() {
   const id = $("editMemberId").value;
-  const btn = $("btnSaveMemberDetails");
-  const originalText = btn.textContent;
-  
-  btn.disabled = true;
-  btn.textContent = "Guardando...";
-
   const payload = {
     name: $("editName").value.toUpperCase().trim(),
     phone: $("editPhone").value.trim(),
@@ -1065,383 +463,85 @@ async function guardarCambiosMiembro() {
   };
 
   const { error } = await supabaseClient.from("members").update(payload).eq("id", id);
+  if (error) return alert("Error: " + error.message);
   
-  if (error) {
-    alert("Error al guardar: " + error.message);
-    btn.disabled = false;
-    btn.textContent = originalText;
-  } else {
-    // Si guardó bien, cerramos, recargamos datos y refrescamos la lista
-    $("memberModal").classList.add("hidden");
-    btn.disabled = false;
-    btn.textContent = originalText;
+  $("memberModal").classList.add("hidden");
+  await cargarTodoDesdeServidor();
+  renderAll();
+}
+
+// Inicialización y eventos
+function wireEvents(){
+  $("btnLoginPassword").onclick = loginWithPassword;
+  $("btnRegisterPassword").onclick = registerWithPassword;
+  $("btnLogout").onclick = async () => { await supabaseClient.auth.signOut(); location.reload(); };
+  $("btnSaveMemberDetails").onclick = guardarCambiosMiembro;
+  $("btnSaveDay").onclick = guardarDia;
+  $("fecha").onchange = () => { cargarBorradorDelDia(); renderAll(); };
+  $("search").oninput = renderPeople;
+  $("tabOperativa").onclick = () => switchTab("operativa");
+  $("tabAdmin").onclick = () => userCanAdmin() && switchTab("admin");
+  
+  $("peopleList").onclick = (e) => {
+      if (e.target.classList.contains("member-name-link")) {
+          abrirFichaMiembro(e.target.dataset.id);
+      }
+  };
+}
+
+async function cargarBorradorDelDia(){
+  const date = selectedDate();
+  draftAttendance = state.attendance.filter(x => x.date === date).map(x => x.name);
+  dirty = false;
+}
+
+function renderAll(){
+  renderPeople();
+  resumen();
+  $("saveStatus").textContent = dirty ? "Hay cambios pendientes" : "Sin cambios";
+}
+
+async function guardarDia(){
+    const date = selectedDate();
+    const names = [...new Set(draftAttendance)];
+    const ids = names.map(n => state.memberIdsByName[n]).filter(Boolean);
+
+    await supabaseClient.from("attendance_records").delete().eq("attendance_date", date);
+    if (ids.length) {
+        const rows = ids.map(id => ({ attendance_date: date, member_id: id }));
+        await supabaseClient.from("attendance_records").insert(rows);
+    }
+    
+    dirty = false;
     await cargarTodoDesdeServidor();
     renderAll();
-  }
+    alert("Día guardado");
 }
-  async function guardarDia(){
-  if (!userCanOperative()) return;
 
-  const btn = $("btnSaveDay");
-  const originalText = btn ? btn.textContent : "Guardar día";
-
-  setSaveFeedback("", "success");
-  setSavingUI(true);
-
-  if (btn){
-    btn.textContent = "Guardando...";
-  }
-
-  const date = selectedDate();
-  ensureDayExtras(date);
-
-  try {
-    const names = [...new Set(draftAttendance)].filter(Boolean);
-    const nombresPrimera = [...new Set(parseNombresPrimeraVez())].filter(Boolean);
-
-    if (nombresPrimera.length){
-      state.dayExtras[date].primeraVez.count = nombresPrimera.length;
-      $("primeraVezCount").textContent = nombresPrimera.length;
-    }
-
-    let membersData = [];
-    if (names.length){
-      const membersRes = await supabaseClient
-        .from("members")
-        .select("id,name")
-        .in("name", names);
-
-      if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
-      membersData = membersRes.data || [];
-    }
-
-    const nameToId = {};
-    membersData.forEach(m => {
-      nameToId[m.name] = m.id;
-    });
-
-    const delAttendance = await supabaseClient
-      .from("attendance_records")
-      .delete()
-      .eq("attendance_date", date);
-
-    if (delAttendance.error) throw new Error("No pude limpiar asistencias del día: " + delAttendance.error.message);
-
-    const attendanceRows = names
-      .filter(name => isMemberActiveOn(name, date) && nameToId[name])
-      .map(name => ({
-        attendance_date: date,
-        member_id: nameToId[name]
-      }));
-
-    if (attendanceRows.length){
-      const insAttendance = await supabaseClient
-        .from("attendance_records")
-        .insert(attendanceRows);
-
-      if (insAttendance.error) throw new Error("No pude guardar asistencias: " + insAttendance.error.message);
-    }
-
-    const saveExtras = await supabaseClient
-      .from("day_extras")
-      .upsert({
-        attendance_date: date,
-        visitas_count: Number(state.dayExtras[date].visitas.count || 0),
-        visitas_text: state.dayExtras[date].visitas.text || "",
-        primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
-        primera_vez_text: state.dayExtras[date].primeraVez.text || ""
-      }, { onConflict: "attendance_date" });
-
-    if (saveExtras.error) throw new Error("No pude guardar visitas / 1ra. vez: " + saveExtras.error.message);
-
-    const deleteTracking = await supabaseClient
-      .from("first_time_tracking")
-      .delete()
-      .eq("first_date", date);
-
-    if (deleteTracking.error) throw new Error("No pude actualizar primeras veces del día: " + deleteTracking.error.message);
-
-    if (nombresPrimera.length){
-      const trackingRows = nombresPrimera.map(name => ({
-        guest_name: name,
-        guest_name_normalized: normalizeComparableName(name),
-        first_date: date,
-        returned: false
-      }));
-
-      const insTracking = await supabaseClient
-        .from("first_time_tracking")
-        .insert(trackingRows);
-
-      if (insTracking.error) throw new Error("No pude guardar primeras veces: " + insTracking.error.message);
-    }
-
-    const presentComparableNames = [...new Set(names.map(normalizeComparableName))];
-
-    if (presentComparableNames.length){
-      const unresolved = await supabaseClient
-        .from("first_time_tracking")
-        .select("id, guest_name_normalized, first_date, returned")
-        .eq("returned", false)
-        .in("guest_name_normalized", presentComparableNames);
-
-      if (unresolved.error) throw new Error("No pude consultar retorno automático: " + unresolved.error.message);
-
-      for (const row of (unresolved.data || [])){
-        if (row.first_date !== date){
-          const upd = await supabaseClient
-            .from("first_time_tracking")
-            .update({
-              returned: true,
-              return_date: date
-            })
-            .eq("id", row.id);
-
-          if (upd.error) throw new Error("No pude marcar retorno automático: " + upd.error.message);
-        }
-      }
-    }
-
-    state.attendance = state.attendance.filter(x => x.date !== date);
-    for (const name of names){
-      if (nameToId[name]){
-        state.attendance.push({
-          date,
-          member_id: nameToId[name],
-          name
-        });
-      }
-    }
-
-    state.firstTimeByDate[date] = [...nombresPrimera];
-
-    dirty = false;
-    loadExtrasUI(date);
-    loadFirstTimeNamesForDate(date);
-    renderAll(); calcularAdminKPIs();
-    updateSaveStatus("Día guardado correctamente");
-    setSaveFeedback("Los cambios se guardaron correctamente.", "success");
-
-  } catch (err) {
-    console.error("guardarDia error:", err);
-    setSaveFeedback(err.message || "Ocurrió un error al guardar.", "error");
-  } finally {
-    setSavingUI(false);
-    if (btn){
-      btn.textContent = originalText;
-    }
-  }
+function resumen(){
+  const fecha = selectedDate();
+  const total = draftAttendance.length + (state.dayExtras[fecha]?.visitas?.count || 0);
+  $("kpiTotalDia").textContent = total;
 }
-function exportarReporteHTML(){ alert("La exportación se mantiene en esta versión, pero la simplifico en el siguiente ajuste si querés."); }
-async function logout(){ await supabaseClient.auth.signOut(); currentSession = null; currentProfile = null; showLogin(); }
-let __panelEvaluatingSession = false;
-async function evaluateSession(){
-  if (__panelEvaluatingSession) return;
-  __panelEvaluatingSession = true;
 
-  try {
-    const sessionRes = await supabaseClient.auth.getSession();
-    currentSession = sessionRes.data.session;
-
-    if (!currentSession){
-      showLogin();
-      setStatus("Sin sesión", "warntext");
-      return;
-    }
-
-    try {
-      currentProfile = await fetchProfile();
-    } catch (e) {
-      console.error("fetchProfile error:", e);
-      showLogin();
-      $("loginStatus").textContent = "Error leyendo perfil";
-      $("loginStatus").className = "hint bad";
-      return;
-    }
-
-    if (!currentProfile || !currentProfile.is_active){
-      showLogin();
-      $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
-      $("loginStatus").className = "hint bad";
-      return;
-    }
-
-    $("sessionEmail").textContent = currentProfile.email;
-    $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
-
+async function initialize(){
+  await initSupabase();
+  currentProfile = await fetchProfile();
+  if (currentProfile) {
     showApp();
-
-    if (userCanAdmin()) {
-      $("tabAdmin").classList.remove("hidden");
-    } else {
-      $("tabAdmin").classList.add("hidden");
-      switchTab("operativa");
-    }
-
+    if (currentProfile.role === "admin") $("tabAdmin").classList.remove("hidden");
     await cargarTodoDesdeServidor();
     cargarBorradorDelDia();
-    renderAll(); calcularAdminKPIs();
-    setStatus("Conectado correctamente", "ok");
-  } finally {
-    __panelEvaluatingSession = false;
+    wireEvents();
+    renderAll();
+  } else {
+    showLogin();
+    $("btnLoginPassword").onclick = loginWithPassword;
+    $("btnRegisterPassword").onclick = registerWithPassword;
   }
 }
-function wireEvents(){
-  $("btnLoginPassword").addEventListener("click", loginWithPassword);
-  $("btnRegisterPassword").addEventListener("click", registerWithPassword);
-  $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
-  $("btnLogout").addEventListener("click", logout);
-  $("btnReload").addEventListener("click", async ()=>{ await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
-  $("btnExport").addEventListener("click", exportarReporteHTML);
-  $("btnToday").addEventListener("click", ()=>{ $("fecha").value = new Date().toISOString().slice(0,10); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
-  $("btnSaveDay").addEventListener("click", guardarDia);
-  $("btnAddMember").addEventListener("click", agregarNuevoMiembro);
-  $("btnDeactivateMember").addEventListener("click", inactivarMiembro);
-  $("btnVisitasMinus").addEventListener("click", ()=>changeCounter("visitas",-1));
-  $("btnVisitasPlus").addEventListener("click", ()=>changeCounter("visitas",1));
-  $("btnPrimeraMinus").addEventListener("click", ()=>changeCounter("primeraVez",-1));
-  $("btnPrimeraPlus").addEventListener("click", ()=>changeCounter("primeraVez",1));
-  $("visitasTexto").addEventListener("input", ()=>updateExtraText("visitas"));
-  $("primeraVezTexto").addEventListener("input", ()=>updateExtraText("primeraVez"));
-  if ($("primeraVezNombres")) $("primeraVezNombres").addEventListener("input", ()=>{
-    syncPrimeraVezCountFromNames();
-    dirty = true;
-    updateSaveStatus();
-    resumen();
-  });
-  $("search").addEventListener("input", renderPeople);
-  $("fecha").addEventListener("change", ()=>{ cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
-  $("compMonthA").addEventListener("change", resumen);
-  $("compYearA").addEventListener("change", resumen);
-  $("compMonthB").addEventListener("change", resumen);
-  $("compYearB").addEventListener("change", resumen);
-  $("removeMemberSearch").addEventListener("input", actualizarSugerenciasInactivar);
-  $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
-  $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
-  $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
-  $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
-  $("btnReportRecurring").addEventListener("click", () => runReport("recurring"));
-  $("btnReportInactive").addEventListener("click", () => runReport("inactive"));
-  $("btnReportDropped").addEventListener("click", () => runReport("dropped"));
-  $("btnReportFirstMonth").addEventListener("click", () => runReport("firstMonth"));
-  $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
-  $("btnReportTop").addEventListener("click", () => runReport("top"));
-  $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
-  $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
-    document.addEventListener("click", e => { if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; } });
-// Evento para el botón 'Guardar' dentro del modal
-  $("btnSaveMemberDetails").addEventListener("click", guardarCambiosMiembro);
 
-  // Evento para detectar clics en los nombres de la lista
-  $("peopleList").addEventListener("click", e => {
-    // Si el elemento clickeado tiene la clase que pusimos en renderPeople...
-    if (e.target.classList.contains("member-name-link")) {
-      const memberId = e.target.getAttribute("data-id");
-      abrirFichaMiembro(memberId);
-    }
-  });
-}
-function initializeDefaults(){
-  $("fecha").value = new Date().toISOString().slice(0,10);
-  const mm = $("fecha").value.slice(5,7);
-  const yy = $("fecha").value.slice(0,4);
-  $("compMonthA").value = mm;
-  $("compYearA").value = "2025";
-  $("compMonthB").value = mm;
-  $("compYearB").value = yy;
-  $("reportDateTo").value = $("fecha").value;
-  $("reportDateFrom").value = isoMonthsAgo($("fecha").value, 3);
-  switchTab("operativa");
-}
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); resumen(); updateSaveStatus(); }
-async function initialize(){
-  if (window.__panelInitialized) return;
-  window.__panelInitialized = true;
-
-  await initSupabase();
-  wireEvents();
-  initializeDefaults();
-
-  try {
-    await evaluateSession();
-  } catch (e) {
-    console.error("initialize error:", e);
-  }
-}
 document.addEventListener("DOMContentLoaded", initialize);
-
-function calcularAdminKPIs(){
-  try{
-    const today = new Date();
-    const now = today.toISOString().slice(0,10);
-
-    const fourWeeksAgo = new Date(today);
-    fourWeeksAgo.setDate(today.getDate()-28);
-    const start4w = fourWeeksAgo.toISOString().slice(0,10);
-
-    const last4w = state.attendance.filter(x => x.date >= start4w && x.date <= now);
-    const total4w = last4w.length;
-    const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
-    const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
-    $("adminKpiAvg4w").textContent = avg4w;
-
-    const month = now.slice(0,7);
-    let firstMonth = 0;
-    Object.keys(state.firstTimeByDate).forEach(d=>{
-      if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
-    });
-    $("adminKpiFirstMonth").textContent = firstMonth;
-
-    const names = [...new Set(state.attendance.map(x=>x.name))];
-    $("adminKpiRecurring").textContent = names.length;
-
-    let inactive = 0;
-    names.forEach(n=>{
-      const last = state.attendance.filter(x=>x.name===n).map(x=>x.date).sort().pop();
-      if (last && last < start4w) inactive++;
-    });
-    $("adminKpiInactiveRecent").textContent = inactive;
-
-    let totalFirst = 0;
-    let returned = 0;
-    Object.values(state.firstTimeByDate).forEach(arr=>{
-      totalFirst += arr.length;
-      arr.forEach(n=>{
-        const count = state.attendance.filter(x=>x.name===n).length;
-        if (count>1) returned++;
-      });
-    });
-    const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
-    $("adminKpiReturnRate").textContent = rate+"%";
-  }catch(e){
-    console.error("KPIs error", e);
-  }
-}
-<!-- Modal de Ficha de Miembro -->
-<div id="memberModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:1000;">
-  <div class="panel" style="width:90%; max-width:500px; background:var(--bg); padding:24px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h2 id="modalTitle" style="margin:0;">Ficha del Miembro</h2>
-      <button onclick="$('memberModal').classList.add('hidden')" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer;">&times;</button>
-    </div>
-    
-    <div class="stack">
-      <input type="hidden" id="editMemberId">
-      <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div><div class="hint">Teléfono</div><input id="editPhone" type="text" style="width:100%"></div>
-        <div><div class="hint">Cumpleaños</div><input id="editBirth" type="date" style="width:100%"></div>
-      </div>
-      <div><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
-      <div><div class="hint">Notas / Observaciones</div><textarea id="editNotes" style="width:100%; min-height:80px;"></textarea></div>
-      
-      <div class="row-actions" style="margin-top:20px; justify-content: flex-end;">
-        <button onclick="$('memberModal').classList.add('hidden')" class="secondary">Cancelar</button>
-        <button id="btnSaveMemberDetails" class="primary">Guardar Cambios</button>
-      </div>
-    </div>
-  </div>
-</div>
 </script>
 </body>
 </html>
