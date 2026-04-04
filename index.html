@@ -1790,28 +1790,30 @@ function buildWeeklyDateRange(){
 }
 function buildWeeklyMailContent(){
   const data = state.weeklyAgendaData || {};
+  const fallbackRange = buildWeeklyDateRange();
+  const todayIso = data.todayIso || fallbackRange.todayIso;
+  const endIso = data.endIso || fallbackRange.endIso;
   const events = data.events || [];
   const birthdays = data.birthdays || [];
-  const rangeLabel = `${formatDisplayDate(data.todayIso || buildWeeklyDateRange().todayIso)} al ${formatDisplayDate(data.endIso || buildWeeklyDateRange().endIso)}`;
-  const subject = `Resumen semanal | ${rangeLabel}`;
+  const subject = `Resumen semanal | ${formatDisplayDate(todayIso)} al ${formatDisplayDate(endIso)}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `- ${item.name} — ${item.dateLabel}`).join("\\n")
-    : "- Sin cumpleaños en los próximos 7 días.";
+    ? birthdays.map(item => `  * ${item.name}`).join("\n")
+    : "  * Sin cumpleaños en los próximos 7 días.";
 
   const eventLines = events.length
-    ? events.map(ev => `- ${ev.member_name} — ${formatDisplayDate(ev.event_date)} — ${ev.title}${ev.description ? ` (${ev.description})` : ""}`).join("\\n")
-    : "- Sin acontecimientos cargados para los próximos 7 días.";
+    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("\n")
+    : "  * Sin acontecimientos cargados para los próximos 7 días.";
 
   const body = [
-    `Resumen semanal | ${rangeLabel}`,
+    "Resumen semanal:",
     "",
-    "🎂 Cumpleaños de la semana",
+    "- Cumpleaños de la semana:",
     birthdayLines,
     "",
-    "📌 Acontecimientos próximos",
+    "- Acontecimientos próximos:",
     eventLines
-  ].join("\\n");
+  ].join("\n");
 
   return { subject, body };
 }
