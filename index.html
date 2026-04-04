@@ -1796,25 +1796,22 @@ function buildWeeklyMailContent(){
   const subject = `Resumen semanal | ${rangeLabel}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `* ${item.name}`).join("
-")
-    : "* Sin cumpleaños en los próximos 7 días.";
+    ? birthdays.map(item => `- ${item.name} — ${item.dateLabel}`).join("\\n")
+    : "- Sin cumpleaños en los próximos 7 días.";
 
   const eventLines = events.length
-    ? events.map(ev => `* ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("
-")
-    : "* Sin acontecimientos cargados para los próximos 7 días.";
+    ? events.map(ev => `- ${ev.member_name} — ${formatDisplayDate(ev.event_date)} — ${ev.title}${ev.description ? ` (${ev.description})` : ""}`).join("\\n")
+    : "- Sin acontecimientos cargados para los próximos 7 días.";
 
   const body = [
-    "Resumen semanal:",
+    `Resumen semanal | ${rangeLabel}`,
     "",
-    "- Cumpleaños de la semana:",
+    "🎂 Cumpleaños de la semana",
     birthdayLines,
     "",
-    "- Acontecimientos próximos:",
+    "📌 Acontecimientos próximos",
     eventLines
-  ].join("
-");
+  ].join("\\n");
 
   return { subject, body };
 }
