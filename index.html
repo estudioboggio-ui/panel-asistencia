@@ -1795,30 +1795,30 @@ function buildWeeklyMailContent(){
   const rangeLabel = `${formatDisplayDate(data.todayIso || buildWeeklyDateRange().todayIso)} al ${formatDisplayDate(data.endIso || buildWeeklyDateRange().endIso)}`;
   const subject = `Resumen semanal | ${rangeLabel}`;
 
-  // Formateo de Cumpleaños según lo solicitado
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `  * ${item.name}`).join("\n")
-    : "  * No hay cumpleaños esta semana";
+    ? birthdays.map(item => `  * ${item.name}`).join("
+")
+    : "  * Sin cumpleaños en los próximos 7 días.";
 
-  // Formateo de Acontecimientos Próximos según lo solicitado
   const eventLines = events.length
-    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""}`).join("\n")
-    : "  * No hay acontecimientos próximos";
+    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("
+")
+    : "  * Sin acontecimientos cargados para los próximos 7 días.";
 
-  // Construcción del cuerpo con el formato literal pedido
   const body = [
-    `Resumen semanal:`,
+    "Resumen semanal:",
     "",
     "- Cumpleaños de la semana:",
     birthdayLines,
     "",
-    "- Acontecimientos Próximos:",
+    "- Acontecimientos próximos:",
     eventLines
-  ].join("\n");
+  ].join("
+");
 
   return { subject, body };
 }
-  function setupWeeklyEmailUI(){
+function setupWeeklyEmailUI(){
   const btnGenerate = $("btnGenerateWeeklyEmail");
   const btnCopy = $("btnCopyWeeklyEmail");
   const btnOpen = $("btnOpenWeeklyEmail");
