@@ -381,6 +381,7 @@
     <h2 id="modalTitle">Ficha del Miembro</h2>
     <div class="stack">
       <input type="hidden" id="editMemberId">
+      <div id="memberHeaderHint" class="hint" style="margin-top:-6px; margin-bottom:10px;">Recorré las solapas para ver y editar la información del miembro.</div>
       <div id="memberOverview" class="member-overview"></div>
 
       <div class="member-tabs">
@@ -485,13 +486,13 @@ function activateMemberTab(tab) {
 function refreshMemberOverview() {
   const overview = $('memberOverview');
   if (!overview) return;
+  if ($('modalTitle')) $('modalTitle').textContent = $('editName')?.value?.trim() || 'Ficha del miembro';
   const groups = getSelectedCategories();
   const phone = $('editPhone')?.value?.trim() || 'Sin teléfono';
   const birth = $('editBirth')?.value ? formatDateDMY($('editBirth').value) : 'Sin fecha de nacimiento';
   const address = $('editAddress')?.value?.trim() || 'Sin dirección';
   const mainGroups = groups.length ? groups.join(', ') : 'Sin grupos asignados';
   overview.innerHTML = `
-    <div class="overview-pill"><strong>Nombre:</strong> ${escapeHtml($('editName')?.value?.trim() || 'Sin nombre')}</div>
     <div class="overview-pill"><strong>Teléfono:</strong> ${escapeHtml(phone)}</div>
     <div class="overview-pill"><strong>Nacimiento:</strong> ${escapeHtml(birth)}</div>
     <div class="overview-pill"><strong>Grupos:</strong> ${escapeHtml(mainGroups)}</div>
@@ -1083,6 +1084,8 @@ function abrirFicha(id) {
     if ($("relationNotes")) $("relationNotes").value = "";
     populateRelationTypeOptions();
     renderFamilySection(id);
+    activateMemberTab("personal");
+    $("modalTitle").textContent = member.name || "Ficha del miembro";
 
     const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
@@ -1934,6 +1937,14 @@ function wireEvents(){
   if ($("btnGroupMembersReport")) $("btnGroupMembersReport").addEventListener("click", runGroupMembersReport);
 
   $("reportDateTo").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
+  document.querySelectorAll('.member-tab').forEach(btn => {
+    btn.addEventListener('click', ()=> activateMemberTab(btn.dataset.tab || 'personal'));
+  });
+  ["editName","editPhone","editBirth","editAddress"].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', refreshMemberOverview);
+    if (el && el.tagName === 'INPUT' && el.type === 'date') el.addEventListener('change', refreshMemberOverview);
+  });
   $("btnSaveMemberData").addEventListener("click", guardarCambiosMiembro);
   if ($("relatedMemberSearch")) $("relatedMemberSearch").addEventListener("input", ()=>{ selectedRelatedMemberId = null; renderRelatedMemberSuggestions(); });
   if ($("btnAddRelation")) $("btnAddRelation").addEventListener("click", addFamilyRelation);
