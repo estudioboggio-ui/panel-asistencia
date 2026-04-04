@@ -381,9 +381,6 @@
     <h2 id="modalTitle">Ficha del Miembro</h2>
     <div class="stack">
       <input type="hidden" id="editMemberId">
-      <div id="memberHeaderHint" class="hint" style="margin-top:-6px; margin-bottom:10px;">Recorré las solapas para ver y editar la información del miembro.</div>
-      <div id="memberOverview" class="member-overview"></div>
-
       <div class="member-tabs">
         <button type="button" class="member-tab active" data-tab="personal">Datos personales</button>
         <button type="button" class="member-tab" data-tab="groups">Grupos / áreas</button>
@@ -391,7 +388,7 @@
         <button type="button" class="member-tab" data-tab="events">Acontecimientos</button>
       </div>
 
-      <div id="tab-personal" class="member-tabpanel active">
+      <div id="tab-personal" class="member-tabpanel theme-personal active">
         <div class="section-card">
           <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
           <div class="filters" style="margin-top:12px;">
@@ -408,7 +405,7 @@
         </div>
       </div>
 
-      <div id="tab-groups" class="member-tabpanel">
+      <div id="tab-groups" class="member-tabpanel theme-groups">
         <div class="section-card">
           <div class="hint">Categoría / Grupo</div>
           <details class="multi-select" id="categoryMultiSelect">
@@ -419,7 +416,7 @@
         </div>
       </div>
 
-      <div id="tab-family" class="member-tabpanel">
+      <div id="tab-family" class="member-tabpanel theme-family">
         <div class="section-card">
           <div class="hint" style="margin-bottom:8px;">Grupo familiar / vínculos</div>
           <div id="familyCircle" class="chips-wrap" style="margin-bottom:10px;"></div>
@@ -445,7 +442,7 @@
         </div>
       </div>
 
-      <div id="tab-events" class="member-tabpanel">
+      <div id="tab-events" class="member-tabpanel theme-events">
         <div class="section-card">
           <div class="hint" style="margin-bottom:10px;">Acontecimientos</div>
           <div class="placeholder-box">
