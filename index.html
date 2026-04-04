@@ -389,6 +389,20 @@
       </div>
     </div>
 
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Agenda / Alertas</h2>
+      <div class="split" style="grid-template-columns:repeat(2,1fr);">
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:10px;">Próximos 7 días</div>
+          <div id="agendaEventsList" class="stack"></div>
+        </div>
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:10px;">Cumpleaños de la semana</div>
+          <div id="agendaBirthdaysList" class="stack"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1703,6 +1717,98 @@ function renderAlerts(){
   c.innerHTML = alerts.length ? alerts.map(a => `<div class="alert-card"><div class="${a.level}"><strong>${a.title}</strong></div><div class="hint" style="margin-top:6px;">${a.text}</div></div>`).join("") : `<div class="hint">Sin alertas activas por ahora.</div>`;
 }
 
+
+function formatDisplayDate(iso){
+  if (!iso) return "";
+  const [y,m,d] = String(iso).split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+function getBirthdaysInNext7Days(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const end = new Date(today);
+  end.setDate(end.getDate()+7);
+  const rows = Object.values(state.membersFullData || {}).flatMap(member => {
+    const bd = member?.birth_date;
+    if (!bd) return [];
+    const parts = String(bd).split("-");
+    if (parts.length < 3) return [];
+    const month = Number(parts[1]), day = Number(parts[2]);
+    if (!month || !day) return [];
+    const candidates = [today.getFullYear(), today.getFullYear()+1].map(year => {
+      const date = new Date(year, month-1, day);
+      date.setHours(0,0,0,0);
+      return date;
+    }).filter(date => date >= today && date <= end).sort((a,b)=>a-b);
+    if (!candidates.length) return [];
+    const nextDate = candidates[0];
+    const iso = `${nextDate.getFullYear()}-${String(nextDate.getMonth()+1).padStart(2,"0")}-${String(nextDate.getDate()).padStart(2,"0")}`;
+    return [{
+      name: member.name || "Sin nombre",
+      dateIso: iso,
+      dateLabel: formatDisplayDate(iso)
+    }];
+  });
+  rows.sort((a,b) => a.dateIso.localeCompare(b.dateIso) || a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+async function loadAgendaAlertas(){
+  const eventsEl = $("agendaEventsList");
+  const birthdaysEl = $("agendaBirthdaysList");
+  if (!eventsEl || !birthdaysEl) return;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const end = new Date(today);
+  end.setDate(end.getDate()+7);
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  const endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,"0")}-${String(end.getDate()).padStart(2,"0")}`;
+
+  try {
+    const res = await supabaseClient
+      .from("member_events")
+      .select("id, member_id, event_date, title, description, category, include_in_weekly")
+      .gte("event_date", todayIso)
+      .lte("event_date", endIso)
+      .order("event_date", { ascending: true });
+
+    if (res.error) throw res.error;
+
+    const events = (res.data || []).map(ev => ({
+      ...ev,
+      member_name: state.membersById?.[ev.member_id] || state.membersFullData?.[ev.member_id]?.name || "Miembro"
+    }));
+
+    if (!events.length) {
+      eventsEl.innerHTML = `<div class="hint">No hay acontecimientos cargados para los próximos 7 días.</div>`;
+    } else {
+      eventsEl.innerHTML = events.map(ev => `
+        <div class="alert-card">
+          <div><strong>${escapeHtml(formatDisplayDate(ev.event_date))}</strong> · ${escapeHtml(ev.member_name)}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")}</div>
+          ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
+        </div>
+      `).join("");
+    }
+
+    const birthdays = getBirthdaysInNext7Days();
+    if (!birthdays.length) {
+      birthdaysEl.innerHTML = `<div class="hint">No hay cumpleaños en los próximos 7 días.</div>`;
+    } else {
+      birthdaysEl.innerHTML = birthdays.map(item => `
+        <div class="alert-card">
+          <div><strong>${escapeHtml(item.dateLabel)}</strong> · ${escapeHtml(item.name)}</div>
+        </div>
+      `).join("");
+    }
+  } catch (err) {
+    console.error(err);
+    eventsEl.innerHTML = `<div class="hint">No pude cargar la agenda semanal.</div>`;
+    birthdaysEl.innerHTML = `<div class="hint">No pude cargar los cumpleaños.</div>`;
+  }
+}
+
 function renderAdminAnalytics(){
   const refDate = getReferenceDate();
   const meetings = getMeetingTotalsSorted().filter(([d]) => d <= refDate);
@@ -1745,6 +1851,7 @@ function renderAdminAnalytics(){
 
   renderAlerts();
   loadAlertSettingsUI();
+  loadAgendaAlertas();
 }
 
 function calcularAdminKPIs(){ renderAdminAnalytics(); }
@@ -2177,62 +2284,5 @@ function calcularAdminKPIs(){
 }
 
 </script>
-
-<!-- NUEVA SOLAPA AGENDA / ALERTAS -->
-<div id="agenda-alertas" style="padding:20px;">
-  <h2>Agenda / Alertas</h2>
-  <div id="agenda-content">
-    <h3>Próximos 7 días</h3>
-    <div id="agenda-events"></div>
-
-    <h3>Cumpleaños de la semana</h3>
-    <div id="agenda-birthdays"></div>
-  </div>
-</div>
-
-<script>
-async function loadAgenda() {
-  try {
-    const today = new Date();
-    const next7 = new Date();
-    next7.setDate(today.getDate() + 7);
-
-    // eventos
-    const { data: events } = await supabase
-      .from('member_events')
-      .select('event_date, title, members(name)')
-      .gte('event_date', today.toISOString().split('T')[0])
-      .lte('event_date', next7.toISOString().split('T')[0]);
-
-    const container = document.getElementById('agenda-events');
-    container.innerHTML = events.map(e => `
-      <div>📌 ${e.members?.name || ''} - ${e.event_date} - ${e.title}</div>
-    `).join('');
-
-    // cumpleaños
-    const { data: members } = await supabase
-      .from('members')
-      .select('name, birth_date');
-
-    const birthdays = members.filter(m => {
-      if (!m.birth_date) return false;
-      const bd = new Date(m.birth_date);
-      const thisYear = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
-      return thisYear >= today && thisYear <= next7;
-    });
-
-    const bContainer = document.getElementById('agenda-birthdays');
-    bContainer.innerHTML = birthdays.map(b => `
-      <div>🎂 ${b.name}</div>
-    `).join('');
-
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-loadAgenda();
-</script>
-
 </body>
 </html>
