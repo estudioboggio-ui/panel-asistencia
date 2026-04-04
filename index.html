@@ -1796,20 +1796,22 @@ function buildWeeklyMailContent(){
   const subject = `Resumen semanal | ${rangeLabel}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `   * ${item.name}`).join("\\n")
-    : "   * Sin cumpleaños en los próximos 7 días.";
+    ? birthdays.map(item => `  * ${item.name}`).join("\n")
+    : "  * Sin cumpleaños en los próximos 7 días.";
 
   const eventLines = events.length
-    ? events.map(ev => `   * ${ev.member_name}: ${ev.title} — ${formatDisplayDate(ev.event_date)}${ev.description ? `\\n     ${ev.description}` : ""}`).join("\\n")
-    : "   * Sin acontecimientos cargados para los próximos 7 días.";
+    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("\n")
+    : "  * Sin acontecimientos cargados para los próximos 7 días.";
 
   const body = [
-    `Resumen semanal:`,
-    `* Cumpleaños de la semana:`,
+    "Resumen semanal:",
+    "",
+    "- Cumpleaños de la semana:",
     birthdayLines,
-    `* Acontecimientos próximos:`,
+    "",
+    "- Acontecimientos próximos:",
     eventLines
-  ].join("\\n");
+  ].join("\n");
 
   return { subject, body };
 }
@@ -1907,31 +1909,26 @@ async function loadAgendaAlertas(){
     }));
 
     if (!events.length) {
-      eventsEl.innerHTML = `<div class="hint" style="padding:6px 0;">Sin acontecimientos cargados para los próximos 7 días.</div>`;
+      eventsEl.innerHTML = `<div class="hint">No hay acontecimientos cargados para los próximos 7 días.</div>`;
     } else {
-      eventsEl.innerHTML = `<ul style="margin:0;padding-left:20px;list-style:disc;">` +
-        events.map(ev => `
-          <li style="padding:5px 0; color:var(--text);">
-            <span style="font-weight:600;">${escapeHtml(ev.member_name)}</span>:
-            ${escapeHtml(ev.title || "Sin título")} —
-            <span style="color:var(--muted);">${escapeHtml(formatDisplayDate(ev.event_date))}</span>
-            ${ev.description ? `<div class="hint" style="margin-top:3px; padding-left:4px;">${escapeHtml(ev.description)}</div>` : ``}
-          </li>
-        `).join("") +
-        `</ul>`;
+      eventsEl.innerHTML = events.map(ev => `
+        <div class="alert-card">
+          <div><strong>${escapeHtml(formatDisplayDate(ev.event_date))}</strong> · ${escapeHtml(ev.member_name)}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")}</div>
+          ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
+        </div>
+      `).join("");
     }
 
     const birthdays = getBirthdaysInNext7Days();
     if (!birthdays.length) {
-      birthdaysEl.innerHTML = `<div class="hint" style="padding:6px 0;">No hay cumpleaños en los próximos 7 días.</div>`;
+      birthdaysEl.innerHTML = `<div class="hint">No hay cumpleaños en los próximos 7 días.</div>`;
     } else {
-      birthdaysEl.innerHTML = `<ul style="margin:0;padding-left:20px;list-style:disc;">` +
-        birthdays.map(item => `
-          <li style="padding:5px 0; color:var(--text);">
-            <span style="font-weight:600;">${escapeHtml(item.name)}</span>
-          </li>
-        `).join("") +
-        `</ul>`;
+      birthdaysEl.innerHTML = birthdays.map(item => `
+        <div class="alert-card">
+          <div><strong>${escapeHtml(item.dateLabel)}</strong> · ${escapeHtml(item.name)}</div>
+        </div>
+      `).join("");
     }
 
     state.weeklyAgendaData = { events, birthdays, todayIso, endIso };
