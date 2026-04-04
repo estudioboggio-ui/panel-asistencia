@@ -402,6 +402,36 @@
           <div id="agendaBirthdaysList" class="stack"></div>
         </div>
       </div>
+
+      <div class="section-card" style="margin-top:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+          <div>
+            <div style="font-size:18px;font-weight:700;">Reporte semanal por mail</div>
+            <div class="hint">Generá la vista previa del resumen semanal y abrilo en tu cliente de correo.</div>
+          </div>
+          <div class="row-actions">
+            <button id="btnGenerateWeeklyEmail" type="button">Generar reporte</button>
+            <button id="btnCopyWeeklyEmail" type="button" class="secondary">Copiar texto</button>
+            <button id="btnOpenWeeklyEmail" type="button" class="ghost">Abrir en mail</button>
+          </div>
+        </div>
+
+        <div class="filters" style="grid-template-columns:2fr 1fr;">
+          <div>
+            <label>Destinatarios</label>
+            <input id="weeklyEmailTo" type="text" placeholder="ejemplo@dominio.com, otro@dominio.com">
+          </div>
+          <div>
+            <label>Asunto</label>
+            <input id="weeklyEmailSubject" type="text" placeholder="Resumen semanal">
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label>Vista previa</label>
+          <textarea id="weeklyEmailPreview" rows="14" style="width:100%;resize:vertical;"></textarea>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1753,6 +1783,104 @@ function getBirthdaysInNext7Days(){
   rows.sort((a,b) => a.dateIso.localeCompare(b.dateIso) || a.name.localeCompare(b.name, "es"));
   return rows;
 }
+
+function buildWeeklyDateRange(){
+  const { today, end, todayIso, endIso } = buildWeeklyDateRange();
+  return { today, end, todayIso, endIso };
+}
+function buildWeeklyMailContent(){
+  const data = state.weeklyAgendaData || {};
+  const events = data.events || [];
+  const birthdays = data.birthdays || [];
+  const rangeLabel = `${formatDisplayDate(data.todayIso || buildWeeklyDateRange().todayIso)} al ${formatDisplayDate(data.endIso || buildWeeklyDateRange().endIso)}`;
+  const subject = `Resumen semanal | ${rangeLabel}`;
+
+  const birthdayLines = birthdays.length
+    ? birthdays.map(item => `- ${item.name} — ${item.dateLabel}`).join("\\n")
+    : "- Sin cumpleaños en los próximos 7 días.";
+
+  const eventLines = events.length
+    ? events.map(ev => `- ${ev.member_name} — ${formatDisplayDate(ev.event_date)} — ${ev.title}${ev.description ? ` (${ev.description})` : ""}`).join("\\n")
+    : "- Sin acontecimientos cargados para los próximos 7 días.";
+
+  const body = [
+    `Resumen semanal | ${rangeLabel}`,
+    "",
+    "🎂 Cumpleaños de la semana",
+    birthdayLines,
+    "",
+    "📌 Acontecimientos próximos",
+    eventLines
+  ].join("\\n");
+
+  return { subject, body };
+}
+function setupWeeklyEmailUI(){
+  const btnGenerate = $("btnGenerateWeeklyEmail");
+  const btnCopy = $("btnCopyWeeklyEmail");
+  const btnOpen = $("btnOpenWeeklyEmail");
+  const preview = $("weeklyEmailPreview");
+  const subjectInput = $("weeklyEmailSubject");
+  const toInput = $("weeklyEmailTo");
+  if (!btnGenerate || !btnCopy || !btnOpen || !preview || !subjectInput || !toInput) return;
+
+  if (!btnGenerate.dataset.bound) {
+    btnGenerate.dataset.bound = "1";
+    btnGenerate.addEventListener("click", () => {
+      const mail = buildWeeklyMailContent();
+      subjectInput.value = mail.subject;
+      preview.value = mail.body;
+      try { localStorage.setItem("weekly_email_to", toInput.value || ""); } catch(_) {}
+    });
+  }
+
+  if (!btnCopy.dataset.bound) {
+    btnCopy.dataset.bound = "1";
+    btnCopy.addEventListener("click", async () => {
+      const mail = buildWeeklyMailContent();
+      if (!subjectInput.value.trim()) subjectInput.value = mail.subject;
+      if (!preview.value.trim()) preview.value = mail.body;
+      const combined = `Asunto: ${subjectInput.value.trim()}\\n\\n${preview.value.trim()}`;
+      try {
+        await navigator.clipboard.writeText(combined);
+        alert("Reporte semanal copiado.");
+      } catch(_) {
+        preview.focus();
+        preview.select();
+        document.execCommand("copy");
+        alert("Reporte semanal copiado.");
+      }
+    });
+  }
+
+  if (!btnOpen.dataset.bound) {
+    btnOpen.dataset.bound = "1";
+    btnOpen.addEventListener("click", () => {
+      const mail = buildWeeklyMailContent();
+      if (!subjectInput.value.trim()) subjectInput.value = mail.subject;
+      if (!preview.value.trim()) preview.value = mail.body;
+      const to = (toInput.value || "").trim();
+      try { localStorage.setItem("weekly_email_to", to); } catch(_) {}
+      const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subjectInput.value.trim())}&body=${encodeURIComponent(preview.value.trim())}`;
+      window.location.href = url;
+    });
+  }
+
+  if (!toInput.dataset.bound) {
+    toInput.dataset.bound = "1";
+    try { toInput.value = localStorage.getItem("weekly_email_to") || ""; } catch(_) {}
+    toInput.addEventListener("change", () => {
+      try { localStorage.setItem("weekly_email_to", toInput.value || ""); } catch(_) {}
+    });
+  }
+
+  if (!subjectInput.value.trim() || !preview.value.trim()) {
+    const mail = buildWeeklyMailContent();
+    subjectInput.value = mail.subject;
+    preview.value = mail.body;
+  }
+}
+
 async function loadAgendaAlertas(){
   const eventsEl = $("agendaEventsList");
   const birthdaysEl = $("agendaBirthdaysList");
@@ -1802,10 +1930,15 @@ async function loadAgendaAlertas(){
         </div>
       `).join("");
     }
+
+    state.weeklyAgendaData = { events, birthdays, todayIso, endIso };
+    setupWeeklyEmailUI();
   } catch (err) {
     console.error(err);
     eventsEl.innerHTML = `<div class="hint">No pude cargar la agenda semanal.</div>`;
     birthdaysEl.innerHTML = `<div class="hint">No pude cargar los cumpleaños.</div>`;
+    state.weeklyAgendaData = { events: [], birthdays: [], todayIso, endIso };
+    setupWeeklyEmailUI();
   }
 }
 
@@ -1852,6 +1985,7 @@ function renderAdminAnalytics(){
   renderAlerts();
   loadAlertSettingsUI();
   loadAgendaAlertas();
+  setupWeeklyEmailUI();
 }
 
 function calcularAdminKPIs(){ renderAdminAnalytics(); }
