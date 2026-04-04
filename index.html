@@ -67,7 +67,16 @@
 
   /* ESTILOS NUEVOS PARA EL MODAL */
   .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:1000; }
-  .modal-content { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; width:90%; max-width:760px; max-height:90vh; overflow-y:auto; }
+  .modal-content { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px; width:92%; max-width:920px; max-height:90vh; overflow-y:auto; }
+  .member-overview { display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 16px; }
+  .overview-pill { border:1px solid var(--line); background:rgba(255,255,255,.03); border-radius:999px; padding:8px 12px; font-size:13px; color:var(--muted); }
+  .member-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 16px; }
+  .member-tab { border:1px solid var(--line); background:rgba(255,255,255,.03); color:var(--text); border-radius:10px; padding:10px 14px; cursor:pointer; font-weight:600; }
+  .member-tab.active { background:var(--accent); border-color:var(--accent); color:white; }
+  .member-tabpanel { display:none; }
+  .member-tabpanel.active { display:block; }
+  .section-card { border:1px solid var(--line); border-radius:16px; padding:16px; background:rgba(255,255,255,.02); }
+  .placeholder-box { border:1px dashed var(--line); border-radius:14px; padding:18px; color:var(--muted); background:rgba(255,255,255,.02); }
   .clickable-name { cursor:pointer; color:#ffffff; text-decoration:none; flex:1; min-width:0; white-space:normal; overflow-wrap:anywhere; }
   .clickable-name strong { color:#ffffff; font-weight:700; }
   .clickable-name:hover { color:#ffffff; text-decoration:none; }
@@ -372,45 +381,79 @@
     <h2 id="modalTitle">Ficha del Miembro</h2>
     <div class="stack">
       <input type="hidden" id="editMemberId">
-      <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
-      <div class="filters">
-        <div><div class="hint">Teléfono</div><input id="editPhone" type="text" style="width:100%"></div>
-        <div><div class="hint">Fecha Nacimiento</div><input id="editBirth" type="date" style="width:100%"></div>
+      <div id="memberOverview" class="member-overview"></div>
+
+      <div class="member-tabs">
+        <button type="button" class="member-tab active" data-tab="personal">Datos personales</button>
+        <button type="button" class="member-tab" data-tab="groups">Grupos / áreas</button>
+        <button type="button" class="member-tab" data-tab="family">Familia</button>
+        <button type="button" class="member-tab" data-tab="events">Acontecimientos</button>
       </div>
-      <div><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
-      <div>
-        <div class="hint">Categoría / Grupo</div>
-        <details class="multi-select" id="categoryMultiSelect">
-          <summary id="categorySummary">Seleccionar categorías o grupos</summary>
-          <div id="categoryCheckboxes" class="checkbox-grid"></div>
-        </details>
-      </div>
-      <div class="panel" style="padding:14px; margin-top:4px;">
-        <div class="hint" style="margin-bottom:8px;">Grupo familiar / vínculos</div>
-        <div id="familyCircle" class="chips-wrap" style="margin-bottom:10px;"></div>
-        <div id="memberRelationsList" class="scroll" style="max-height:170px; padding:10px; margin-bottom:10px;"></div>
-        <div class="filters">
-          <div>
-            <div class="hint">Vincular con otro miembro</div>
-            <input id="relatedMemberSearch" type="text" placeholder="Buscar miembro para vincular..." autocomplete="off" style="width:100%">
-            <div id="relatedMemberSuggestions" class="scroll suggestions"></div>
+
+      <div id="tab-personal" class="member-tabpanel active">
+        <div class="section-card">
+          <div><div class="hint">Nombre Completo</div><input id="editName" type="text" style="width:100%"></div>
+          <div class="filters" style="margin-top:12px;">
+            <div><div class="hint">Teléfono</div><input id="editPhone" type="text" style="width:100%"></div>
+            <div><div class="hint">Fecha Nacimiento</div><input id="editBirth" type="date" style="width:100%"></div>
           </div>
-          <div>
-            <div class="hint">Tipo de vínculo</div>
-            <select id="relationType" style="width:100%"></select>
+          <div style="margin-top:12px;"><div class="hint">Dirección</div><input id="editAddress" type="text" style="width:100%"></div>
+        </div>
+        <div class="section-card" style="margin-top:14px;">
+          <div class="hint" style="margin-bottom:8px;">Historial reciente</div>
+          <div id="memberHistory" class="scroll" style="max-height:170px; padding:10px; font-size:13px;">
+            <!-- Historial se carga dinámicamente -->
           </div>
         </div>
-        <div style="margin-top:10px;">
-          <div class="hint">Observación del vínculo (opcional)</div>
-          <input id="relationNotes" type="text" placeholder="Ej.: viven juntos / referente del grupo familiar" style="width:100%">
-        </div>
-        <div class="row-actions" style="margin-top:12px;">
-          <button id="btnAddRelation" type="button">Agregar vínculo familiar</button>
+      </div>
+
+      <div id="tab-groups" class="member-tabpanel">
+        <div class="section-card">
+          <div class="hint">Categoría / Grupo</div>
+          <details class="multi-select" id="categoryMultiSelect">
+            <summary id="categorySummary">Seleccionar categorías o grupos</summary>
+            <div id="categoryCheckboxes" class="checkbox-grid"></div>
+          </details>
+          <div class="hint" style="margin-top:10px;">Podés asignar varios grupos al mismo miembro. Enseñanza incluye subgrupos PED, ED, ER y AC.</div>
         </div>
       </div>
-      <div id="memberHistory" class="scroll" style="max-height:150px; margin-top:10px; padding:10px; font-size:13px;">
-        <!-- Historial se carga dinámicamente -->
+
+      <div id="tab-family" class="member-tabpanel">
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:8px;">Grupo familiar / vínculos</div>
+          <div id="familyCircle" class="chips-wrap" style="margin-bottom:10px;"></div>
+          <div id="memberRelationsList" class="scroll" style="max-height:170px; padding:10px; margin-bottom:10px;"></div>
+          <div class="filters">
+            <div>
+              <div class="hint">Vincular con otro miembro</div>
+              <input id="relatedMemberSearch" type="text" placeholder="Buscar miembro para vincular..." autocomplete="off" style="width:100%">
+              <div id="relatedMemberSuggestions" class="scroll suggestions"></div>
+            </div>
+            <div>
+              <div class="hint">Tipo de vínculo</div>
+              <select id="relationType" style="width:100%"></select>
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="hint">Observación del vínculo (opcional)</div>
+            <input id="relationNotes" type="text" placeholder="Ej.: viven juntos / referente del grupo familiar" style="width:100%">
+          </div>
+          <div class="row-actions" style="margin-top:12px;">
+            <button id="btnAddRelation" type="button">Agregar vínculo familiar</button>
+          </div>
+        </div>
       </div>
+
+      <div id="tab-events" class="member-tabpanel">
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:10px;">Acontecimientos</div>
+          <div class="placeholder-box">
+            Esta pestaña queda preparada para la próxima etapa: carga de acontecimientos por miembro y consolidado semanal con salida por mail.
+            <div style="margin-top:10px;">La idea es que acá se vean y carguen eventos con fecha, detalle y posterior inclusión en el reporte de los próximos 7 días.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="row-actions" style="margin-top:20px; justify-content:flex-end;">
         <button onclick="cerrarModal()" class="secondary" type="button">Cancelar</button>
         <button id="btnSaveMemberData" class="primary" type="button">Guardar Cambios</button>
@@ -433,6 +476,29 @@ let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
 let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [] };
+
+function activateMemberTab(tab) {
+  document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.member-tabpanel').forEach(panel => panel.classList.toggle('active', panel.id === `tab-${tab}`));
+}
+
+function refreshMemberOverview() {
+  const overview = $('memberOverview');
+  if (!overview) return;
+  const groups = getSelectedCategories();
+  const phone = $('editPhone')?.value?.trim() || 'Sin teléfono';
+  const birth = $('editBirth')?.value ? formatDateDMY($('editBirth').value) : 'Sin fecha de nacimiento';
+  const address = $('editAddress')?.value?.trim() || 'Sin dirección';
+  const mainGroups = groups.length ? groups.join(', ') : 'Sin grupos asignados';
+  overview.innerHTML = `
+    <div class="overview-pill"><strong>Nombre:</strong> ${escapeHtml($('editName')?.value?.trim() || 'Sin nombre')}</div>
+    <div class="overview-pill"><strong>Teléfono:</strong> ${escapeHtml(phone)}</div>
+    <div class="overview-pill"><strong>Nacimiento:</strong> ${escapeHtml(birth)}</div>
+    <div class="overview-pill"><strong>Grupos:</strong> ${escapeHtml(mainGroups)}</div>
+    <div class="overview-pill"><strong>Dirección:</strong> ${escapeHtml(address)}</div>
+  `;
+}
+
 let selectedRelatedMemberId = null;
 let draftAttendance = [];
 let dirty = false;
@@ -804,6 +870,7 @@ function initCategorySelector(){
 
   container.querySelectorAll('.category-checkbox').forEach(chk => chk.addEventListener('change', handleCategoryChange));
   updateCategorySummary();
+  refreshMemberOverview();
 }
 
 function getSelectedCategories(){
@@ -1024,7 +1091,7 @@ function abrirFicha(id) {
     $("modalFicha").classList.remove("hidden");
 }
 
-function cerrarModal() { $("modalFicha").classList.add("hidden"); if ($("relatedMemberSuggestions")) { $("relatedMemberSuggestions").style.display="none"; $("relatedMemberSuggestions").innerHTML=""; } }
+function cerrarModal() { $("modalFicha").classList.add("hidden"); activateMemberTab("personal"); if ($("relatedMemberSuggestions")) { $("relatedMemberSuggestions").style.display="none"; $("relatedMemberSuggestions").innerHTML=""; } }
 
 async function guardarCambiosMiembro() {
     const id = $("editMemberId").value;
