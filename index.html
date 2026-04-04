@@ -1793,16 +1793,18 @@ function buildWeeklyMailContent(){
   const fallbackRange = buildWeeklyDateRange();
   const todayIso = data.todayIso || fallbackRange.todayIso;
   const endIso = data.endIso || fallbackRange.endIso;
-  const events = data.events || [];
-  const birthdays = data.birthdays || [];
+  const events = Array.isArray(data.events) ? data.events : [];
+  const birthdays = Array.isArray(data.birthdays) ? data.birthdays : [];
   const subject = `Resumen semanal | ${formatDisplayDate(todayIso)} al ${formatDisplayDate(endIso)}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `  * ${item.name}`).join("\n")
+    ? birthdays.map(item => `  * ${item.name}`).join("
+")
     : "  * Sin cumpleaños en los próximos 7 días.";
 
   const eventLines = events.length
-    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("\n")
+    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("
+")
     : "  * Sin acontecimientos cargados para los próximos 7 días.";
 
   const body = [
@@ -1813,7 +1815,8 @@ function buildWeeklyMailContent(){
     "",
     "- Acontecimientos próximos:",
     eventLines
-  ].join("\n");
+  ].join("
+");
 
   return { subject, body };
 }
@@ -1826,10 +1829,18 @@ function setupWeeklyEmailUI(){
   const toInput = $("weeklyEmailTo");
   if (!btnGenerate || !btnCopy || !btnOpen || !preview || !subjectInput || !toInput) return;
 
+  async function ensureWeeklyAgendaData(){
+    const data = state.weeklyAgendaData || {};
+    if (!Array.isArray(data.events) || !Array.isArray(data.birthdays) || (!data.todayIso && !data.endIso)) {
+      await loadAgendaAlertas();
+    }
+    return buildWeeklyMailContent();
+  }
+
   if (!btnGenerate.dataset.bound) {
     btnGenerate.dataset.bound = "1";
-    btnGenerate.addEventListener("click", () => {
-      const mail = buildWeeklyMailContent();
+    btnGenerate.addEventListener("click", async () => {
+      const mail = await ensureWeeklyAgendaData();
       subjectInput.value = mail.subject;
       preview.value = mail.body;
       try { localStorage.setItem("weekly_email_to", toInput.value || ""); } catch(_) {}
@@ -1839,10 +1850,10 @@ function setupWeeklyEmailUI(){
   if (!btnCopy.dataset.bound) {
     btnCopy.dataset.bound = "1";
     btnCopy.addEventListener("click", async () => {
-      const mail = buildWeeklyMailContent();
+      const mail = await ensureWeeklyAgendaData();
       if (!subjectInput.value.trim()) subjectInput.value = mail.subject;
       if (!preview.value.trim()) preview.value = mail.body;
-      const combined = `Asunto: ${subjectInput.value.trim()}\\n\\n${preview.value.trim()}`;
+      const combined = `Asunto: ${subjectInput.value.trim()}\n\n${preview.value.trim()}`;
       try {
         await navigator.clipboard.writeText(combined);
         alert("Reporte semanal copiado.");
@@ -1857,8 +1868,8 @@ function setupWeeklyEmailUI(){
 
   if (!btnOpen.dataset.bound) {
     btnOpen.dataset.bound = "1";
-    btnOpen.addEventListener("click", () => {
-      const mail = buildWeeklyMailContent();
+    btnOpen.addEventListener("click", async () => {
+      const mail = await ensureWeeklyAgendaData();
       if (!subjectInput.value.trim()) subjectInput.value = mail.subject;
       if (!preview.value.trim()) preview.value = mail.body;
       const to = (toInput.value || "").trim();
