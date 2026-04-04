@@ -77,6 +77,29 @@
   .member-tabpanel.active { display:block; }
   .section-card { border:1px solid var(--line); border-radius:16px; padding:16px; background:rgba(255,255,255,.02); }
   .placeholder-box { border:1px dashed var(--line); border-radius:14px; padding:18px; color:var(--muted); background:rgba(255,255,255,.02); }
+
+  .operativa-stats{grid-template-columns:repeat(2,1fr)}
+  .member-tab[data-tab="personal"]{border-color:#1d4ed8;background:rgba(29,78,216,.12)}
+  .member-tab[data-tab="groups"]{border-color:#15803d;background:rgba(21,128,61,.12)}
+  .member-tab[data-tab="family"]{border-color:#7c3aed;background:rgba(124,58,237,.14)}
+  .member-tab[data-tab="events"]{border-color:#b45309;background:rgba(180,83,9,.14)}
+  .member-tab[data-tab="personal"].active{background:#1d4ed8;border-color:#1d4ed8}
+  .member-tab[data-tab="groups"].active{background:#15803d;border-color:#15803d}
+  .member-tab[data-tab="family"].active{background:#7c3aed;border-color:#7c3aed}
+  .member-tab[data-tab="events"].active{background:#b45309;border-color:#b45309}
+  .member-tabpanel.theme-personal.active .section-card{background:rgba(29,78,216,.08); border-color:rgba(96,165,250,.35)}
+  .member-tabpanel.theme-groups.active .section-card{background:rgba(21,128,61,.08); border-color:rgba(74,222,128,.35)}
+  .member-tabpanel.theme-family.active .section-card{background:rgba(124,58,237,.08); border-color:rgba(167,139,250,.35)}
+  .member-tabpanel.theme-events.active .section-card{background:rgba(180,83,9,.08); border-color:rgba(251,191,36,.35)}
+  .event-card{border:1px solid var(--line); border-radius:14px; padding:12px; background:#0b1220}
+  .event-card + .event-card{margin-top:10px}
+  .event-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+  .event-title{font-weight:700}
+  .event-meta{font-size:12px; color:var(--muted); margin-top:4px}
+  .event-actions{display:flex; gap:8px; flex-wrap:wrap}
+  .checkbox-inline{display:flex; align-items:center; gap:8px}
+  .checkbox-inline input{width:auto; margin:0}
+
   .clickable-name { cursor:pointer; color:#ffffff; text-decoration:none; flex:1; min-width:0; white-space:normal; overflow-wrap:anywhere; }
   .clickable-name strong { color:#ffffff; font-weight:700; }
   .clickable-name:hover { color:#ffffff; text-decoration:none; }
@@ -142,7 +165,6 @@
 
   <div id="operativaView">
     <div class="toolbar">
-      <button id="btnReload" class="secondary" type="button">Recargar desde servidor</button>
       <button id="btnExport" type="button">Exportar reporte HTML</button>
       <button id="btnToday" type="button">Ir a hoy</button>
     </div>
@@ -174,7 +196,7 @@
           <div class="card"><div class="label">Asistencia promedio general</div><div id="kpiAvgGen" class="value">0</div></div>
         </div>
 
-        <div class="split">
+        <div class="split operativa-stats">
           <div class="panel">
             <h2>Visitas y 1ra. Vez</h2>
             <div class="stack">
@@ -198,11 +220,6 @@
                 <textarea id="primeraVezNombres" placeholder="Nombres 1ra. vez (uno por línea)&#10;Ej:&#10;Juan Pérez&#10;Lucía Gómez" style="margin-top:8px; width:100%; min-height:80px;"></textarea>
               </div>
             </div>
-          </div>
-
-          <div class="panel">
-            <h2>Top asistentes</h2>
-            <div class="scroll"><table><thead><tr><th>Nombre</th><th>Asistencias</th></tr></thead><tbody id="topTable"></tbody></table></div>
           </div>
 
           <div class="panel">
@@ -442,15 +459,46 @@
         </div>
       </div>
 
+      
       <div id="tab-events" class="member-tabpanel theme-events">
         <div class="section-card">
-          <div class="hint" style="margin-bottom:10px;">Acontecimientos</div>
-          <div class="placeholder-box">
-            Esta pestaña queda preparada para la próxima etapa: carga de acontecimientos por miembro y consolidado semanal con salida por mail.
-            <div style="margin-top:10px;">La idea es que acá se vean y carguen eventos con fecha, detalle y posterior inclusión en el reporte de los próximos 7 días.</div>
+          <div class="hint" style="margin-bottom:10px;">Acontecimientos del miembro</div>
+          <div class="filters">
+            <div>
+              <div class="hint">Fecha</div>
+              <input id="eventDate" type="date" style="width:100%">
+            </div>
+            <div>
+              <div class="hint">Título / acontecimiento</div>
+              <input id="eventTitle" type="text" placeholder="Ej: Control médico, viaje, seguimiento..." style="width:100%">
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="hint">Detalle</div>
+            <textarea id="eventDescription" placeholder="Texto libre..." style="width:100%; min-height:90px;"></textarea>
+          </div>
+          <div class="filters" style="margin-top:10px; align-items:end;">
+            <div>
+              <div class="hint">Categoría del acontecimiento (opcional)</div>
+              <input id="eventCategory" type="text" placeholder="Ej: salud, familiar, seguimiento..." style="width:100%">
+            </div>
+            <div class="checkbox-inline" style="justify-content:flex-start; padding-top:22px;">
+              <input id="eventIncludeWeekly" type="checkbox" checked>
+              <label for="eventIncludeWeekly">Incluir en reporte semanal</label>
+            </div>
+          </div>
+          <input id="editingEventId" type="hidden">
+          <div class="row-actions" style="margin-top:12px;">
+            <button id="btnSaveEvent" type="button" class="primary">Guardar acontecimiento</button>
+            <button id="btnResetEvent" type="button" class="secondary">Limpiar</button>
           </div>
         </div>
+        <div class="section-card" style="margin-top:14px;">
+          <div class="hint" style="margin-bottom:8px;">Acontecimientos cargados</div>
+          <div id="memberEventsList" class="stack"></div>
+        </div>
       </div>
+
 
       <div class="row-actions" style="margin-top:20px; justify-content:flex-end;">
         <button onclick="cerrarModal()" class="secondary" type="button">Cancelar</button>
@@ -473,7 +521,7 @@ const RELATIONSHIP_INVERSE = {"Padre":"Hijo/a","Madre":"Hijo/a","Hijo/a":"Padre/
 let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
-let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [] };
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [] };
 
 function activateMemberTab(tab) {
   document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -481,20 +529,7 @@ function activateMemberTab(tab) {
 }
 
 function refreshMemberOverview() {
-  const overview = $('memberOverview');
-  if (!overview) return;
   if ($('modalTitle')) $('modalTitle').textContent = $('editName')?.value?.trim() || 'Ficha del miembro';
-  const groups = getSelectedCategories();
-  const phone = $('editPhone')?.value?.trim() || 'Sin teléfono';
-  const birth = $('editBirth')?.value ? formatDateDMY($('editBirth').value) : 'Sin fecha de nacimiento';
-  const address = $('editAddress')?.value?.trim() || 'Sin dirección';
-  const mainGroups = groups.length ? groups.join(', ') : 'Sin grupos asignados';
-  overview.innerHTML = `
-    <div class="overview-pill"><strong>Teléfono:</strong> ${escapeHtml(phone)}</div>
-    <div class="overview-pill"><strong>Nacimiento:</strong> ${escapeHtml(birth)}</div>
-    <div class="overview-pill"><strong>Grupos:</strong> ${escapeHtml(mainGroups)}</div>
-    <div class="overview-pill"><strong>Dirección:</strong> ${escapeHtml(address)}</div>
-  `;
 }
 
 let selectedRelatedMemberId = null;
@@ -659,12 +694,13 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("attendance_records", "attendance_date,member_id", 1000, "attendance_date"),
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
     fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date"),
-    fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id")
+    fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id"),
+    fetchOptionalAllRows("member_events", "id,member_id,event_date,title,description,category,include_in_weekly,created_at", 1000, "event_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
 
-  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, alertSettings] = await Promise.all(promises);
+  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, eventRows, alertSettings] = await Promise.all(promises);
   if (alertSettings.error) throw alertSettings.error;
 
   state.people = [];
@@ -699,6 +735,7 @@ async function cargarTodoDesdeServidor(){
 
   state.firstTimeByDate = {};
   state.relationships = (relationshipRows || []).filter(r => r.member_id && r.related_member_id);
+  state.events = (eventRows || []).filter(r => r.member_id && r.event_date);
   (firstTimeRows || []).forEach(r => {
     const name = r.guest_name || state.membersById[r.member_id];
     if (!name) return;
@@ -1022,6 +1059,113 @@ function renderFamilySection(memberId){
   else circle.innerHTML = familyMembers.map(m => `<button type="button" class="chip-btn family-open" data-id="${escapeHtml(String(m.id))}">${escapeHtml(m.name || '')}</button>`).join('');
   circle.querySelectorAll('.family-open').forEach(btn => btn.addEventListener('click', ()=> abrirFicha(String(btn.dataset.id || ''))));
 }
+
+
+function resetEventForm(defaultDate=""){
+  if ($("editingEventId")) $("editingEventId").value = "";
+  if ($("eventDate")) $("eventDate").value = defaultDate || selectedDate();
+  if ($("eventTitle")) $("eventTitle").value = "";
+  if ($("eventDescription")) $("eventDescription").value = "";
+  if ($("eventCategory")) $("eventCategory").value = "";
+  if ($("eventIncludeWeekly")) $("eventIncludeWeekly").checked = true;
+  if ($("btnSaveEvent")) $("btnSaveEvent").textContent = "Guardar acontecimiento";
+}
+function getMemberEvents(memberId){
+  return (state.events || []).filter(ev => String(ev.member_id) === String(memberId))
+    .sort((a,b) => String(a.event_date || '').localeCompare(String(b.event_date || '')) || String(a.title || '').localeCompare(String(b.title || ''), 'es'));
+}
+function renderMemberEvents(memberId){
+  const box = $("memberEventsList");
+  if (!box) return;
+  const events = getMemberEvents(memberId);
+  if (!events.length){
+    box.innerHTML = '<div class="hint">Todavía no hay acontecimientos cargados para este miembro.</div>';
+    return;
+  }
+  box.innerHTML = events.map(ev => {
+    const meta = [
+      ev.event_date ? formatDate(ev.event_date) : '',
+      ev.category ? `Categoría: ${ev.category}` : '',
+      ev.include_in_weekly === false ? 'No se incluye en reporte semanal' : 'Incluido en reporte semanal'
+    ].filter(Boolean).join(' · ');
+    const desc = ev.description ? `<div style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(ev.description)}</div>` : '';
+    return `<div class="event-card">
+      <div class="event-head">
+        <div>
+          <div class="event-title">${escapeHtml(ev.title || 'Acontecimiento')}</div>
+          <div class="event-meta">${escapeHtml(meta)}</div>
+        </div>
+        <div class="event-actions">
+          <button type="button" class="secondary btnEditEvent" data-id="${escapeHtml(String(ev.id))}">Editar</button>
+          <button type="button" class="danger btnDeleteEvent" data-id="${escapeHtml(String(ev.id))}">Eliminar</button>
+        </div>
+      </div>
+      ${desc}
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.btnEditEvent').forEach(btn => btn.addEventListener('click', ()=> startEditEvent(String(btn.dataset.id || ''))));
+  box.querySelectorAll('.btnDeleteEvent').forEach(btn => btn.addEventListener('click', ()=> deleteMemberEvent(String(btn.dataset.id || ''))));
+}
+function startEditEvent(eventId){
+  const ev = (state.events || []).find(x => String(x.id) === String(eventId));
+  if (!ev) return;
+  $("editingEventId").value = ev.id;
+  $("eventDate").value = ev.event_date || '';
+  $("eventTitle").value = ev.title || '';
+  $("eventDescription").value = ev.description || '';
+  $("eventCategory").value = ev.category || '';
+  $("eventIncludeWeekly").checked = ev.include_in_weekly !== false;
+  $("btnSaveEvent").textContent = "Actualizar acontecimiento";
+  activateMemberTab("events");
+}
+async function saveMemberEvent(){
+  const memberId = String($("editMemberId").value || '');
+  if (!memberId){ alert('No encontré el miembro de la ficha.'); return; }
+  const payload = {
+    member_id: memberId,
+    event_date: $("eventDate").value || null,
+    title: normalizeName($("eventTitle").value),
+    description: $("eventDescription").value.trim() || null,
+    category: $("eventCategory").value.trim() || null,
+    include_in_weekly: !!$("eventIncludeWeekly").checked
+  };
+  if (!payload.event_date){ alert('Completá la fecha del acontecimiento.'); return; }
+  if (!payload.title){ alert('Completá el título del acontecimiento.'); return; }
+
+  const editingId = String($("editingEventId").value || '');
+  let res;
+  if (editingId) res = await supabaseClient.from('member_events').update(payload).eq('id', editingId);
+  else res = await supabaseClient.from('member_events').insert(payload);
+
+  if (res.error){
+    const msg = String(res.error.message || res.error || '');
+    if (msg.includes('schema cache') || msg.includes('does not exist') || msg.includes('Could not find')){
+      alert('No pude guardar el acontecimiento porque falta la tabla member_events en Supabase o su esquema no está actualizado.');
+    } else {
+      alert('No pude guardar el acontecimiento: ' + msg);
+    }
+    return;
+  }
+  await cargarTodoDesdeServidor();
+  renderAll();
+  renderMemberEvents(memberId);
+  resetEventForm(selectedDate());
+  activateMemberTab("events");
+}
+async function deleteMemberEvent(eventId){
+  const ev = (state.events || []).find(x => String(x.id) === String(eventId));
+  if (!ev) return;
+  if (!confirm(`¿Eliminar el acontecimiento "${ev.title || 'sin título'}"?`)) return;
+  const res = await supabaseClient.from('member_events').delete().eq('id', eventId);
+  if (res.error){
+    alert('No pude eliminar el acontecimiento: ' + String(res.error.message || res.error || ''));
+    return;
+  }
+  await cargarTodoDesdeServidor();
+  renderAll();
+  renderMemberEvents(String($("editMemberId").value || ''));
+  resetEventForm(selectedDate());
+}
 async function addFamilyRelation(){
   const memberId = String($("editMemberId").value || "");
   const inputName = normalizeName($("relatedMemberSearch").value);
@@ -1081,6 +1225,8 @@ function abrirFicha(id) {
     if ($("relationNotes")) $("relationNotes").value = "";
     populateRelationTypeOptions();
     renderFamilySection(id);
+    renderMemberEvents(id);
+    resetEventForm(selectedDate());
     activateMemberTab("personal");
     $("modalTitle").textContent = member.name || "Ficha del miembro";
 
@@ -1091,7 +1237,7 @@ function abrirFicha(id) {
     $("modalFicha").classList.remove("hidden");
 }
 
-function cerrarModal() { $("modalFicha").classList.add("hidden"); activateMemberTab("personal"); if ($("relatedMemberSuggestions")) { $("relatedMemberSuggestions").style.display="none"; $("relatedMemberSuggestions").innerHTML=""; } }
+function cerrarModal() { $("modalFicha").classList.add("hidden"); activateMemberTab("personal"); resetEventForm(selectedDate()); if ($("relatedMemberSuggestions")) { $("relatedMemberSuggestions").style.display="none"; $("relatedMemberSuggestions").innerHTML=""; } }
 
 async function guardarCambiosMiembro() {
     const id = $("editMemberId").value;
@@ -1205,7 +1351,8 @@ function resumen(){
   $("kpiAvgSun").textContent = avg(datesSun).toFixed(1);
   $("kpiAvgGen").textContent = avg(byDate).toFixed(1);
 
-  $("topTable").innerHTML = Object.entries(byPerson).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],'es')).slice(0,20)
+  const topTable = $("topTable");
+  if (topTable) topTable.innerHTML = Object.entries(byPerson).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],'es')).slice(0,20)
     .map(([name,qty]) => `<tr><td>${escapeHtml(name)}</td><td>${qty}</td></tr>`).join("") || `<tr><td colspan="2">Sin datos</td></tr>`;
 
   $("dateTable").innerHTML = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30)
@@ -1878,7 +2025,6 @@ function wireEvents(){
   $("btnRegisterPassword").addEventListener("click", registerWithPassword);
   $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
   $("btnLogout").addEventListener("click", logout);
-  $("btnReload").addEventListener("click", async ()=>{ await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
   $("btnExport").addEventListener("click", exportarReporteHTML);
   $("btnToday").addEventListener("click", ()=>{ $("fecha").value = new Date().toISOString().slice(0,10); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
   $("btnSaveDay").addEventListener("click", guardarDia);
@@ -1937,14 +2083,12 @@ function wireEvents(){
   document.querySelectorAll('.member-tab').forEach(btn => {
     btn.addEventListener('click', ()=> activateMemberTab(btn.dataset.tab || 'personal'));
   });
-  ["editName","editPhone","editBirth","editAddress"].forEach(id => {
-    const el = $(id);
-    if (el) el.addEventListener('input', refreshMemberOverview);
-    if (el && el.tagName === 'INPUT' && el.type === 'date') el.addEventListener('change', refreshMemberOverview);
-  });
   $("btnSaveMemberData").addEventListener("click", guardarCambiosMiembro);
+  if ($("editName")) $("editName").addEventListener("input", ()=> { if ($("modalTitle")) $("modalTitle").textContent = $("editName").value.trim() || "Ficha del miembro"; });
   if ($("relatedMemberSearch")) $("relatedMemberSearch").addEventListener("input", ()=>{ selectedRelatedMemberId = null; renderRelatedMemberSuggestions(); });
   if ($("btnAddRelation")) $("btnAddRelation").addEventListener("click", addFamilyRelation);
+  if ($("btnSaveEvent")) $("btnSaveEvent").addEventListener("click", saveMemberEvent);
+  if ($("btnResetEvent")) $("btnResetEvent").addEventListener("click", ()=> resetEventForm(selectedDate()));
 
   document.addEventListener("click", e => {
     if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; }
