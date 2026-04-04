@@ -2177,5 +2177,62 @@ function calcularAdminKPIs(){
 }
 
 </script>
+
+<!-- NUEVA SOLAPA AGENDA / ALERTAS -->
+<div id="agenda-alertas" style="padding:20px;">
+  <h2>Agenda / Alertas</h2>
+  <div id="agenda-content">
+    <h3>Próximos 7 días</h3>
+    <div id="agenda-events"></div>
+
+    <h3>Cumpleaños de la semana</h3>
+    <div id="agenda-birthdays"></div>
+  </div>
+</div>
+
+<script>
+async function loadAgenda() {
+  try {
+    const today = new Date();
+    const next7 = new Date();
+    next7.setDate(today.getDate() + 7);
+
+    // eventos
+    const { data: events } = await supabase
+      .from('member_events')
+      .select('event_date, title, members(name)')
+      .gte('event_date', today.toISOString().split('T')[0])
+      .lte('event_date', next7.toISOString().split('T')[0]);
+
+    const container = document.getElementById('agenda-events');
+    container.innerHTML = events.map(e => `
+      <div>📌 ${e.members?.name || ''} - ${e.event_date} - ${e.title}</div>
+    `).join('');
+
+    // cumpleaños
+    const { data: members } = await supabase
+      .from('members')
+      .select('name, birth_date');
+
+    const birthdays = members.filter(m => {
+      if (!m.birth_date) return false;
+      const bd = new Date(m.birth_date);
+      const thisYear = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
+      return thisYear >= today && thisYear <= next7;
+    });
+
+    const bContainer = document.getElementById('agenda-birthdays');
+    bContainer.innerHTML = birthdays.map(b => `
+      <div>🎂 ${b.name}</div>
+    `).join('');
+
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+loadAgenda();
+</script>
+
 </body>
 </html>
