@@ -2514,6 +2514,7 @@ function wireEvents(){
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
   $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
   $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
+  if ($("btnExportMembersExcel")) $("btnExportMembersExcel").addEventListener("click", exportMembersToExcel);
   $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
   $("btnReportRecurring").addEventListener("click", () => runReport("recurring"));
   $("btnReportInactive").addEventListener("click", () => runReport("inactive"));
