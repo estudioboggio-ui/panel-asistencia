@@ -2118,8 +2118,7 @@ async function agregarNuevoMiembro(){
   const existingMember = exactDuplicate?.id ? state.membersFullData?.[exactDuplicate.id] : Object.values(state.membersFullData || {}).find(m => String(m.name || "").toLowerCase() === name.toLowerCase());
 
   if (!existingName && duplicates.length){
-    const duplicateLines = duplicates.slice(0,5).map(d => `- ${d.name} (${d.reasons.join(", ")})`).join("
-");
+    const duplicateLines = duplicates.slice(0,5).map(d => `- ${d.name} (${d.reasons.join(", ")})`).join("\n");
     const proceed = confirm(`Atención: hay posibles duplicados para este nombre:
 
 ${duplicateLines}
