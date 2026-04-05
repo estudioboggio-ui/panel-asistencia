@@ -159,7 +159,7 @@
   </div>
 
   <div class="tabs">
-    <button id="tabOperativa" class="tab-btn active" type="button">Operativa</button>
+    <button id="tabOperativa" class="tab-btn active" type="button">Asistencia</button>
     <button id="tabAdmin" class="tab-btn hidden" type="button">Administración</button>
   </div>
 
@@ -261,6 +261,19 @@
                 <div id="memberSuggestionsBox" class="scroll suggestions"></div>
               </div>
               <button id="btnDeactivateMember" class="danger" type="button">Inactivar miembro desde esta fecha</button>
+
+              <div class="section-card" style="margin-top:8px;">
+                <div class="hint" style="margin-bottom:8px;">Recuperar inactivos</div>
+                <div>
+                  <input id="reactivateMemberSearch" type="text" placeholder="Buscar miembro inactivo..." autocomplete="off">
+                  <div id="reactivateSuggestionsBox" class="scroll suggestions"></div>
+                </div>
+                <div class="row-actions" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+                  <button id="btnReactivateMember" class="secondary" type="button">Reactivar miembro</button>
+                  <button id="btnDeleteMemberPermanent" class="danger" type="button">Eliminar definitivamente</button>
+                </div>
+                <div id="inactiveMembersQuickList" class="hint" style="margin-top:10px;"></div>
+              </div>
             </div>
           </div>
 
@@ -623,7 +636,7 @@ function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; e
 function userCanAdmin(){ return currentProfile?.role === "admin"; }
 function userCanOperative(){ return currentProfile?.role === "admin" || currentProfile?.role === "carga"; }
 function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
-function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); }
+function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); setStatus("Conectado", "ok"); }
 function switchTab(tab){
   $("tabOperativa").classList.toggle("active", tab==="operativa");
   $("tabAdmin").classList.toggle("active", tab==="admin");
@@ -1032,7 +1045,11 @@ function renderDuplicateWarning(){
   const matches = findPotentialDuplicateMembers(name).slice(0,5);
   if (!matches.length){ box.classList.remove("show"); box.innerHTML = ""; return; }
   box.classList.add("show");
-  box.innerHTML = `<strong>Posible duplicado:</strong> ${matches.map(m => `${escapeHtml(m.name)} <span class="hint">(${escapeHtml(m.reasons.join(", "))})</span>`).join("<br>")}<div class="hint" style="margin-top:6px;">Si es la misma persona, conviene editar la ficha existente y no crear un miembro nuevo.</div>`;
+  box.innerHTML = `<strong>Posible duplicado:</strong> ${matches.map(m => {
+    const member = state.membersFullData?.[m.id] || {};
+    const isInactive = !!member.inactive_from && member.inactive_from <= selectedDate();
+    return `${escapeHtml(m.name)} <span class="hint">(${escapeHtml(m.reasons.join(", "))}${isInactive ? ", inactivo" : ""})</span>`;
+  }).join("<br>")}<div class="hint" style="margin-top:6px;">Si es la misma persona, podés reactivarla desde “Recuperar inactivos” en lugar de crear un miembro nuevo.</div>`;
 }
 function populateRelationTypeOptions(){
   if (!$("relationType")) return;
@@ -2019,15 +2036,90 @@ function actualizarSugerenciasInactivar(){
   box.innerHTML = items.map(name => `<div class="suggestion-item" data-name="${escapeHtml(name)}">${escapeHtml(name)}</div>`).join("");
   box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", ()=>{ $("removeMemberSearch").value = el.getAttribute("data-name"); box.style.display="none"; box.innerHTML=""; }));
 }
+
+function getInactiveMembersOn(date){
+  return Object.values(state.membersFullData || {})
+    .filter(member => !!member.inactive_from && member.inactive_from <= date)
+    .sort((a,b)=> String(a.name || "").localeCompare(String(b.name || ""), "es"));
+}
+function renderInactiveMembersQuickList(){
+  const box = $("inactiveMembersQuickList");
+  if (!box) return;
+  const date = selectedDate();
+  const items = getInactiveMembersOn(date).slice(0,10);
+  if (!items.length){
+    box.innerHTML = "No hay miembros inactivos para recuperar.";
+    return;
+  }
+  const extra = getInactiveMembersOn(date).length > 10 ? ` y ${getInactiveMembersOn(date).length - 10} más` : "";
+  box.innerHTML = `<strong>Inactivos:</strong> ${items.map(m => escapeHtml(m.name || "")).join(", ")}${extra}`;
+}
+function actualizarSugerenciasReactivar(){
+  const input = $("reactivateMemberSearch");
+  const box = $("reactivateSuggestionsBox");
+  if (!input || !box) return;
+  const q = normalizeName(input.value).toLowerCase();
+  if (!q){ box.style.display = "none"; box.innerHTML = ""; return; }
+  const items = getInactiveMembersOn(selectedDate())
+    .filter(member => String(member.name || "").toLowerCase().includes(q))
+    .slice(0,12);
+  if (!items.length){ box.style.display = "none"; box.innerHTML = ""; return; }
+  box.style.display = "block";
+  box.innerHTML = items.map(member => `<div class="suggestion-item" data-id="${escapeHtml(String(member.id))}" data-name="${escapeHtml(member.name || "")}">${escapeHtml(member.name || "")}</div>`).join("");
+  box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", ()=>{
+    input.value = el.getAttribute("data-name") || "";
+    input.dataset.memberId = el.getAttribute("data-id") || "";
+    box.style.display = "none";
+    box.innerHTML = "";
+  }));
+}
+async function reactivarMiembro(){
+  if (!userCanOperative()) return;
+  const input = $("reactivateMemberSearch");
+  if (!input) return;
+  const memberId = input.dataset.memberId || "";
+  const memberName = normalizeName(input.value);
+  const member = memberId ? state.membersFullData?.[memberId] : getInactiveMembersOn(selectedDate()).find(m => String(m.name || "").toLowerCase() === memberName.toLowerCase());
+  if (!member){ alert("Seleccioná un miembro inactivo para reactivar."); return; }
+  const res = await supabaseClient.from("members").update({ inactive_from: null }).eq("id", member.id);
+  if (res.error){ alert("No pude reactivar el miembro: " + res.error.message); return; }
+  input.value = "";
+  input.dataset.memberId = "";
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs();
+}
+async function eliminarMiembroDefinitivo(){
+  if (!userCanOperative()) return;
+  const input = $("reactivateMemberSearch");
+  if (!input) return;
+  const memberId = input.dataset.memberId || "";
+  const memberName = normalizeName(input.value);
+  const member = memberId ? state.membersFullData?.[memberId] : Object.values(state.membersFullData || {}).find(m => String(m.name || "").toLowerCase() === memberName.toLowerCase());
+  if (!member){ alert("Seleccioná un miembro para eliminar definitivamente."); return; }
+  const ok = confirm(`Vas a eliminar definitivamente a "${member.name}". Esta acción puede fallar si tiene asistencias, vínculos o acontecimientos relacionados. ¿Querés continuar?`);
+  if (!ok) return;
+  const res = await supabaseClient.from("members").delete().eq("id", member.id);
+  if (res.error){
+    alert("No pude eliminar definitivamente el miembro: " + res.error.message);
+    return;
+  }
+  input.value = "";
+  input.dataset.memberId = "";
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs();
+}
+
 async function agregarNuevoMiembro(){
   if (!userCanOperative()) return;
   const name = normalizeDisplayName($("newMemberName").value);
   const date = selectedDate();
   if (!name){ alert("Ingresá un nombre válido."); return; }
   const duplicates = findPotentialDuplicateMembers(name);
-  const existing = duplicates.find(d => d.reasons.includes("coincidencia exacta"))?.name || state.people.find(p => p.toLowerCase() === name.toLowerCase());
-  if (!existing && duplicates.length){
-    const duplicateLines = duplicates.slice(0,5).map(d => `- ${d.name} (${d.reasons.join(", ")})`).join("\n");
+  const exactDuplicate = duplicates.find(d => d.reasons.includes("coincidencia exacta"));
+  const existingName = exactDuplicate?.name || state.people.find(p => p.toLowerCase() === name.toLowerCase());
+  const existingMember = exactDuplicate?.id ? state.membersFullData?.[exactDuplicate.id] : Object.values(state.membersFullData || {}).find(m => String(m.name || "").toLowerCase() === name.toLowerCase());
+
+  if (!existingName && duplicates.length){
+    const duplicateLines = duplicates.slice(0,5).map(d => `- ${d.name} (${d.reasons.join(", ")})`).join("
+");
     const proceed = confirm(`Atención: hay posibles duplicados para este nombre:
 
 ${duplicateLines}
@@ -2035,13 +2127,18 @@ ${duplicateLines}
 ¿Querés crear el miembro igual?`);
     if (!proceed) return;
   }
-  const res = existing
-    ? await supabaseClient.from("members").update({ active_from: date, inactive_from: null }).eq("name", existing)
+
+  const res = existingMember
+    ? await supabaseClient.from("members").update({ active_from: existingMember.active_from || date, inactive_from: null }).eq("id", existingMember.id)
     : await supabaseClient.from("members").insert({ name, active_from: date });
+
   if (res.error){ alert("No pude guardar el miembro: " + res.error.message); return; }
   $("newMemberName").value = "";
   renderDuplicateWarning();
-  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); if (!draftAttendance.includes(existing || name)) draftAttendance.push(existing || name); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia();
+  const finalName = existingName || name;
+  if (!draftAttendance.includes(finalName) && isMemberActiveOn(finalName, date)) draftAttendance.push(finalName);
+  dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
 }
 
 async function inactivarMiembro(){
@@ -2256,7 +2353,7 @@ async function evaluateSession(){
     await cargarTodoDesdeServidor();
     cargarBorradorDelDia();
     renderAll(); calcularAdminKPIs();
-    setStatus("Conectado correctamente", "ok");
+    setStatus("Conectado", "ok");
   } finally {
     __panelEvaluatingSession = false;
   }
@@ -2291,6 +2388,9 @@ function wireEvents(){
   $("compMonthB").addEventListener("change", resumen);
   $("compYearB").addEventListener("change", resumen);
   $("removeMemberSearch").addEventListener("input", actualizarSugerenciasInactivar);
+  if ($("reactivateMemberSearch")) $("reactivateMemberSearch").addEventListener("input", actualizarSugerenciasReactivar);
+  if ($("btnReactivateMember")) $("btnReactivateMember").addEventListener("click", reactivarMiembro);
+  if ($("btnDeleteMemberPermanent")) $("btnDeleteMemberPermanent").addEventListener("click", eliminarMiembroDefinitivo);
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
   $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
   $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
@@ -2350,7 +2450,7 @@ function initializeDefaults(){
   if ($("groupDateTo")) $("groupDateTo").value = $("fecha").value;
   switchTab("operativa");
 }
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); fillGroupSelect(); resumen(); updateSaveStatus(); }
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); resumen(); updateSaveStatus(); }
 async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
