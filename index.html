@@ -124,6 +124,10 @@
 
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
+
+.metric-link{background:none;border:none;padding:0;margin:0;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;}
+.metric-link:hover{opacity:.85}
+
 </style>
 </head>
 <body>
@@ -285,9 +289,10 @@
   <div id="adminView" class="hidden">
     <div class="toolbar">
       <button id="btnAdminReload" class="secondary" type="button">Actualizar analítica</button>
+      <button id="btnExportMembersExcel" class="secondary" type="button">Exportar miembros a Excel</button>
     </div>
     <div class="cards">
-      <div class="card"><div class="label">Promedio 4 semanas</div><div id="adminKpiAvg4w" class="value">0</div></div>
+      <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
       <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
       <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
       <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
@@ -1959,6 +1964,122 @@ async function loadAgendaAlertas(){
   }
 }
 
+
+function buildFirstMonthRowsForSummary(from, to){
+  const namedRows = getFirstTimersInRange(from, to);
+  const totalCount = Object.entries(state.dayExtras)
+    .filter(([d]) => d >= from && d <= to)
+    .reduce((acc, [,extra]) => acc + Number(extra?.primeraVez?.count || 0), 0);
+  const missing = Math.max(0, totalCount - namedRows.length);
+  const filler = Array.from({length: missing}, (_,i) => ({
+    name: `Sin nombre cargado #${i+1}`,
+    date: from,
+    detail: "Primera vez registrada sin nombre"
+  }));
+  return namedRows.concat(filler);
+}
+function renderAdminSummaryTable(rows){
+  const body = $("adminSummaryTable");
+  body.innerHTML = rows.map((row, idx) => {
+    const valueHtml = row.clickable
+      ? `<button type="button" class="metric-link" data-summary-key="${escapeHtml(row.key)}">${escapeHtml(String(row.value))}</button>`
+      : escapeHtml(String(row.value));
+    return `<tr><td>${escapeHtml(row.label)}</td><td>${valueHtml}</td></tr>`;
+  }).join("");
+  body.querySelectorAll(".metric-link").forEach(btn => btn.addEventListener("click", () => openSummaryMetric(String(btn.dataset.summaryKey || ""))));
+}
+function openSummaryMetric(key){
+  const refDate = getReferenceDate();
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  const monthBounds = getMonthBounds(refDate);
+
+  if (key === "recurring"){
+    const rows = getRecurringActiveNames(defaultFrom, refDate);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+  } else if (key === "inactive"){
+    const rows = getInactiveRecentNames(defaultFrom, refDate);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+  } else if (key === "dropped"){
+    const rows = getDroppedNames(defaultFrom, refDate);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+  } else if (key === "firstMonth"){
+    const rows = buildFirstMonthRowsForSummary(monthBounds.start, monthBounds.end);
+    renderReport("Nombre", "Primera vez", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${formatDate(r.date || monthBounds.start)}</td></tr>`);
+  } else if (key === "noReturn"){
+    const rows = getFirstTimeNoReturnInRange(monthBounds.start, monthBounds.end);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+  } else {
+    return;
+  }
+  $("tabAdmin").click();
+  document.getElementById("reportTableBody")?.scrollIntoView({behavior:"smooth", block:"start"});
+}
+function memberDirectRelationsSummary(memberId){
+  return getDirectRelations(memberId).map(r => {
+    const relatedName = state.membersById?.[r.related_member_id] || "";
+    return `${r.relationship_type || "Familiar"}: ${relatedName}`.trim();
+  }).join(" | ");
+}
+function memberEventSummary(memberId){
+  return (state.events || [])
+    .filter(ev => String(ev.member_id) === String(memberId))
+    .sort((a,b) => String(a.event_date || "").localeCompare(String(b.event_date || "")))
+    .map(ev => `${ev.event_date || ""} - ${ev.title || ""}`)
+    .join(" | ");
+}
+function csvEscape(value){
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+function exportMembersToExcel(){
+  const rows = Object.values(state.membersFullData || {}).sort((a,b)=> String(a.name || "").localeCompare(String(b.name || ""), "es"));
+  const headers = [
+    "Nombre",
+    "Estado",
+    "Inactivo desde",
+    "Telefono",
+    "Fecha de nacimiento",
+    "Direccion",
+    "Grupos / areas",
+    "Vinculos directos",
+    "Acontecimientos",
+    "Falta telefono",
+    "Falta nacimiento",
+    "Falta direccion",
+    "Falta grupos"
+  ];
+  const lines = [headers.map(csvEscape).join(";")];
+  rows.forEach(member => {
+    const active = !member.inactive_from ? "Activo" : "Inactivo";
+    const values = [
+      member.name || "",
+      active,
+      member.inactive_from || "",
+      member.phone || "",
+      member.birth_date || "",
+      member.address || "",
+      normalizeCategoryValue(member.category).join(", "),
+      memberDirectRelationsSummary(member.id),
+      memberEventSummary(member.id),
+      member.phone ? "No" : "Si",
+      member.birth_date ? "No" : "Si",
+      member.address ? "No" : "Si",
+      normalizeCategoryValue(member.category).length ? "No" : "Si"
+    ];
+    lines.push(values.map(csvEscape).join(";"));
+  });
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = selectedDate ? selectedDate() : new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `miembros_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function renderAdminAnalytics(){
   const refDate = getReferenceDate();
   const meetings = getMeetingTotalsSorted().filter(([d]) => d <= refDate);
@@ -1988,16 +2109,16 @@ function renderAdminAnalytics(){
   const inactiveRows = getInactiveRecentNames(defaultFrom, refDate);
   const droppedRows = getDroppedNames(defaultFrom, refDate);
 
-  $("adminSummaryTable").innerHTML = [
-    ["Recurrentes activos (≥ 9 asistencias / 3 meses)", recurringRows.length],
-    ["Inactivos recientes (sin asistir 3 semanas)", inactiveRows.length],
-    ["Dejaron de concurrir (> 8 semanas)", droppedRows.length],
-    ["Primeras veces del mes", firstMonthCount],
-    ["Primeras veces sin retorno dentro del mes", noReturnRows.length],
-    ["Peso primeras veces sobre total mes", `${safePct(firstMonthCount, thisMonthTotal).toFixed(1)}%`],
-    ["Concentración núcleo duro (top 10 / total 3 meses)", nucleusShare().toFixed(1) + "%"],
-    ["Tasa de retención estimada", retentionEstimate().toFixed(1) + "%"]
-  ].map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
+  renderAdminSummaryTable([
+    { key:"recurring", label:"Recurrentes activos (≥ 9 asistencias / 3 meses)", value: recurringRows.length, clickable: true },
+    { key:"inactive", label:"Inactivos recientes (sin asistir 3 semanas)", value: inactiveRows.length, clickable: true },
+    { key:"dropped", label:"Dejaron de concurrir (> 8 semanas)", value: droppedRows.length, clickable: true },
+    { key:"firstMonth", label:"Primeras veces del mes", value: firstMonthCount, clickable: true },
+    { key:"noReturn", label:"Primeras veces sin retorno dentro del mes", value: noReturnRows.length, clickable: true },
+    { key:"firstWeight", label:"Peso primeras veces sobre total mes", value: `${safePct(firstMonthCount, thisMonthTotal).toFixed(1)}%`, clickable: false },
+    { key:"nucleus", label:"Concentración núcleo duro (top 10 / total 3 meses)", value: nucleusShare().toFixed(1) + "%", clickable: false },
+    { key:"retention", label:"Tasa de retención estimada", value: retentionEstimate().toFixed(1) + "%", clickable: false }
+  ]);
 
   renderAlerts();
   loadAlertSettingsUI();
