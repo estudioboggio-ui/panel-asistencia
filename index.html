@@ -299,6 +299,55 @@
       <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
     </div>
 
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Agenda / Alertas</h2>
+      <div class="split" style="grid-template-columns:repeat(2,1fr);">
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:10px;">Próximos 7 días</div>
+          <div id="agendaEventsList" class="stack"></div>
+        </div>
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:10px;">Cumpleaños de la semana</div>
+          <div id="agendaBirthdaysList" class="stack"></div>
+        </div>
+      </div>
+
+      <details id="weeklyEmailDetails" class="section-card" style="margin-top:16px;">
+        <summary style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <div>
+            <div style="font-size:18px;font-weight:700;">Reporte semanal por mail</div>
+            <div class="hint">Generá la vista previa del resumen semanal y abrilo en tu cliente de correo.</div>
+          </div>
+          <div class="hint">Abrir / cerrar</div>
+        </summary>
+
+        <div style="margin-top:14px;">
+          <div class="row-actions" style="margin-bottom:12px;">
+            <button id="btnGenerateWeeklyEmail" type="button">Generar reporte</button>
+            <button id="btnCopyWeeklyEmail" type="button" class="secondary">Copiar texto</button>
+            <button id="btnOpenWeeklyEmail" type="button" class="ghost">Abrir en mail</button>
+          </div>
+
+          <div class="filters" style="grid-template-columns:2fr 1fr;">
+            <div>
+              <label>Destinatarios</label>
+              <input id="weeklyEmailTo" type="text" placeholder="ejemplo@dominio.com, otro@dominio.com">
+            </div>
+            <div>
+              <label>Asunto</label>
+              <input id="weeklyEmailSubject" type="text" placeholder="Resumen semanal">
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <label>Vista previa</label>
+            <textarea id="weeklyEmailPreview" rows="14" style="width:100%;resize:vertical;"></textarea>
+          </div>
+        </div>
+      </details>
+    </div>
+
     <div class="split">
       <div class="panel">
         <h2>Seguimiento de miembros</h2>
@@ -407,50 +456,6 @@
       </div>
     </div>
 
-
-    <div class="panel" style="margin-top:16px;">
-      <h2>Agenda / Alertas</h2>
-      <div class="split" style="grid-template-columns:repeat(2,1fr);">
-        <div class="section-card">
-          <div class="hint" style="margin-bottom:10px;">Próximos 7 días</div>
-          <div id="agendaEventsList" class="stack"></div>
-        </div>
-        <div class="section-card">
-          <div class="hint" style="margin-bottom:10px;">Cumpleaños de la semana</div>
-          <div id="agendaBirthdaysList" class="stack"></div>
-        </div>
-      </div>
-
-      <div class="section-card" style="margin-top:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-          <div>
-            <div style="font-size:18px;font-weight:700;">Reporte semanal por mail</div>
-            <div class="hint">Generá la vista previa del resumen semanal y abrilo en tu cliente de correo.</div>
-          </div>
-          <div class="row-actions">
-            <button id="btnGenerateWeeklyEmail" type="button">Generar reporte</button>
-            <button id="btnCopyWeeklyEmail" type="button" class="secondary">Copiar texto</button>
-            <button id="btnOpenWeeklyEmail" type="button" class="ghost">Abrir en mail</button>
-          </div>
-        </div>
-
-        <div class="filters" style="grid-template-columns:2fr 1fr;">
-          <div>
-            <label>Destinatarios</label>
-            <input id="weeklyEmailTo" type="text" placeholder="ejemplo@dominio.com, otro@dominio.com">
-          </div>
-          <div>
-            <label>Asunto</label>
-            <input id="weeklyEmailSubject" type="text" placeholder="Resumen semanal">
-          </div>
-        </div>
-
-        <div style="margin-top:12px;">
-          <label>Vista previa</label>
-          <textarea id="weeklyEmailPreview" rows="14" style="width:100%;resize:vertical;"></textarea>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -1976,7 +1981,8 @@ function buildWeeklyMailContent(){
   const subject = `Resumen semanal | ${rangeLabel}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `  * ${item.name}`).join("\n")
+    ? birthdays.map(item => `  * ${item.dateLabel || formatDisplayDate(item.dateIso)} — ${item.name}`).join("
+")
     : "  * Sin cumpleaños en los próximos 7 días.";
 
   const eventLines = events.length
@@ -2010,6 +2016,8 @@ function setupWeeklyEmailUI(){
       const mail = buildWeeklyMailContent();
       subjectInput.value = mail.subject;
       preview.value = mail.body;
+      const details = $("weeklyEmailDetails");
+      if (details) details.open = true;
       try { localStorage.setItem("weekly_email_to", toInput.value || ""); } catch(_) {}
     });
   }
@@ -2020,6 +2028,8 @@ function setupWeeklyEmailUI(){
       const mail = buildWeeklyMailContent();
       if (!subjectInput.value.trim()) subjectInput.value = mail.subject;
       if (!preview.value.trim()) preview.value = mail.body;
+      const details = $("weeklyEmailDetails"); if (details) details.open = true;
+      const details = $("weeklyEmailDetails"); if (details) details.open = true;
       const combined = `Asunto: ${subjectInput.value.trim()}\\n\\n${preview.value.trim()}`;
       try {
         await navigator.clipboard.writeText(combined);
