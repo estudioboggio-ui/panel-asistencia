@@ -1981,8 +1981,7 @@ function buildWeeklyMailContent(){
   const subject = `Resumen semanal | ${rangeLabel}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `  * ${item.dateLabel || formatDisplayDate(item.dateIso)} — ${item.name}`).join("
-")
+    ? birthdays.map(item => `  * ${item.dateLabel || formatDisplayDate(item.dateIso)} — ${item.name}`).join("\n")
     : "  * Sin cumpleaños en los próximos 7 días.";
 
   const eventLines = events.length
@@ -2028,7 +2027,6 @@ function setupWeeklyEmailUI(){
       const mail = buildWeeklyMailContent();
       if (!subjectInput.value.trim()) subjectInput.value = mail.subject;
       if (!preview.value.trim()) preview.value = mail.body;
-      const details = $("weeklyEmailDetails"); if (details) details.open = true;
       const details = $("weeklyEmailDetails"); if (details) details.open = true;
       const combined = `Asunto: ${subjectInput.value.trim()}\\n\\n${preview.value.trim()}`;
       try {
