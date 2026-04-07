@@ -291,16 +291,8 @@
       <button id="btnAdminReload" class="secondary" type="button">Actualizar analítica</button>
       <button id="btnExportMembersExcel" class="secondary" type="button">Exportar miembros a Excel</button>
     </div>
-    <div class="cards">
-      <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
-      <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
-      <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
-      <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
-      <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
-    </div>
 
-
-    <div class="panel" style="margin-top:16px;">
+    <div class="panel">
       <h2>Agenda / Alertas</h2>
       <div class="split" style="grid-template-columns:repeat(2,1fr);">
         <div class="section-card">
@@ -346,6 +338,14 @@
           </div>
         </div>
       </details>
+    </div>
+
+    <div class="cards" style="margin-top:16px;">
+      <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
+      <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
+      <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
+      <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
+      <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
     </div>
 
     <div class="split">
@@ -1533,12 +1533,22 @@ function ultimosTresMesesDesde(fechaStr){
 function buildMonthStats(month, year){
   const prefix = `${String(year)}-${String(month).padStart(2,"0")}-`;
   const totalsByDate = {};
-  state.attendance.forEach(x => { if (x.date.startsWith(prefix)) totalsByDate[x.date] = (totalsByDate[x.date] || 0) + 1; });
-  Object.keys(state.dayExtras).forEach(date => {
-    if (date.startsWith(prefix)) totalsByDate[date] = (totalsByDate[date] || 0) + Number(state.dayExtras[date].visitas.count || 0) + Number(state.dayExtras[date].primera_vez_count || 0);
+
+  state.attendance.forEach(x => {
+    if (x.date.startsWith(prefix)) totalsByDate[x.date] = (totalsByDate[x.date] || 0) + 1;
   });
-  const dates = Object.keys(totalsByDate).length;
-  const total = Object.values(totalsByDate).reduce((a,b)=>a+b,0);
+
+  Object.keys(state.dayExtras).forEach(date => {
+    if (!date.startsWith(prefix)) return;
+    const extra = state.dayExtras[date] || {};
+    const visitas = Number(extra?.visitas?.count || 0);
+    const primeraVez = Number(extra?.primeraVez?.count || 0);
+    totalsByDate[date] = (totalsByDate[date] || 0) + visitas + primeraVez;
+  });
+
+  const validTotals = Object.values(totalsByDate).filter(total => Number(total || 0) > 0);
+  const dates = validTotals.length;
+  const total = validTotals.reduce((a,b)=>a+b,0);
   return { total, dates, avg: dates ? (total/dates).toFixed(1) : "0" };
 }
 function safePct(num, den){ return den ? (num/den)*100 : 0; }
