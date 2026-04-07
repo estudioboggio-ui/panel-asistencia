@@ -125,6 +125,14 @@
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
 
+.community-value{display:flex;flex-direction:column;gap:10px;align-items:stretch}
+.community-block{width:100%;padding:10px 12px;border:1px solid rgba(148,163,184,.18);border-radius:12px;background:rgba(255,255,255,.03)}
+.community-title{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;font-weight:600;color:#e5e7eb}
+.community-title strong{font-size:13px;font-weight:600;color:#f8fafc}
+.community-number{font-size:22px;font-weight:700;line-height:1;color:#f8fafc}
+.community-note{margin-top:4px;font-size:11px;line-height:1.35;color:var(--muted)}
+.extra-names{margin-top:8px; width:100%; min-height:80px; resize:vertical;}
+
 .metric-link{background:none;border:none;padding:0;margin:0;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;}
 .metric-link:hover{opacity:.85}
 
@@ -212,6 +220,7 @@
                   <button id="btnVisitasPlus" class="primary" type="button">+</button>
                 </div>
                 <input id="visitasTexto" type="text" placeholder="Texto libre...">
+                <textarea id="visitasNombres" class="extra-names" placeholder="Nombres visitas (uno por línea)&#10;Ej:&#10;Juan Pérez&#10;Lucía Gómez"></textarea>
               </div>
               <div class="counter-card">
                 <div style="font-weight:600;margin-bottom:8px;">1ra. Vez</div>
@@ -344,11 +353,15 @@
       <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
       <div class="card">
         <div class="label">Comunidad activa</div>
-        <div class="value" style="display:flex; flex-direction:column; gap:8px; align-items:flex-start;">
-          <div><strong>Núcleo duro:</strong> <span id="adminKpiNucleusHardcore">0</span></div>
-          <div class="hint">≥ 50% de las últimas 8 reuniones</div>
-          <div><strong>Base ampliada:</strong> <span id="adminKpiExpandedCommunity">0</span></div>
-          <div class="hint">6 veces en los últimos 3 meses</div>
+        <div class="community-value">
+          <div class="community-block">
+            <div class="community-title"><strong>Núcleo duro</strong><span class="community-number" id="adminKpiNucleusHardcore">0</span></div>
+            <div class="community-note">Asistieron al menos al 50% de las últimas 8 reuniones.</div>
+          </div>
+          <div class="community-block">
+            <div class="community-title"><strong>Base ampliada</strong><span class="community-number" id="adminKpiExpandedCommunity">0</span></div>
+            <div class="community-note">Asistieron 6 veces en los últimos 3 meses.</div>
+          </div>
         </div>
       </div>
       <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
@@ -803,7 +816,7 @@ async function cargarTodoDesdeServidor(){
   state.dayExtras = {};
   extras.forEach(e => {
     state.dayExtras[e.attendance_date] = {
-      visitas: { count: e.visitas_count || 0, text: e.visitas_text || "" },
+      visitas: parseVisitasPayload(e.visitas_count || 0, e.visitas_text || ""),
       primeraVez: { count: e.primera_vez_count || 0, text: e.primera_vez_text || "" }
     };
   });
@@ -824,20 +837,76 @@ async function cargarTodoDesdeServidor(){
   state.alertSettings = alertSettings.data || null;
 }
 
+function parseVisitasPayload(count, rawText){
+  const fallback = { count: Number(count || 0), text: rawText || "", names: [] };
+  if (!rawText || typeof rawText !== "string") return fallback;
+  if (!rawText.startsWith("__VISITAS_META__")) return fallback;
+  try {
+    const parsed = JSON.parse(rawText.replace("__VISITAS_META__", ""));
+    const names = Array.isArray(parsed.names)
+      ? parsed.names.map(x => String(x || "").trim()).filter(Boolean).map(x => x.toUpperCase())
+      : [];
+    return {
+      count: Number(count || names.length || 0),
+      text: parsed.text || "",
+      names
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
+function serializeVisitasPayload(visitas){
+  const text = visitas?.text || "";
+  const names = Array.isArray(visitas?.names)
+    ? visitas.names.map(x => String(x || "").trim()).filter(Boolean).map(x => x.toUpperCase())
+    : [];
+  if (!text && !names.length) return "";
+  return "__VISITAS_META__" + JSON.stringify({ text, names });
+}
+function parseVisitasNames(){
+  const raw = $("visitasNombres") ? ($("visitasNombres").value || "") : "";
+  return [...new Set(raw
+    .split("\n")
+    .map(x => x.trim())
+    .filter(x => x.length > 0)
+    .map(x => x.toUpperCase()))];
+}
+function syncVisitasCountFromNames(){
+  if (!$("visitasNombres")) return;
+  const qty = parseVisitasNames().length;
+  const date = selectedDate();
+  ensureDayExtras(date);
+  state.dayExtras[date].visitas.names = parseVisitasNames();
+  if (qty > 0){
+    state.dayExtras[date].visitas.count = qty;
+    $("visitasCount").textContent = qty;
+  } else {
+    state.dayExtras[date].visitas.count = 0;
+    $("visitasCount").textContent = 0;
+  }
+  resumen();
+}
+
 function ensureDayExtras(date){
-  if (!state.dayExtras[date]) state.dayExtras[date] = { visitas:{count:0,text:""}, primeraVez:{count:0,text:""} };
+  if (!state.dayExtras[date]) state.dayExtras[date] = { visitas:{count:0,text:"",names:[]}, primeraVez:{count:0,text:""} };
+  if (!state.dayExtras[date].visitas) state.dayExtras[date].visitas = {count:0,text:"",names:[]};
+  if (!Array.isArray(state.dayExtras[date].visitas.names)) state.dayExtras[date].visitas.names = [];
 }
 function loadExtrasUI(date){
   ensureDayExtras(date);
   $("visitasCount").textContent = state.dayExtras[date].visitas.count || 0;
   $("primeraVezCount").textContent = state.dayExtras[date].primeraVez.count || 0;
   $("visitasTexto").value = state.dayExtras[date].visitas.text || "";
+  if ($("visitasNombres")) $("visitasNombres").value = (state.dayExtras[date].visitas.names || []).join("\n");
   $("primeraVezTexto").value = state.dayExtras[date].primeraVez.text || "";
 }
 function loadFirstTimeNamesForDate(date){
   if (!$("primeraVezNombres")) return;
   const names = state.firstTimeByDate[date] || [];
   $("primeraVezNombres").value = names.join("\n");
+}
+function clearVisitasNames(){
+  if ($("visitasNombres")) $("visitasNombres").value = "";
 }
 function clearFirstTimeNames(){
   if ($("primeraVezNombres")) $("primeraVezNombres").value = "";
@@ -936,6 +1005,12 @@ function changeCounter(kind, delta){
   ensureDayExtras(date);
   const current = Number(state.dayExtras[date][kind].count || 0);
   state.dayExtras[date][kind].count = Math.max(0, current + delta);
+  if (kind === "visitas") {
+    if (state.dayExtras[date].visitas.count === 0) {
+      state.dayExtras[date].visitas.names = [];
+      clearVisitasNames();
+    }
+  }
   dirty = true; updateSaveStatus(); loadExtrasUI(date); resumen();
 }
 function updateExtraText(kind){
@@ -2553,7 +2628,7 @@ async function guardarDia(){
       .upsert({
         attendance_date: date,
         visitas_count: Number(state.dayExtras[date].visitas.count || 0),
-        visitas_text: state.dayExtras[date].visitas.text || "",
+        visitas_text: serializeVisitasPayload(state.dayExtras[date].visitas),
         primera_vez_count: Number(state.dayExtras[date].primeraVez.count || 0),
         primera_vez_text: state.dayExtras[date].primeraVez.text || ""
       }, { onConflict: "attendance_date" });
@@ -2708,6 +2783,11 @@ function wireEvents(){
   $("btnPrimeraMinus").addEventListener("click", ()=>changeCounter("primeraVez",-1));
   $("btnPrimeraPlus").addEventListener("click", ()=>changeCounter("primeraVez",1));
   $("visitasTexto").addEventListener("input", ()=>updateExtraText("visitas"));
+  if ($("visitasNombres")) $("visitasNombres").addEventListener("input", ()=>{
+    syncVisitasCountFromNames();
+    dirty = true;
+    updateSaveStatus();
+  });
   $("primeraVezTexto").addEventListener("input", ()=>updateExtraText("primeraVez"));
   if ($("primeraVezNombres")) $("primeraVezNombres").addEventListener("input", ()=>{
     syncPrimeraVezCountFromNames();
