@@ -454,6 +454,7 @@
             <button id="btnReportRecurring" type="button">Ver recurrentes activos</button>
             <button id="btnReportInactive" type="button">Ver inactividad reciente</button>
             <button id="btnReportDropped" type="button">Ver inactividad prolongada</button>
+            <button id="btnReportNoAttendance" type="button">Ver sin registro de asistencia</button>
           </div>
           <div class="row-actions" style="margin-top:10px;">
             <button id="btnReportFirstMonth" type="button">Ver primeras veces del mes</button>
@@ -1756,6 +1757,38 @@ function getAttendanceByMember(){
   Object.keys(map).forEach(name => map[name].sort());
   return map;
 }
+function getAttendanceByMemberNormalized(){
+  const map = {};
+  state.attendance.forEach(r => {
+    const key = normalizeName(r.name);
+    if (!key) return;
+    if (!map[key]) map[key] = [];
+    map[key].push(r.date);
+  });
+  Object.keys(map).forEach(name => map[name].sort());
+  return map;
+}
+function getAnalyticsMembersUniverse(refDate){
+  return Object.values(state.membersFullData || {})
+    .filter(member => {
+      const activeFrom = member?.active_from || "1900-01-01";
+      return activeFrom <= refDate;
+    })
+    .sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || ""), "es"));
+}
+function describeWeeksFromDays(days){
+  const weeks = days / 7;
+  return `hace ${weeks.toFixed(1).replace('.', ',')} semanas`;
+}
+function buildLastAttendanceMapForMembers(to){
+  const byMember = getAttendanceByMemberNormalized();
+  const lastAttendance = {};
+  Object.keys(byMember).forEach(key => {
+    const relevant = byMember[key].filter(d => d <= to);
+    lastAttendance[key] = relevant.length ? relevant[relevant.length - 1] : null;
+  });
+  return lastAttendance;
+}
 function getMonthBounds(isoDate){
   const d = new Date(isoDate + "T00:00:00");
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
@@ -1826,32 +1859,71 @@ function diffDaysBetween(startIso, endIso){
   const end = new Date(endIso + "T00:00:00");
   return Math.round((end - start) / 86400000);
 }
-function buildInactivityRows(to, minDaysExclusive, maxDaysInclusive = Infinity){
-  const byMember = getAttendanceByMember();
+function buildInactivityRowsFromMembers(to, minDaysExclusive, maxDaysInclusive = Infinity){
+  const members = getAnalyticsMembersUniverse(to);
+  const lastAttendanceMap = buildLastAttendanceMapForMembers(to);
   const rows = [];
-  Object.entries(byMember).forEach(([name, dates]) => {
-    const relevant = dates.filter(d => d <= to);
-    if (!relevant.length) return;
-    const last = relevant[relevant.length - 1];
+  members.forEach(member => {
+    const name = normalizeName(member?.name);
+    if (!name) return;
+    const last = lastAttendanceMap[name] || null;
+    if (!last) return;
     const daysWithoutAttendance = diffDaysBetween(last, to);
     const matches = daysWithoutAttendance > minDaysExclusive && daysWithoutAttendance <= maxDaysInclusive;
     if (!matches) return;
-    const weeks = daysWithoutAttendance / 7;
     rows.push({
       name,
       last,
       daysWithoutAttendance,
-      detail: `Última asistencia: ${formatDate(last)} · hace ${weeks.toFixed(1).replace('.', ',')} semanas`
+      detail: `Última asistencia: ${formatDate(last)} · ${describeWeeksFromDays(daysWithoutAttendance)}`
     });
   });
   rows.sort((a,b) => a.last.localeCompare(b.last) || a.name.localeCompare(b.name, "es"));
   return rows;
 }
+function buildNoAttendanceRows(to, minDaysExclusive = 112){
+  const members = getAnalyticsMembersUniverse(to);
+  const lastAttendanceMap = buildLastAttendanceMapForMembers(to);
+  const rows = [];
+  members.forEach(member => {
+    const name = normalizeName(member?.name);
+    if (!name) return;
+    const last = lastAttendanceMap[name] || null;
+    if (!last){
+      rows.push({
+        name,
+        last: "",
+        daysWithoutAttendance: Infinity,
+        detail: "Sin registros de asistencia"
+      });
+      return;
+    }
+    const daysWithoutAttendance = diffDaysBetween(last, to);
+    if (daysWithoutAttendance <= minDaysExclusive) return;
+    rows.push({
+      name,
+      last,
+      daysWithoutAttendance,
+      detail: `Última asistencia: ${formatDate(last)} · ${describeWeeksFromDays(daysWithoutAttendance)}`
+    });
+  });
+  rows.sort((a,b) => {
+    const aNo = !a.last ? 1 : 0;
+    const bNo = !b.last ? 1 : 0;
+    if (aNo !== bNo) return aNo - bNo;
+    if (a.last && b.last) return a.last.localeCompare(b.last) || a.name.localeCompare(b.name, "es");
+    return a.name.localeCompare(b.name, "es");
+  });
+  return rows;
+}
 function getInactiveRecentNames(to){
-  return buildInactivityRows(to, 14, 42);
+  return buildInactivityRowsFromMembers(to, 14, 42);
 }
 function getDroppedNames(to){
-  return buildInactivityRows(to, 42, Infinity);
+  return buildInactivityRowsFromMembers(to, 42, 112);
+}
+function getNoAttendanceNames(to){
+  return buildNoAttendanceRows(to, 112);
 }
 function getFirstTimeNoReturnInRange(from, to){
   const byMember = getAttendanceByMember();
@@ -2008,6 +2080,11 @@ function runReport(type){
   }
   if (type === "dropped"){
     const rows = getDroppedNames(to);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+    return;
+  }
+  if (type === "noAttendance"){
+    const rows = getNoAttendanceNames(to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
@@ -2287,6 +2364,9 @@ function openSummaryMetric(key){
   } else if (key === "dropped"){
     const rows = getDroppedNames(refDate);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+  } else if (key === "noAttendance"){
+    const rows = getNoAttendanceNames(refDate);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
   } else if (key === "firstMonth"){
     const rows = buildFirstMonthRowsForSummary(monthBounds.start, monthBounds.end);
     renderReport("Nombre", "Primera vez", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${formatDate(r.date || monthBounds.start)}</td></tr>`);
@@ -2395,12 +2475,14 @@ function renderAdminAnalytics(){
 
   const inactiveRows = getInactiveRecentNames(refDate);
   const droppedRows = getDroppedNames(refDate);
+  const noAttendanceRows = getNoAttendanceNames(refDate);
 
   renderAdminSummaryTable([
     { key:"nucleusHardcore", label:"Núcleo duro (≥ 50% de las últimas 8 reuniones)", value: nucleusHardcoreRows.length, clickable: true },
     { key:"expandedCommunity", label:"Base ampliada (6 asistencias en los últimos 3 meses)", value: expandedCommunityRows.length, clickable: true },
     { key:"inactive", label:"Inactividad reciente (> 2 y ≤ 6 semanas)", value: inactiveRows.length, clickable: true },
-    { key:"dropped", label:"Inactividad prolongada (> 6 semanas)", value: droppedRows.length, clickable: true },
+    { key:"dropped", label:"Inactividad prolongada (> 6 y ≤ 16 semanas)", value: droppedRows.length, clickable: true },
+    { key:"noAttendance", label:"Sin registro de asistencia (> 16 semanas o sin historial)", value: noAttendanceRows.length, clickable: true },
     { key:"firstMonth", label:"Primeras veces del mes", value: firstMonthCount, clickable: true },
     { key:"noReturn", label:"Primeras veces sin retorno dentro del mes", value: noReturnRows.length, clickable: true },
     { key:"firstWeight", label:"Peso primeras veces sobre total mes", value: `${safePct(firstMonthCount, thisMonthTotal).toFixed(1)}%`, clickable: false },
@@ -2812,6 +2894,7 @@ function wireEvents(){
   $("btnReportRecurring").addEventListener("click", () => runReport("recurring"));
   $("btnReportInactive").addEventListener("click", () => runReport("inactive"));
   $("btnReportDropped").addEventListener("click", () => runReport("dropped"));
+  $("btnReportNoAttendance").addEventListener("click", () => runReport("noAttendance"));
   $("btnReportFirstMonth").addEventListener("click", () => runReport("firstMonth"));
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
