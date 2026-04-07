@@ -342,7 +342,15 @@
 
     <div class="cards" style="margin-top:16px;">
       <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
-      <div class="card"><div class="label">Recurrentes activos</div><div id="adminKpiRecurring" class="value">0</div></div>
+      <div class="card">
+        <div class="label">Comunidad activa</div>
+        <div class="value" style="display:flex; flex-direction:column; gap:8px; align-items:flex-start;">
+          <div><strong>Núcleo duro:</strong> <span id="adminKpiNucleusHardcore">0</span></div>
+          <div class="hint">≥ 50% de las últimas 8 reuniones</div>
+          <div><strong>Base ampliada:</strong> <span id="adminKpiExpandedCommunity">0</span></div>
+          <div class="hint">6 veces en los últimos 3 meses</div>
+        </div>
+      </div>
       <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
       <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
       <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
@@ -1702,17 +1710,41 @@ function getFirstTimersInRange(from, to){
   rows.sort((a,b) => a.name.localeCompare(b.name, "es") || a.date.localeCompare(b.date));
   return rows;
 }
-function getRecurringActiveNames(from, to){
+function getNucleusHardcoreRows(refDate){
+  const meetings = getMeetingTotalsSorted()
+    .filter(([d, total]) => d <= refDate && Number(total || 0) > 0)
+    .slice(-8)
+    .map(([d]) => d);
+  const totalMeetings = meetings.length;
+  if (!totalMeetings) return [];
+  const required = Math.ceil(totalMeetings * 0.5);
+  const meetingSet = new Set(meetings);
+  const counts = {};
+  state.attendance.forEach(r => {
+    if (meetingSet.has(r.date)) counts[r.name] = (counts[r.name] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .filter(([,count]) => count >= required)
+    .map(([name, count]) => ({
+      name,
+      detail: `${count} de ${totalMeetings} reuniones (${safePct(count, totalMeetings).toFixed(0)}%)`
+    }))
+    .sort((a,b) => a.name.localeCompare(b.name, "es"));
+}
+function getExpandedCommunityRows(from, to){
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
     const count = dates.filter(d => d >= from && d <= to).length;
-    if (count >= 9){
-      rows.push({name, detail: `${count} asistencias en el período`});
+    if (count >= 6){
+      rows.push({name, detail: `${count} asistencias en los últimos 3 meses`});
     }
   });
   rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
   return rows;
+}
+function getRecurringActiveNames(from, to){
+  return getExpandedCommunityRows(from, to);
 }
 function getInactiveRecentNames(from, to){
   const cutoff = isoDaysAgo(to, 21);
@@ -2169,8 +2201,11 @@ function openSummaryMetric(key){
   const defaultFrom = isoMonthsAgo(refDate, 3);
   const monthBounds = getMonthBounds(refDate);
 
-  if (key === "recurring"){
-    const rows = getRecurringActiveNames(defaultFrom, refDate);
+  if (key === "nucleusHardcore"){
+    const rows = getNucleusHardcoreRows(refDate);
+    renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
+  } else if (key === "expandedCommunity"){
+    const rows = getExpandedCommunityRows(defaultFrom, refDate);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
   } else if (key === "inactive"){
     const rows = getInactiveRecentNames(defaultFrom, refDate);
@@ -2264,7 +2299,8 @@ function renderAdminAnalytics(){
   $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
 
   const defaultFrom = isoMonthsAgo(refDate, 3);
-  const recurringRows = getRecurringActiveNames(defaultFrom, refDate);
+  const nucleusHardcoreRows = getNucleusHardcoreRows(refDate);
+  const expandedCommunityRows = getExpandedCommunityRows(defaultFrom, refDate);
   const monthBounds = getMonthBounds(refDate);
   const firstMonthRows = getFirstTimersInRange(monthBounds.start, monthBounds.end);
   const noReturnRows = getFirstTimeNoReturnInRange(monthBounds.start, monthBounds.end);
@@ -2272,7 +2308,8 @@ function renderAdminAnalytics(){
     .filter(([d]) => d >= monthBounds.start && d <= monthBounds.end)
     .reduce((acc, [,extra]) => acc + Number(extra?.primeraVez?.count || 0), 0);
 
-  $("adminKpiRecurring").textContent = recurringRows.length;
+  if ($("adminKpiNucleusHardcore")) $("adminKpiNucleusHardcore").textContent = nucleusHardcoreRows.length;
+  if ($("adminKpiExpandedCommunity")) $("adminKpiExpandedCommunity").textContent = expandedCommunityRows.length;
   $("adminKpiFirstMonth").textContent = firstMonthCount;
 
   const returnRate = firstMonthCount ? ((firstMonthCount - noReturnRows.length) / firstMonthCount) * 100 : 0;
@@ -2286,7 +2323,8 @@ function renderAdminAnalytics(){
   const droppedRows = getDroppedNames(defaultFrom, refDate);
 
   renderAdminSummaryTable([
-    { key:"recurring", label:"Recurrentes activos (≥ 9 asistencias / 3 meses)", value: recurringRows.length, clickable: true },
+    { key:"nucleusHardcore", label:"Núcleo duro (≥ 50% de las últimas 8 reuniones)", value: nucleusHardcoreRows.length, clickable: true },
+    { key:"expandedCommunity", label:"Base ampliada (6 asistencias en los últimos 3 meses)", value: expandedCommunityRows.length, clickable: true },
     { key:"inactive", label:"Inactivos recientes (sin asistir 3 semanas)", value: inactiveRows.length, clickable: true },
     { key:"dropped", label:"Dejaron de concurrir (> 8 semanas)", value: droppedRows.length, clickable: true },
     { key:"firstMonth", label:"Primeras veces del mes", value: firstMonthCount, clickable: true },
@@ -2789,7 +2827,8 @@ function calcularAdminKPIs(){
     $("adminKpiFirstMonth").textContent = firstMonth;
 
     const names = [...new Set(state.attendance.map(x=>x.name))];
-    $("adminKpiRecurring").textContent = names.length;
+    if ($("adminKpiNucleusHardcore")) $("adminKpiNucleusHardcore").textContent = getNucleusHardcoreRows(now).length;
+    if ($("adminKpiExpandedCommunity")) $("adminKpiExpandedCommunity").textContent = getExpandedCommunityRows(isoMonthsAgo(now, 3), now).length;
 
     let inactive = 0;
     names.forEach(n=>{
