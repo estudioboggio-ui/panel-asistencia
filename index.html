@@ -270,15 +270,15 @@
               <div id="duplicateWarningBox" class="duplicate-alert"></div>
               <button id="btnAddMember" class="secondary" type="button">Agregar miembro desde esta fecha</button>
               <div>
-                <input id="removeMemberSearch" type="text" placeholder="Buscar miembro a inactivar..." autocomplete="off">
+                <input id="removeMemberSearch" type="text" placeholder="Buscar miembro a ocultar..." autocomplete="off">
                 <div id="memberSuggestionsBox" class="scroll suggestions"></div>
               </div>
-              <button id="btnDeactivateMember" class="danger" type="button">Inactivar miembro desde esta fecha</button>
+              <button id="btnDeactivateMember" class="danger" type="button">Ocultar miembro desde esta fecha</button>
 
               <div class="section-card" style="margin-top:8px;">
-                <div class="hint" style="margin-bottom:8px;">Recuperar inactivos</div>
+                <div class="hint" style="margin-bottom:8px;">Recuperar ocultos</div>
                 <div>
-                  <input id="reactivateMemberSearch" type="text" placeholder="Buscar miembro inactivo..." autocomplete="off">
+                  <input id="reactivateMemberSearch" type="text" placeholder="Buscar miembro oculto..." autocomplete="off">
                   <div id="reactivateSuggestionsBox" class="scroll suggestions"></div>
                 </div>
                 <div class="row-actions" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
@@ -452,8 +452,8 @@
           <div class="hint" style="margin-bottom:6px;">Acción</div>
           <div class="row-actions">
             <button id="btnReportRecurring" type="button">Ver recurrentes activos</button>
-            <button id="btnReportInactive" type="button">Ver inactivos recientes</button>
-            <button id="btnReportDropped" type="button">Ver dejaron de concurrir</button>
+            <button id="btnReportInactive" type="button">Ver inactividad reciente</button>
+            <button id="btnReportDropped" type="button">Ver inactividad prolongada</button>
           </div>
           <div class="row-actions" style="margin-top:10px;">
             <button id="btnReportFirstMonth" type="button">Ver primeras veces del mes</button>
@@ -1141,8 +1141,8 @@ function renderDuplicateWarning(){
   box.innerHTML = `<strong>Posible duplicado:</strong> ${matches.map(m => {
     const member = state.membersFullData?.[m.id] || {};
     const isInactive = !!member.inactive_from && member.inactive_from <= selectedDate();
-    return `${escapeHtml(m.name)} <span class="hint">(${escapeHtml(m.reasons.join(", "))}${isInactive ? ", inactivo" : ""})</span>`;
-  }).join("<br>")}<div class="hint" style="margin-top:6px;">Si es la misma persona, podés reactivarla desde “Recuperar inactivos” en lugar de crear un miembro nuevo.</div>`;
+    return `${escapeHtml(m.name)} <span class="hint">(${escapeHtml(m.reasons.join(", "))}${isInactive ? ", oculto" : ""})</span>`;
+  }).join("<br>")}<div class="hint" style="margin-top:6px;">Si es la misma persona, podés reactivarla desde “Recuperar ocultos” en lugar de crear un miembro nuevo.</div>`;
 }
 function populateRelationTypeOptions(){
   if (!$("relationType")) return;
@@ -1821,38 +1821,37 @@ function getExpandedCommunityRows(from, to){
 function getRecurringActiveNames(from, to){
   return getExpandedCommunityRows(from, to);
 }
-function getInactiveRecentNames(from, to){
-  const cutoff = isoDaysAgo(to, 21);
+function diffDaysBetween(startIso, endIso){
+  const start = new Date(startIso + "T00:00:00");
+  const end = new Date(endIso + "T00:00:00");
+  return Math.round((end - start) / 86400000);
+}
+function buildInactivityRows(to, minDaysExclusive, maxDaysInclusive = Infinity){
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
     const relevant = dates.filter(d => d <= to);
     if (!relevant.length) return;
     const last = relevant[relevant.length - 1];
-    const hadPrevious = relevant.some(d => d >= from && d < cutoff);
-    const hadRecent = relevant.some(d => d >= cutoff && d <= to);
-    if (hadPrevious && !hadRecent){
-      rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
-    }
+    const daysWithoutAttendance = diffDaysBetween(last, to);
+    const matches = daysWithoutAttendance > minDaysExclusive && daysWithoutAttendance <= maxDaysInclusive;
+    if (!matches) return;
+    const weeks = daysWithoutAttendance / 7;
+    rows.push({
+      name,
+      last,
+      daysWithoutAttendance,
+      detail: `Última asistencia: ${formatDate(last)} · hace ${weeks.toFixed(1).replace('.', ',')} semanas`
+    });
   });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
+  rows.sort((a,b) => a.last.localeCompare(b.last) || a.name.localeCompare(b.name, "es"));
   return rows;
 }
-function getDroppedNames(from, to){
-  const cutoff = isoDaysAgo(to, 56);
-  const byMember = getAttendanceByMember();
-  const rows = [];
-  Object.entries(byMember).forEach(([name, dates]) => {
-    const relevant = dates.filter(d => d <= to);
-    if (!relevant.length) return;
-    const last = relevant[relevant.length - 1];
-    const hadInRange = relevant.some(d => d >= from && d <= to);
-    if (!hadInRange && last < cutoff){
-      rows.push({name, detail: `Última asistencia: ${formatDate(last)}`});
-    }
-  });
-  rows.sort((a,b) => a.name.localeCompare(b.name, "es"));
-  return rows;
+function getInactiveRecentNames(to){
+  return buildInactivityRows(to, 14, 42);
+}
+function getDroppedNames(to){
+  return buildInactivityRows(to, 42, Infinity);
 }
 function getFirstTimeNoReturnInRange(from, to){
   const byMember = getAttendanceByMember();
@@ -1973,7 +1972,7 @@ function runGroupMembersReport(){
   const members = getMembersInGroup(group);
   updateGroupKPIs(group, from, to);
   const rows = members.map(member => {
-    const status = isMemberActiveOn(member.name, refDate) ? "Activo" : "Inactivo";
+    const status = isMemberActiveOn(member.name, refDate) ? "Visible" : "Oculto";
     const phone = member.phone ? escapeHtml(member.phone) : "-";
     return [
       escapeHtml(member.name || ""),
@@ -2003,12 +2002,12 @@ function runReport(type){
     return;
   }
   if (type === "inactive"){
-    const rows = getInactiveRecentNames(from, to);
+    const rows = getInactiveRecentNames(to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
   if (type === "dropped"){
-    const rows = getDroppedNames(from, to);
+    const rows = getDroppedNames(to);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
     return;
   }
@@ -2283,10 +2282,10 @@ function openSummaryMetric(key){
     const rows = getExpandedCommunityRows(defaultFrom, refDate);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
   } else if (key === "inactive"){
-    const rows = getInactiveRecentNames(defaultFrom, refDate);
+    const rows = getInactiveRecentNames(refDate);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
   } else if (key === "dropped"){
-    const rows = getDroppedNames(defaultFrom, refDate);
+    const rows = getDroppedNames(refDate);
     renderReport("Nombre", "Detalle", rows, r => `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.detail)}</td></tr>`);
   } else if (key === "firstMonth"){
     const rows = buildFirstMonthRowsForSummary(monthBounds.start, monthBounds.end);
@@ -2322,7 +2321,7 @@ function exportMembersToExcel(){
   const headers = [
     "Nombre",
     "Estado",
-    "Inactivo desde",
+    "Oculto desde",
     "Telefono",
     "Fecha de nacimiento",
     "Direccion",
@@ -2336,7 +2335,7 @@ function exportMembersToExcel(){
   ];
   const lines = [headers.map(csvEscape).join(";")];
   rows.forEach(member => {
-    const active = !member.inactive_from ? "Activo" : "Inactivo";
+    const active = !member.inactive_from ? "Visible" : "Oculto";
     const values = [
       member.name || "",
       active,
@@ -2394,14 +2393,14 @@ function renderAdminAnalytics(){
   const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d >= monthBounds.start && d <= monthBounds.end).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
   $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
 
-  const inactiveRows = getInactiveRecentNames(defaultFrom, refDate);
-  const droppedRows = getDroppedNames(defaultFrom, refDate);
+  const inactiveRows = getInactiveRecentNames(refDate);
+  const droppedRows = getDroppedNames(refDate);
 
   renderAdminSummaryTable([
     { key:"nucleusHardcore", label:"Núcleo duro (≥ 50% de las últimas 8 reuniones)", value: nucleusHardcoreRows.length, clickable: true },
     { key:"expandedCommunity", label:"Base ampliada (6 asistencias en los últimos 3 meses)", value: expandedCommunityRows.length, clickable: true },
-    { key:"inactive", label:"Inactivos recientes (sin asistir 3 semanas)", value: inactiveRows.length, clickable: true },
-    { key:"dropped", label:"Dejaron de concurrir (> 8 semanas)", value: droppedRows.length, clickable: true },
+    { key:"inactive", label:"Inactividad reciente (> 2 y ≤ 6 semanas)", value: inactiveRows.length, clickable: true },
+    { key:"dropped", label:"Inactividad prolongada (> 6 semanas)", value: droppedRows.length, clickable: true },
     { key:"firstMonth", label:"Primeras veces del mes", value: firstMonthCount, clickable: true },
     { key:"noReturn", label:"Primeras veces sin retorno dentro del mes", value: noReturnRows.length, clickable: true },
     { key:"firstWeight", label:"Peso primeras veces sobre total mes", value: `${safePct(firstMonthCount, thisMonthTotal).toFixed(1)}%`, clickable: false },
@@ -2458,11 +2457,11 @@ function renderInactiveMembersQuickList(){
   const date = selectedDate();
   const items = getInactiveMembersOn(date).slice(0,10);
   if (!items.length){
-    box.innerHTML = "No hay miembros inactivos para recuperar.";
+    box.innerHTML = "No hay miembros ocultos para recuperar.";
     return;
   }
   const extra = getInactiveMembersOn(date).length > 10 ? ` y ${getInactiveMembersOn(date).length - 10} más` : "";
-  box.innerHTML = `<strong>Inactivos:</strong> ${items.map(m => escapeHtml(m.name || "")).join(", ")}${extra}`;
+  box.innerHTML = `<strong>Ocultos:</strong> ${items.map(m => escapeHtml(m.name || "")).join(", ")}${extra}`;
 }
 function actualizarSugerenciasReactivar(){
   const input = $("reactivateMemberSearch");
@@ -2490,7 +2489,7 @@ async function reactivarMiembro(){
   const memberId = input.dataset.memberId || "";
   const memberName = normalizeName(input.value);
   const member = memberId ? state.membersFullData?.[memberId] : getInactiveMembersOn(selectedDate()).find(m => String(m.name || "").toLowerCase() === memberName.toLowerCase());
-  if (!member){ alert("Seleccioná un miembro inactivo para reactivar."); return; }
+  if (!member){ alert("Seleccioná un miembro oculto para reactivar."); return; }
   const res = await supabaseClient.from("members").update({ inactive_from: null }).eq("id", member.id);
   if (res.error){ alert("No pude reactivar el miembro: " + res.error.message); return; }
   input.value = "";
@@ -2556,7 +2555,7 @@ async function inactivarMiembro(){
   const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
   if (!existing){ alert("No encontré ese miembro."); return; }
   const res = await supabaseClient.from("members").update({ inactive_from: selectedDate() }).eq("name", existing);
-  if (res.error){ alert("No pude inactivar el miembro: " + res.error.message); return; }
+  if (res.error){ alert("No pude ocultar el miembro: " + res.error.message); return; }
   $("removeMemberSearch").value = "";
   await cargarTodoDesdeServidor(); cargarBorradorDelDia(); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
 }
