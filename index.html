@@ -296,12 +296,12 @@
   </div>
 
   <div id="adminView" class="hidden">
-    <div class="toolbar">
+    <div id="adminFullToolbar" class="toolbar">
       <button id="btnAdminReload" class="secondary" type="button">Actualizar analítica</button>
       <button id="btnExportMembersExcel" class="secondary" type="button">Exportar miembros a Excel</button>
     </div>
 
-    <div class="panel">
+    <div id="adminAgendaSection" class="panel">
       <h2>Agenda / Alertas</h2>
       <div class="split" style="grid-template-columns:repeat(2,1fr);">
         <div class="section-card">
@@ -349,6 +349,7 @@
       </details>
     </div>
 
+    <div id="adminFullSection"> 
     <div class="cards" style="margin-top:16px;">
       <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
       <div class="card">
@@ -478,6 +479,7 @@
       </div>
     </div>
 
+    </div>
   </div>
 </div>
 
@@ -665,8 +667,24 @@ function formatDate(iso){ if (!iso) return ""; const [y,m,d] = iso.split("-"); r
 function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
 function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; el.className="hint "+cls; }
-function userCanAdmin(){ return currentProfile?.role === "admin"; }
-function userCanOperative(){ return currentProfile?.role === "admin" || currentProfile?.role === "carga"; }
+function userRole(){ return currentProfile?.role || ""; }
+function userCanAdmin(){ return userRole() === "admin"; }
+function userCanAgenda(){ return userRole() === "admin" || userRole() === "oficiante"; }
+function userCanOperative(){ return userRole() === "admin" || userRole() === "carga" || userRole() === "oficiante"; }
+function userRoleLabel(role){
+  if (role === "admin") return "Administrador";
+  if (role === "oficiante") return "Oficiantes";
+  if (role === "carga") return "Carga";
+  return "Sin rol";
+}
+function applyRoleUI(){
+  const canSeeAdminTab = userCanAgenda() || userCanAdmin();
+  $("tabAdmin").classList.toggle("hidden", !canSeeAdminTab);
+  if ($("adminAgendaSection")) $("adminAgendaSection").classList.toggle("hidden", !userCanAgenda());
+  if ($("adminFullSection")) $("adminFullSection").classList.toggle("hidden", !userCanAdmin());
+  if ($("adminFullToolbar")) $("adminFullToolbar").classList.toggle("hidden", !userCanAdmin());
+  if (!canSeeAdminTab && !$("adminView").classList.contains("hidden")) switchTab("operativa");
+}
 function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
 function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); setStatus("Conectado", "ok"); }
 function switchTab(tab){
@@ -741,13 +759,31 @@ async function registerWithPassword(){
     return;
   }
 
+  const userId = res.data?.user?.id;
+  if (userId){
+    const profileRes = await supabaseClient.from("profiles").upsert({
+      id: userId,
+      email,
+      role: "carga"
+    });
+    if (profileRes.error){
+      $("loginStatus").textContent = "Cuenta creada, pero no pude crear el perfil: " + profileRes.error.message;
+      $("loginStatus").className = "hint warntext";
+      return;
+    }
+  }
+
   $("loginStatus").textContent = "Cuenta creada. Ahora ingresá.";
   $("loginStatus").className = "hint ok";
 }
 
 async function fetchProfile(){
   if (!currentSession?.user?.id) return null;
-  const res = await supabaseClient.from("user_profiles").select("id,user_id,email,role,is_active").eq("user_id", currentSession.user.id).maybeSingle();
+  const res = await supabaseClient
+    .from("profiles")
+    .select("id,email,role")
+    .eq("id", currentSession.user.id)
+    .maybeSingle();
   if (res.error) throw res.error;
   return res.data;
 }
@@ -2499,7 +2535,7 @@ function renderAdminAnalytics(){
 function calcularAdminKPIs(){ renderAdminAnalytics(); }
 
 async function saveAlertSettings(){
-  if (!userCanAdmin()) return;
+  if (!userCanAdmin()) { alert("Solo el perfil Administrador puede modificar los parámetros de alertas."); return; }
   const payload = {
     id: state.alertSettings?.id || undefined,
     low_attendance_threshold: Number($("alertLowAttendance").value || 20),
@@ -2821,24 +2857,18 @@ async function evaluateSession(){
       return;
     }
 
-    if (!currentProfile || !currentProfile.is_active){
+    if (!currentProfile){
       showLogin();
-      $("loginStatus").textContent = "Tu usuario existe pero no está habilitado en user_profiles.";
+      $("loginStatus").textContent = "Tu usuario existe pero no tiene perfil en profiles.";
       $("loginStatus").className = "hint bad";
       return;
     }
 
-    $("sessionEmail").textContent = currentProfile.email;
-    $("sessionRole").textContent = currentProfile.role === "admin" ? "Administración" : "Carga";
+    $("sessionEmail").textContent = currentProfile.email || currentSession.user.email || "";
+    $("sessionRole").textContent = userRoleLabel(currentProfile.role);
 
     showApp();
-
-    if (userCanAdmin()) {
-      $("tabAdmin").classList.remove("hidden");
-    } else {
-      $("tabAdmin").classList.add("hidden");
-      switchTab("operativa");
-    }
+    applyRoleUI();
 
     await cargarTodoDesdeServidor();
     cargarBorradorDelDia();
@@ -2887,7 +2917,7 @@ function wireEvents(){
   if ($("btnReactivateMember")) $("btnReactivateMember").addEventListener("click", reactivarMiembro);
   if ($("btnDeleteMemberPermanent")) $("btnDeleteMemberPermanent").addEventListener("click", eliminarMiembroDefinitivo);
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
-  $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
+  $("tabAdmin").addEventListener("click", ()=> (userCanAgenda() || userCanAdmin()) && switchTab("admin"));
   $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
   if ($("btnExportMembersExcel")) $("btnExportMembersExcel").addEventListener("click", exportMembersToExcel);
   $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
