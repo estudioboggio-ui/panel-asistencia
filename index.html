@@ -296,12 +296,12 @@
   </div>
 
   <div id="adminView" class="hidden">
-    <div class="toolbar">
+    <div id="adminToolbar" class="toolbar">
       <button id="btnAdminReload" class="secondary" type="button">Actualizar analítica</button>
       <button id="btnExportMembersExcel" class="secondary" type="button">Exportar miembros a Excel</button>
     </div>
 
-    <div class="panel">
+    <div id="adminAgendaPanel" class="panel">
       <h2>Agenda / Alertas</h2>
       <div class="split" style="grid-template-columns:repeat(2,1fr);">
         <div class="section-card">
@@ -349,7 +349,7 @@
       </details>
     </div>
 
-    <div class="cards" style="margin-top:16px;">
+    <div id="adminCardsSection" class="cards" style="margin-top:16px;">
       <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
       <div class="card">
         <div class="label">Comunidad activa</div>
@@ -369,7 +369,7 @@
       <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
     </div>
 
-    <div class="split">
+    <div id="adminAnalyticsSection" class="split">
       <div class="panel">
         <h2>Seguimiento de miembros</h2>
         <div class="scroll"><table><thead><tr><th>Métrica</th><th>Cantidad</th></tr></thead><tbody id="adminSummaryTable"></tbody></table></div>
@@ -393,7 +393,7 @@
       </div>
     </div>
 
-    <div class="panel" style="margin-top:16px;">
+    <div id="adminGroupsSection" class="panel" style="margin-top:16px;">
       <h2>Reportes por grupo</h2>
       <div class="filters" style="margin-bottom:12px;">
         <div>
@@ -438,7 +438,7 @@
 
 
 
-    <div class="panel" style="margin-top:16px;">
+    <div id="adminReportsSection" class="panel" style="margin-top:16px;">
       <h2>Reportes de miembros</h2>
       <div class="filters" style="margin-bottom:12px;">
         <div>
@@ -666,7 +666,36 @@ function escapeHtml(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&a
 function selectedDate(){ return $("fecha").value || new Date().toISOString().slice(0,10); }
 function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; el.className="hint "+cls; }
 function userCanAdmin(){ return currentProfile?.role === "admin"; }
+function userCanViewAdmin(){ return ["admin","oficiante"].includes(currentProfile?.role); }
 function userCanOperative(){ return ["admin","carga","oficiante"].includes(currentProfile?.role); }
+function applyAdminRoleVisibility(){
+  const isAdmin = userCanAdmin();
+  const canViewAdmin = userCanViewAdmin();
+
+  $("tabAdmin")?.classList.toggle("hidden", !canViewAdmin);
+
+  const toolbar = $("adminToolbar");
+  const agendaPanel = $("adminAgendaPanel");
+  const cards = $("adminCardsSection");
+  const analytics = $("adminAnalyticsSection");
+  const groups = $("adminGroupsSection");
+  const reports = $("adminReportsSection");
+  const reloadBtn = $("btnAdminReload");
+  const exportBtn = $("btnExportMembersExcel");
+  const weekly = $("weeklyEmailDetails");
+
+  if (agendaPanel) agendaPanel.classList.toggle("hidden", !canViewAdmin);
+  if (toolbar) toolbar.classList.toggle("hidden", !isAdmin);
+  if (cards) cards.classList.toggle("hidden", !isAdmin);
+  if (analytics) analytics.classList.toggle("hidden", !isAdmin);
+  if (groups) groups.classList.toggle("hidden", !isAdmin);
+  if (reports) reports.classList.toggle("hidden", !isAdmin);
+  if (reloadBtn) reloadBtn.classList.toggle("hidden", !isAdmin);
+  if (exportBtn) exportBtn.classList.toggle("hidden", !isAdmin);
+  if (weekly) weekly.classList.toggle("hidden", !isAdmin);
+
+  if (!canViewAdmin && $("tabAdmin")?.classList.contains("active")) switchTab("operativa");
+}
 function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
 function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); setStatus("Conectado", "ok"); }
 function switchTab(tab){
@@ -2450,6 +2479,10 @@ function exportMembersToExcel(){
 }
 
 function renderAdminAnalytics(){
+  if (!userCanViewAdmin()) return;
+  applyAdminRoleVisibility();
+  loadAgendaAlertas();
+  if (!userCanAdmin()) return;
   const refDate = getReferenceDate();
   const meetings = getMeetingTotalsSorted().filter(([d]) => d <= refDate);
   const last8 = meetings.slice(-8);
@@ -2840,12 +2873,7 @@ async function evaluateSession(){
 
     showApp();
 
-    if (currentProfile.role === "admin" || currentProfile.role === "oficiante") {
-      $("tabAdmin").classList.remove("hidden");
-    } else {
-      $("tabAdmin").classList.add("hidden");
-      switchTab("operativa");
-    }
+    applyAdminRoleVisibility();
 
     await cargarTodoDesdeServidor();
     cargarBorradorDelDia();
@@ -2894,7 +2922,7 @@ function wireEvents(){
   if ($("btnReactivateMember")) $("btnReactivateMember").addEventListener("click", reactivarMiembro);
   if ($("btnDeleteMemberPermanent")) $("btnDeleteMemberPermanent").addEventListener("click", eliminarMiembroDefinitivo);
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
-  $("tabAdmin").addEventListener("click", ()=>userCanAdmin() && switchTab("admin"));
+  $("tabAdmin").addEventListener("click", ()=>userCanViewAdmin() && (switchTab("admin"), renderAdminAnalytics()));
   $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
   if ($("btnExportMembersExcel")) $("btnExportMembersExcel").addEventListener("click", exportMembersToExcel);
   $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
