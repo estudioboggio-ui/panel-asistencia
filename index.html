@@ -122,6 +122,16 @@
   .chip-btn:hover{border-color:#0f766e}
   .suggestions{max-height:140px;display:none}
 
+  .suggestion-item{padding:10px 12px;border-bottom:1px solid rgba(51,65,85,.45);cursor:pointer}
+  .suggestion-item:last-child{border-bottom:none}
+  .suggestion-item:hover,.suggestion-item.active{background:rgba(21,94,117,.25)}
+  .vae-suggestions{max-height:180px;display:block}
+  .vae-picker{position:relative}
+  .vae-selected-chip{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:13px}
+  .vae-selected-chip button{padding:2px 8px;border-radius:999px;background:rgba(153,27,27,.35);border-color:#991b1b;font-size:12px}
+  .vae-quick-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;border:1px solid #0f766e;background:rgba(15,118,110,.14);font-size:12px;cursor:pointer}
+  .vae-quick-chip:hover{background:rgba(15,118,110,.24)}
+
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
 
@@ -639,8 +649,23 @@
 
         <div>
           <div class="hint">Ejecutores (members)</div>
-          <select id="vaeFormExecutorsMembers" multiple size="8" style="width:100%"></select>
-          <div class="hint" style="margin-top:6px;">Podés seleccionar uno o varios miembros.</div>
+          <div class="stack" style="gap:8px;">
+            <div class="vae-picker">
+              <input id="vaeExecutorSearch" type="text" placeholder="Buscar ejecutor..." style="width:100%">
+              <div id="vaeExecutorSuggestions" class="scroll vae-suggestions hidden"></div>
+              <div class="row-actions" style="margin-top:8px;">
+                <button id="vaeAddExecutorBtn" type="button" class="secondary">Agregar ejecutor</button>
+              </div>
+            </div>
+            <div>
+              <div class="hint" style="margin-bottom:6px;">Ejecutores frecuentes</div>
+              <div id="vaeFrequentExecutors" class="chips-wrap"></div>
+            </div>
+            <div>
+              <div class="hint" style="margin-bottom:6px;">Seleccionados</div>
+              <div id="vaeExecutorsSelected" class="chips-wrap"></div>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -650,8 +675,19 @@
 
         <div>
           <div class="hint">Visitados (members)</div>
-          <select id="vaeFormVisitedMembers" multiple size="8" style="width:100%"></select>
-          <div class="hint" style="margin-top:6px;">Podés seleccionar uno o varios miembros visitados.</div>
+          <div class="stack" style="gap:8px;">
+            <div class="vae-picker">
+              <input id="vaeVisitedSearch" type="text" placeholder="Buscar visitado..." style="width:100%">
+              <div id="vaeVisitedSuggestions" class="scroll vae-suggestions hidden"></div>
+              <div class="row-actions" style="margin-top:8px;">
+                <button id="vaeAddVisitedBtn" type="button" class="secondary">Agregar visitado</button>
+              </div>
+            </div>
+            <div>
+              <div class="hint" style="margin-bottom:6px;">Seleccionados</div>
+              <div id="vaeVisitedSelected" class="chips-wrap"></div>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -3100,6 +3136,11 @@ const VAE_MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio
 let vaeCurrentYear = new Date().getFullYear();
 let vaeCurrentMonth = new Date().getMonth();
 let vaeEditingId = null;
+let vaeSelectedExecutors = [];
+let vaeSelectedVisited = [];
+let vaePendingExecutorId = null;
+let vaePendingVisitedId = null;
+const VAE_FREQUENT_EXECUTOR_NAMES = ["Adriano Boggio","Demian Kaczmar","Omar Vivas","Marisa Ferrari","Pedro Gramajo","Jorge Pereyra","Osvaldo Marcone","Francisco Bari"];
 
 function getMembersSource(){
   return Object.values(state.membersFullData || {}).sort((a,b)=> String(a.name || "").localeCompare(String(b.name || ""), "es"));
@@ -3119,35 +3160,134 @@ function vaeGetMemberNames(ids){
 function initVaeSelectors(){
   const groupSel = $("vaeFormGroup");
   const filterGroup = $("vaeFilterGroup");
-  const exSel = $("vaeFormExecutorsMembers");
-  const visSel = $("vaeFormVisitedMembers");
   const filterResp = $("vaeFilterResponsible");
-  if (!groupSel || !filterGroup || !exSel || !visSel || !filterResp) return;
+  if (!groupSel || !filterGroup || !filterResp) return;
 
   const currentGroup = groupSel.value;
   const currentFilterGroup = filterGroup.value;
   const currentFilterResponsible = filterResp.value;
-  const selectedExecutors = Array.from(exSel.selectedOptions).map(o=>o.value);
-  const selectedVisited = Array.from(visSel.selectedOptions).map(o=>o.value);
 
   groupSel.innerHTML = `<option value="">Seleccionar grupo</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
   filterGroup.innerHTML = `<option value="">Todos los grupos</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
-  const memberOptions = getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
-  exSel.innerHTML = memberOptions;
-  visSel.innerHTML = memberOptions;
   filterResp.innerHTML = `<option value="">Todos los responsables</option>` + getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
 
   if (currentGroup) groupSel.value = currentGroup;
   if (currentFilterGroup) filterGroup.value = currentFilterGroup;
   if (currentFilterResponsible) filterResp.value = currentFilterResponsible;
-  Array.from(exSel.options).forEach(opt => opt.selected = selectedExecutors.includes(opt.value));
-  Array.from(visSel.options).forEach(opt => opt.selected = selectedVisited.includes(opt.value));
+
+  renderVaeFrequentExecutors();
+  renderVaeSelectedMembers("executor");
+  renderVaeSelectedMembers("visited");
 }
-function getSelectedOptionsValues(el){
-  return Array.from(el?.selectedOptions || []).map(o => String(o.value));
+function vaeFindMemberByName(name){
+  const target = normalizeComparableName(name);
+  return getMembersSource().find(m => normalizeComparableName(m.name || "") === target) || null;
+}
+function vaeFindMemberById(id){
+  return getMembersSource().find(m => String(m.id) === String(id)) || null;
+}
+function vaeSetPendingSelection(kind, memberId){
+  if (kind === "executor") {
+    vaePendingExecutorId = memberId ? String(memberId) : null;
+    document.querySelectorAll("#vaeExecutorSuggestions .suggestion-item").forEach(el => el.classList.toggle("active", String(el.dataset.id || "") === String(memberId || "")));
+  } else {
+    vaePendingVisitedId = memberId ? String(memberId) : null;
+    document.querySelectorAll("#vaeVisitedSuggestions .suggestion-item").forEach(el => el.classList.toggle("active", String(el.dataset.id || "") === String(memberId || "")));
+  }
+}
+function vaeRenderSuggestions(kind, query){
+  const box = kind === "executor" ? $("vaeExecutorSuggestions") : $("vaeVisitedSuggestions");
+  const selected = kind === "executor" ? vaeSelectedExecutors : vaeSelectedVisited;
+  if (!box) return;
+  const q = normalizeName(query || "").toLowerCase();
+  if (!q){
+    box.innerHTML = "";
+    box.classList.add("hidden");
+    vaeSetPendingSelection(kind, null);
+    return;
+  }
+  const items = getMembersSource()
+    .filter(m => !selected.includes(String(m.id)))
+    .filter(m => String(m.name || "").toLowerCase().includes(q))
+    .slice(0,12);
+
+  if (!items.length){
+    box.innerHTML = `<div class="suggestion-item">Sin coincidencias</div>`;
+    box.classList.remove("hidden");
+    vaeSetPendingSelection(kind, null);
+    return;
+  }
+
+  box.innerHTML = items.map(m => `<div class="suggestion-item" data-id="${escapeHtml(String(m.id))}" data-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || "")}</div>`).join("");
+  box.classList.remove("hidden");
+  box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", () => {
+    vaeSetPendingSelection(kind, String(el.dataset.id || ""));
+  }));
+  vaeSetPendingSelection(kind, String(items[0].id));
+}
+function renderVaeSelectedMembers(kind){
+  const container = kind === "executor" ? $("vaeExecutorsSelected") : $("vaeVisitedSelected");
+  const ids = kind === "executor" ? vaeSelectedExecutors : vaeSelectedVisited;
+  if (!container) return;
+  if (!ids.length){
+    container.innerHTML = `<span class="hint">Todavía no hay ${kind === "executor" ? "ejecutores" : "visitados"} seleccionados.</span>`;
+    return;
+  }
+  container.innerHTML = ids.map(id => {
+    const member = vaeFindMemberById(id);
+    const label = member?.name || vaeGetMemberName(id);
+    return `<span class="vae-selected-chip">${escapeHtml(label)} <button type="button" data-kind="${kind}" data-id="${escapeHtml(String(id))}" class="vae-remove-chip">Quitar</button></span>`;
+  }).join("");
+  container.querySelectorAll(".vae-remove-chip").forEach(btn => btn.addEventListener("click", () => {
+    vaeRemoveSelectedMember(String(btn.dataset.kind || ""), String(btn.dataset.id || ""));
+  }));
+}
+function vaeAddSelectedMember(kind, memberId){
+  const id = String(memberId || "");
+  if (!id) return;
+  const target = kind === "executor" ? vaeSelectedExecutors : vaeSelectedVisited;
+  if (!target.includes(id)) target.push(id);
+  if (kind === "executor"){
+    vaePendingExecutorId = null;
+    if ($("vaeExecutorSearch")) $("vaeExecutorSearch").value = "";
+    if ($("vaeExecutorSuggestions")) { $("vaeExecutorSuggestions").innerHTML = ""; $("vaeExecutorSuggestions").classList.add("hidden"); }
+  } else {
+    vaePendingVisitedId = null;
+    if ($("vaeVisitedSearch")) $("vaeVisitedSearch").value = "";
+    if ($("vaeVisitedSuggestions")) { $("vaeVisitedSuggestions").innerHTML = ""; $("vaeVisitedSuggestions").classList.add("hidden"); }
+  }
+  renderVaeSelectedMembers(kind);
+}
+function vaeRemoveSelectedMember(kind, memberId){
+  if (kind === "executor") vaeSelectedExecutors = vaeSelectedExecutors.filter(id => String(id) !== String(memberId));
+  else vaeSelectedVisited = vaeSelectedVisited.filter(id => String(id) !== String(memberId));
+  renderVaeSelectedMembers(kind);
+}
+function renderVaeFrequentExecutors(){
+  const box = $("vaeFrequentExecutors");
+  if (!box) return;
+  box.innerHTML = VAE_FREQUENT_EXECUTOR_NAMES.map(name => `<button type="button" class="vae-quick-chip" data-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
+  box.querySelectorAll(".vae-quick-chip").forEach(btn => btn.addEventListener("click", () => {
+    const name = String(btn.dataset.name || "");
+    const member = vaeFindMemberByName(name);
+    if (member){
+      vaeAddSelectedMember("executor", member.id);
+    } else {
+      const current = normalizeName($("vaeFormExecutorsText")?.value || "");
+      const values = current ? current.split(",").map(x => normalizeName(x)).filter(Boolean) : [];
+      if (!values.some(v => normalizeComparableName(v) === normalizeComparableName(name))){
+        values.push(name);
+        $("vaeFormExecutorsText").value = values.join(", ");
+      }
+    }
+  }));
 }
 function vaeOpenModal(dateStr="", action=null){
   vaeEditingId = action ? action.id : null;
+  vaeSelectedExecutors = [...(action?.executorsMemberIds || []).map(String)];
+  vaeSelectedVisited = [...(action?.visitedMemberIds || []).map(String)];
+  vaePendingExecutorId = null;
+  vaePendingVisitedId = null;
   $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
   $("vaeFormStatus").value = action?.status || "programada";
@@ -3156,8 +3296,12 @@ function vaeOpenModal(dateStr="", action=null){
   $("vaeFormExecutorsText").value = action?.executorsText || "";
   $("vaeFormVisitedText").value = action?.visitedText || "";
   $("vaeFormNotes").value = action?.notes || "";
-  Array.from($("vaeFormExecutorsMembers").options).forEach(opt => opt.selected = (action?.executorsMemberIds || []).includes(String(opt.value)));
-  Array.from($("vaeFormVisitedMembers").options).forEach(opt => opt.selected = (action?.visitedMemberIds || []).includes(String(opt.value)));
+  if ($("vaeExecutorSearch")) $("vaeExecutorSearch").value = "";
+  if ($("vaeVisitedSearch")) $("vaeVisitedSearch").value = "";
+  if ($("vaeExecutorSuggestions")) { $("vaeExecutorSuggestions").innerHTML = ""; $("vaeExecutorSuggestions").classList.add("hidden"); }
+  if ($("vaeVisitedSuggestions")) { $("vaeVisitedSuggestions").innerHTML = ""; $("vaeVisitedSuggestions").classList.add("hidden"); }
+  renderVaeSelectedMembers("executor");
+  renderVaeSelectedMembers("visited");
   $("vaeModal").classList.remove("hidden");
 }
 function vaeCloseModal(){
@@ -3356,9 +3500,9 @@ async function vaeSaveAction(){
     status: $("vaeFormStatus").value,
     group: $("vaeFormGroup").value,
     type: normalizeName($("vaeFormType").value),
-    executorsMemberIds: getSelectedOptionsValues($("vaeFormExecutorsMembers")),
+    executorsMemberIds: [...vaeSelectedExecutors],
     executorsText: normalizeName($("vaeFormExecutorsText").value),
-    visitedMemberIds: getSelectedOptionsValues($("vaeFormVisitedMembers")),
+    visitedMemberIds: [...vaeSelectedVisited],
     visitedText: normalizeName($("vaeFormVisitedText").value),
     notes: $("vaeFormNotes").value.trim()
   };
@@ -3482,6 +3626,12 @@ function wireEvents(){
   if ($("vaeNextMonthBtn")) $("vaeNextMonthBtn").addEventListener("click", ()=>{ vaeCurrentMonth++; if (vaeCurrentMonth > 11){ vaeCurrentMonth = 0; vaeCurrentYear++; } renderVaeCalendar(); });
   if ($("vaeTodayBtn")) $("vaeTodayBtn").addEventListener("click", ()=>{ const now = new Date(); vaeCurrentMonth = now.getMonth(); vaeCurrentYear = now.getFullYear(); renderVaeCalendar(); });
   if ($("vaeNewActionBtn")) $("vaeNewActionBtn").addEventListener("click", ()=> vaeOpenModal(selectedDate()));
+  if ($("vaeExecutorSearch")) $("vaeExecutorSearch").addEventListener("input", ()=> vaeRenderSuggestions("executor", $("vaeExecutorSearch").value));
+  if ($("vaeVisitedSearch")) $("vaeVisitedSearch").addEventListener("input", ()=> vaeRenderSuggestions("visited", $("vaeVisitedSearch").value));
+  if ($("vaeAddExecutorBtn")) $("vaeAddExecutorBtn").addEventListener("click", ()=> vaeAddSelectedMember("executor", vaePendingExecutorId));
+  if ($("vaeAddVisitedBtn")) $("vaeAddVisitedBtn").addEventListener("click", ()=> vaeAddSelectedMember("visited", vaePendingVisitedId));
+  if ($("vaeExecutorSearch")) $("vaeExecutorSearch").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); vaeAddSelectedMember("executor", vaePendingExecutorId); } });
+  if ($("vaeVisitedSearch")) $("vaeVisitedSearch").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); vaeAddSelectedMember("visited", vaePendingVisitedId); } });
   if ($("vaeCloseModalBtn")) $("vaeCloseModalBtn").addEventListener("click", vaeCloseModal);
   if ($("vaeCancelModalBtn")) $("vaeCancelModalBtn").addEventListener("click", vaeCloseModal);
   if ($("vaeSaveActionBtn")) $("vaeSaveActionBtn").addEventListener("click", async ()=>{ try { await vaeSaveAction(); } catch(err){ alert(String(err.message || err || "No pude guardar la acción VAE.")); } });
@@ -3494,6 +3644,8 @@ function wireEvents(){
   document.addEventListener("click", e => {
     if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; }
     if ($("relatedMemberSuggestions") && !$("relatedMemberSuggestions").contains(e.target) && e.target !== $("relatedMemberSearch")) { $("relatedMemberSuggestions").style.display="none"; }
+    if ($("vaeExecutorSuggestions") && !$("vaeExecutorSuggestions").contains(e.target) && e.target !== $("vaeExecutorSearch")) { $("vaeExecutorSuggestions").classList.add("hidden"); }
+    if ($("vaeVisitedSuggestions") && !$("vaeVisitedSuggestions").contains(e.target) && e.target !== $("vaeVisitedSearch")) { $("vaeVisitedSuggestions").classList.add("hidden"); }
   });
 }
 function initializeDefaults(){
