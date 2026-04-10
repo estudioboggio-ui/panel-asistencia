@@ -133,7 +133,7 @@
   .vae-quick-chip:hover{background:rgba(15,118,110,.24)}
   .vae-quick-chip.selected{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e;color:#ffffff;box-shadow:0 0 0 1px rgba(15,118,110,.25) inset}
 
-  @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:1100px){.grid,.split,.vae-validation-grid{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
 
 .community-value{display:flex;flex-direction:column;gap:10px;align-items:stretch}
@@ -177,6 +177,12 @@
 .vae-list-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220}
 .vae-list-title{font-weight:700;margin-bottom:4px}
 .vae-list-meta{font-size:13px;color:var(--muted);margin-bottom:8px;line-height:1.45}
+.vae-validation-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.vae-followup-stats{grid-template-columns:repeat(4,1fr)}
+.vae-aging-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220}
+.vae-aging-row{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.vae-aging-row strong{font-size:20px}
+.vae-soft-badge{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:12px;color:var(--muted);background:rgba(255,255,255,.04)}
 @media (max-width:1100px){
   #vaeView .split{grid-template-columns:1fr !important}
 }
@@ -596,14 +602,62 @@
       </div>
 
       <div class="vae-panel hidden" data-vae-panel="seguimiento">
-        <div class="split" style="grid-template-columns:1.2fr .8fr;">
-          <div class="panel">
-            <h2>Visitados</h2>
-            <div id="vaeVisitedList" class="stack"></div>
+        <div class="stack">
+          <div class="cards vae-followup-stats">
+            <div class="card"><div class="label">Visitados últimos 30 días</div><div id="vaeKpiVisited30" class="value">0</div></div>
+            <div class="card"><div class="label">Sin visita hace más de 60 días</div><div id="vaeKpiOver60" class="value">0</div></div>
+            <div class="card"><div class="label">Sin visita hace más de 90 días</div><div id="vaeKpiOver90" class="value">0</div></div>
+            <div class="card"><div class="label">Nunca visitados</div><div id="vaeKpiNever" class="value">0</div></div>
           </div>
+
           <div class="panel">
-            <h2>Alertas</h2>
-            <div id="vaeAlertsList" class="stack"></div>
+            <div class="row-actions" style="justify-content:space-between; align-items:flex-end; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
+              <div>
+                <h2 style="margin:0 0 6px 0;">Seguimiento sobre la base</h2>
+                <div class="hint">Se calcula contra todos los miembros registrados y toma como visita efectiva los estados realizada y seguimiento pendiente.</div>
+              </div>
+              <div class="row-actions">
+                <select id="vaeFollowupFilterRange">
+                  <option value="all">Todos</option>
+                  <option value="visited">Solo visitados</option>
+                  <option value="0_30">Visitados hace 0 a 30 días</option>
+                  <option value="31_60">Visitados hace 31 a 60 días</option>
+                  <option value="61_90">Visitados hace 61 a 90 días</option>
+                  <option value="90_plus">Sin visita hace 90+ días</option>
+                  <option value="never">Nunca visitados</option>
+                </select>
+                <input id="vaeFollowupSearch" type="text" placeholder="Buscar miembro..." style="min-width:220px;">
+              </div>
+            </div>
+
+            <div class="scroll" style="max-height:440px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Miembro</th>
+                    <th>Última visita</th>
+                    <th>Días</th>
+                    <th>Total</th>
+                    <th>Detalle</th>
+                  </tr>
+                </thead>
+                <tbody id="vaeFollowupTableBody">
+                  <tr><td colspan="5" class="hint">Sin datos.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="split" style="grid-template-columns:1.1fr .9fr;">
+            <div class="panel">
+              <h2>Bandas de antigüedad</h2>
+              <div id="vaeAgingBuckets" class="stack"></div>
+            </div>
+            <div class="panel">
+              <h2>Visitados extra / texto libre</h2>
+              <div class="hint" style="margin-bottom:10px;">Estos registros no se comparan contra la base de miembros, pero quedan visibles para seguimiento general.</div>
+              <div id="vaeVisitedList" class="stack"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -3407,29 +3461,190 @@ function renderVaeValidation(){
   const badge = $("vaePendingValidationCount");
   if (!box || !badge) return;
   const today = selectedDate();
-  const pending = (state.vaeActions || []).filter(a => a.date <= today && (a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada"));
+  const actions = (state.vaeActions || []);
+  const pending = actions
+    .filter(a => a.date <= today && (a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada"))
+    .sort((a,b) => a.date.localeCompare(b.date) || String(a.group || a.type || "").localeCompare(String(b.group || b.type || ""), "es"));
+  const overdue = pending.filter(a => a.date < today);
+  const todayPending = pending.filter(a => a.date === today);
+  const recentlyClosed = actions
+    .filter(a => a.date <= today && (a.status === "realizada" || a.status === "no_realizada"))
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .slice(0,8);
+
   badge.textContent = pending.length;
-  if (!pending.length){
-    box.innerHTML = `<div class="vae-list-item">No hay acciones pendientes de validación.</div>`;
-    return;
-  }
-  box.innerHTML = pending.sort((a,b) => a.date.localeCompare(b.date)).map(action => `
-    <div class="vae-list-item">
-      <div class="vae-list-title">${escapeHtml(action.group || action.type || "Acción")}</div>
-      <div class="vae-list-meta">
-        ${escapeHtml(formatDate(action.date))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
-        Visitados: ${escapeHtml(vaeShortVisited(action))}
+
+  function renderCard(action){
+    return `
+      <div class="vae-list-item">
+        <div class="row-actions" style="justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">
+          <div class="vae-list-title">${escapeHtml(action.group || action.type || "Acción")}</div>
+          <span class="vae-soft-badge">${escapeHtml(action.status || "programada")}</span>
+        </div>
+        <div class="vae-list-meta">
+          ${escapeHtml(formatDate(action.date))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+          Visitados: ${escapeHtml(vaeShortVisited(action))}
+          ${action.notes ? `<br>Obs.: ${escapeHtml(action.notes)}` : ``}
+        </div>
+        <div class="row-actions">
+          <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','realizada')">Realizada</button>
+          <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','no_realizada')">No realizada</button>
+          <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','reprogramada')">Reprogramada</button>
+          <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','seguimiento')">Seguimiento</button>
+          <button type="button" class="secondary" onclick="window.__vaeEditAction('${escapeHtml(String(action.id))}')">Editar</button>
+        </div>
       </div>
-      <div class="row-actions">
-        <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','realizada')">Realizada</button>
-        <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','no_realizada')">No realizada</button>
-        <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','reprogramada')">Reprogramada</button>
-        <button type="button" class="secondary" onclick="window.__vaeEditAction('${escapeHtml(String(action.id))}')">Editar</button>
+    `;
+  }
+
+  box.innerHTML = `
+    <div class="cards vae-followup-stats" style="margin-bottom:16px;">
+      <div class="card"><div class="label">Pendientes</div><div class="value">${pending.length}</div></div>
+      <div class="card"><div class="label">Vencidas</div><div class="value">${overdue.length}</div></div>
+      <div class="card"><div class="label">Para hoy</div><div class="value">${todayPending.length}</div></div>
+      <div class="card"><div class="label">Resueltas recientes</div><div class="value">${recentlyClosed.length}</div></div>
+    </div>
+
+    <div class="hint" style="margin-bottom:12px;">Acá resolvés lo que pasó realmente con cada acción del calendario. La validación convierte la planificación en historial real.</div>
+
+    <div class="vae-validation-grid">
+      <div class="panel" style="padding:14px;">
+        <h2 style="margin:0 0 10px 0;">Pendientes de validar</h2>
+        <div class="stack">
+          ${pending.length ? pending.map(renderCard).join("") : `<div class="vae-list-item">No hay acciones pendientes de validación.</div>`}
+        </div>
+      </div>
+      <div class="panel" style="padding:14px;">
+        <h2 style="margin:0 0 10px 0;">Resueltas recientemente</h2>
+        <div class="stack">
+          ${recentlyClosed.length ? recentlyClosed.map(action => `
+            <div class="vae-list-item">
+              <div class="row-actions" style="justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:6px;">
+                <div class="vae-list-title">${escapeHtml(action.group || action.type || "Acción")}</div>
+                <span class="vae-soft-badge">${escapeHtml(action.status)}</span>
+              </div>
+              <div class="vae-list-meta">
+                ${escapeHtml(formatDate(action.date))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+                Visitados: ${escapeHtml(vaeShortVisited(action))}
+              </div>
+              <div class="row-actions">
+                <button type="button" class="secondary" onclick="window.__vaeEditAction('${escapeHtml(String(action.id))}')">Editar</button>
+              </div>
+            </div>
+          `).join("") : `<div class="vae-list-item">Todavía no hay acciones resueltas.</div>`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+function buildVaeFollowupRows(){
+  const effectiveStatuses = new Set(["realizada","seguimiento"]);
+  const rows = getMembersSource().map(member => {
+    const memberId = String(member.id);
+    const memberActions = (state.vaeActions || [])
+      .filter(action => effectiveStatuses.has(String(action.status || "")) && (action.visitedMemberIds || []).map(String).includes(memberId))
+      .sort((a,b) => b.date.localeCompare(a.date));
+    const lastAction = memberActions[0] || null;
+    const lastDate = lastAction?.date || "";
+    const days = lastDate ? diffDaysBetween(lastDate, selectedDate()) : null;
+    return {
+      memberId,
+      name: member.name || "",
+      lastDate,
+      days,
+      visitsCount: memberActions.length,
+      lastStatus: lastAction?.status || "",
+      lastNotes: lastAction?.notes || ""
+    };
+  }).sort((a,b) => a.name.localeCompare(b.name, "es"));
+  return rows;
+}
+function matchesVaeFollowupRange(row, filterValue){
+  if (filterValue === "visited") return !!row.lastDate;
+  if (filterValue === "0_30") return row.days !== null && row.days >= 0 && row.days <= 30;
+  if (filterValue === "31_60") return row.days !== null && row.days >= 31 && row.days <= 60;
+  if (filterValue === "61_90") return row.days !== null && row.days >= 61 && row.days <= 90;
+  if (filterValue === "90_plus") return row.days !== null && row.days >= 90;
+  if (filterValue === "never") return !row.lastDate;
+  return true;
+}
+function renderVaeFollowup(){
+  const visitedBox = $("vaeVisitedList");
+  const bucketsBox = $("vaeAgingBuckets");
+  const tableBody = $("vaeFollowupTableBody");
+  if (!visitedBox || !bucketsBox || !tableBody) return;
+
+  const rows = buildVaeFollowupRows();
+  const query = normalizeComparableName($("vaeFollowupSearch")?.value || "");
+  const filterValue = $("vaeFollowupFilterRange")?.value || "all";
+  const filteredRows = rows.filter(row => {
+    const matchesText = !query || normalizeComparableName(row.name).includes(query);
+    return matchesText && matchesVaeFollowupRange(row, filterValue);
+  });
+
+  const kpiVisited30 = rows.filter(r => r.days !== null && r.days <= 30).length;
+  const kpiOver60 = rows.filter(r => r.days !== null && r.days > 60).length;
+  const kpiOver90 = rows.filter(r => r.days !== null && r.days > 90).length;
+  const kpiNever = rows.filter(r => !r.lastDate).length;
+  if ($("vaeKpiVisited30")) $("vaeKpiVisited30").textContent = kpiVisited30;
+  if ($("vaeKpiOver60")) $("vaeKpiOver60").textContent = kpiOver60;
+  if ($("vaeKpiOver90")) $("vaeKpiOver90").textContent = kpiOver90;
+  if ($("vaeKpiNever")) $("vaeKpiNever").textContent = kpiNever;
+
+  tableBody.innerHTML = filteredRows.length ? filteredRows.map(row => `
+    <tr>
+      <td>${escapeHtml(row.name)}</td>
+      <td>${row.lastDate ? escapeHtml(formatDate(row.lastDate)) : `<span class="hint">Nunca</span>`}</td>
+      <td>${row.days !== null ? row.days : `<span class="hint">—</span>`}</td>
+      <td>${row.visitsCount}</td>
+      <td>${row.lastDate ? escapeHtml(row.lastNotes || row.lastStatus || "Sin observaciones") : `<span class="hint">Sin visitas registradas</span>`}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="5" class="hint">No hay resultados para el filtro seleccionado.</td></tr>`;
+
+  const bucketDefs = [
+    { label: "Visitados hace 0 a 30 días", count: rows.filter(r => r.days !== null && r.days <= 30).length },
+    { label: "Visitados hace 31 a 60 días", count: rows.filter(r => r.days !== null && r.days >= 31 && r.days <= 60).length },
+    { label: "Visitados hace 61 a 90 días", count: rows.filter(r => r.days !== null && r.days >= 61 && r.days <= 90).length },
+    { label: "Sin visita hace 90+ días", count: rows.filter(r => r.days !== null && r.days >= 90).length },
+    { label: "Nunca visitados", count: rows.filter(r => !r.lastDate).length }
+  ];
+  bucketsBox.innerHTML = bucketDefs.map(item => `
+    <div class="vae-aging-card">
+      <div class="vae-aging-row">
+        <div>${escapeHtml(item.label)}</div>
+        <strong>${item.count}</strong>
       </div>
     </div>
   `).join("");
+
+  const freeTextMap = new Map();
+  const effectiveStatuses = new Set(["realizada","seguimiento"]);
+  (state.vaeActions || []).filter(action => effectiveStatuses.has(String(action.status || ""))).forEach(action => {
+    if (action.visitedText){
+      const label = String(action.visitedText).trim();
+      if (!label) return;
+      const key = label.toLowerCase();
+      const prev = freeTextMap.get(key);
+      if (!prev || action.date > prev.lastDate){
+        freeTextMap.set(key, {
+          label,
+          lastDate: action.date,
+          status: action.status,
+          notes: action.notes || ""
+        });
+      }
+    }
+  });
+  const freeTextRows = Array.from(freeTextMap.values()).sort((a,b) => b.lastDate.localeCompare(a.lastDate) || a.label.localeCompare(b.label, "es"));
+  visitedBox.innerHTML = freeTextRows.length ? freeTextRows.map(row => `
+    <div class="vae-list-item">
+      <div class="vae-list-title">${escapeHtml(row.label)}</div>
+      <div class="vae-list-meta">Última visita: ${escapeHtml(formatDate(row.lastDate))} · Estado: ${escapeHtml(row.status)}</div>
+      <div>${escapeHtml(row.notes || "Sin observaciones")}</div>
+    </div>
+  `).join("") : `<div class="vae-list-item">No hay visitados por texto libre registrados.</div>`;
 }
-function renderVaeFollowup(){
+function renderVae(){
   const visitedBox = $("vaeVisitedList");
   const alertsBox = $("vaeAlertsList");
   if (!visitedBox || !alertsBox) return;
@@ -3633,6 +3848,8 @@ function wireEvents(){
   if ($("vaeVisitedSearch")) $("vaeVisitedSearch").addEventListener("input", ()=> vaeRenderSuggestions("visited", $("vaeVisitedSearch").value));
   if ($("vaeAddExecutorBtn")) $("vaeAddExecutorBtn").addEventListener("click", ()=> vaeAddSelectedMember("executor", vaePendingExecutorId));
   if ($("vaeAddVisitedBtn")) $("vaeAddVisitedBtn").addEventListener("click", ()=> vaeAddSelectedMember("visited", vaePendingVisitedId));
+  if ($("vaeFollowupFilterRange")) $("vaeFollowupFilterRange").addEventListener("change", renderVaeFollowup);
+  if ($("vaeFollowupSearch")) $("vaeFollowupSearch").addEventListener("input", renderVaeFollowup);
   if ($("vaeExecutorSearch")) $("vaeExecutorSearch").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); vaeAddSelectedMember("executor", vaePendingExecutorId); } });
   if ($("vaeVisitedSearch")) $("vaeVisitedSearch").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); vaeAddSelectedMember("visited", vaePendingVisitedId); } });
   if ($("vaeCloseModalBtn")) $("vaeCloseModalBtn").addEventListener("click", vaeCloseModal);
