@@ -943,13 +943,14 @@ function selectedDate(){ return $("fecha").value || new Date().toISOString().sli
 function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; el.className="hint "+cls; }
 function userCanAdmin(){ return currentProfile?.role === "admin"; }
 function userCanViewAdmin(){ return ["admin","oficiante"].includes(currentProfile?.role); }
+function userCanVae(){ return ["admin","oficiante"].includes(currentProfile?.role); }
 function userCanOperative(){ return ["admin","carga","oficiante"].includes(currentProfile?.role); }
 function applyAdminRoleVisibility(){
   const isAdmin = userCanAdmin();
   const canViewAdmin = userCanViewAdmin();
 
   $("tabAdmin")?.classList.toggle("hidden", !canViewAdmin);
-  $("tabVae")?.classList.toggle("hidden", !userCanOperative());
+  $("tabVae")?.classList.toggle("hidden", !userCanVae());
 
   const toolbar = $("adminToolbar");
   const agendaPanel = $("adminAgendaPanel");
@@ -972,7 +973,7 @@ function applyAdminRoleVisibility(){
   if (weekly) weekly.classList.toggle("hidden", !isAdmin);
 
   if (!canViewAdmin && $("tabAdmin")?.classList.contains("active")) switchTab("operativa");
-  if (!userCanOperative() && $("tabVae")?.classList.contains("active")) switchTab("operativa");
+  if (!userCanVae() && $("tabVae")?.classList.contains("active")) switchTab("operativa");
 }
 function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
 function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); setStatus("Conectado", "ok"); }
@@ -3797,7 +3798,7 @@ function wireEvents(){
   if ($("btnDeleteMemberPermanent")) $("btnDeleteMemberPermanent").addEventListener("click", eliminarMiembroDefinitivo);
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
   $("tabAdmin").addEventListener("click", ()=>userCanViewAdmin() && (switchTab("admin"), renderAdminAnalytics()));
-  if ($("tabVae")) $("tabVae").addEventListener("click", ()=>userCanOperative() && (switchTab("vae"), renderVae()));
+  if ($("tabVae")) $("tabVae").addEventListener("click", ()=>userCanVae() && (switchTab("vae"), renderVae()));
   $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
   if ($("btnExportMembersExcel")) $("btnExportMembersExcel").addEventListener("click", exportMembersToExcel);
   $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
