@@ -131,6 +131,7 @@
   .vae-selected-chip button{padding:2px 8px;border-radius:999px;background:rgba(153,27,27,.35);border-color:#991b1b;font-size:12px}
   .vae-quick-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;border:1px solid #0f766e;background:rgba(15,118,110,.14);font-size:12px;cursor:pointer}
   .vae-quick-chip:hover{background:rgba(15,118,110,.24)}
+  .vae-quick-chip.selected{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e;color:#ffffff;box-shadow:0 0 0 1px rgba(15,118,110,.25) inset}
 
   @media (max-width:1100px){.grid,.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:700px){.cards,.filters,.report-actions-grid{grid-template-columns:1fr}}
@@ -648,17 +649,9 @@
         </div>
 
         <div>
-          <div class="hint">Ejecutores (members)</div>
+          <div class="hint">Ejecutores</div>
           <div class="stack" style="gap:8px;">
-            <div class="vae-picker">
-              <input id="vaeExecutorSearch" type="text" placeholder="Buscar ejecutor..." style="width:100%">
-              <div id="vaeExecutorSuggestions" class="scroll vae-suggestions hidden"></div>
-              <div class="row-actions" style="margin-top:8px;">
-                <button id="vaeAddExecutorBtn" type="button" class="secondary">Agregar ejecutor</button>
-              </div>
-            </div>
             <div>
-              <div class="hint" style="margin-bottom:6px;">Ejecutores frecuentes</div>
               <div id="vaeFrequentExecutors" class="chips-wrap"></div>
             </div>
             <div>
@@ -3266,19 +3259,29 @@ function vaeRemoveSelectedMember(kind, memberId){
 function renderVaeFrequentExecutors(){
   const box = $("vaeFrequentExecutors");
   if (!box) return;
-  box.innerHTML = VAE_FREQUENT_EXECUTOR_NAMES.map(name => `<button type="button" class="vae-quick-chip" data-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
+  box.innerHTML = VAE_FREQUENT_EXECUTOR_NAMES.map(name => {
+    const member = vaeFindMemberByName(name);
+    const selected = member ? vaeSelectedExecutors.includes(String(member.id)) : false;
+    return `<button type="button" class="vae-quick-chip${selected ? ' selected' : ''}" data-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+  }).join("");
   box.querySelectorAll(".vae-quick-chip").forEach(btn => btn.addEventListener("click", () => {
     const name = String(btn.dataset.name || "");
     const member = vaeFindMemberByName(name);
     if (member){
-      vaeAddSelectedMember("executor", member.id);
+      const memberId = String(member.id);
+      if (vaeSelectedExecutors.includes(memberId)) {
+        vaeRemoveSelectedMember("executor", memberId);
+      } else {
+        vaeAddSelectedMember("executor", memberId);
+      }
     } else {
       const current = normalizeName($("vaeFormExecutorsText")?.value || "");
       const values = current ? current.split(",").map(x => normalizeName(x)).filter(Boolean) : [];
-      if (!values.some(v => normalizeComparableName(v) === normalizeComparableName(name))){
-        values.push(name);
-        $("vaeFormExecutorsText").value = values.join(", ");
-      }
+      const exists = values.some(v => normalizeComparableName(v) === normalizeComparableName(name));
+      $("vaeFormExecutorsText").value = exists
+        ? values.filter(v => normalizeComparableName(v) !== normalizeComparableName(name)).join(", ")
+        : [...values, name].join(", ");
+      renderVaeFrequentExecutors();
     }
   }));
 }
