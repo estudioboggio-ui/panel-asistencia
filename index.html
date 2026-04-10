@@ -136,6 +136,45 @@
 .metric-link{background:none;border:none;padding:0;margin:0;color:var(--brand);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;}
 .metric-link:hover{opacity:.85}
 
+
+/* VAE */
+.vae-shell{display:grid;gap:16px}
+.vae-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.vae-title{margin:0 0 6px 0;font-size:28px}
+.vae-tabs{display:flex;flex-wrap:wrap;gap:10px}
+.vae-subtab{padding:10px 16px;border-radius:999px}
+.vae-subtab.active{background:linear-gradient(180deg,#155e75,#0f172a);border-color:#0f766e}
+.vae-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.vae-toolbar-filters{display:flex;gap:10px;flex-wrap:wrap}
+.vae-month-label{min-width:180px;text-align:center;font-size:18px;font-weight:700}
+.vae-calendar-wrap{border:1px solid var(--line);border-radius:18px;background:#0b1220;overflow:hidden}
+.vae-calendar-head,.vae-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.vae-calendar-head>div{padding:12px;text-align:center;font-weight:700;color:var(--muted);border-bottom:1px solid rgba(51,65,85,.5);background:rgba(255,255,255,.03)}
+.vae-day-cell{min-height:140px;padding:10px;border-right:1px solid rgba(51,65,85,.5);border-bottom:1px solid rgba(51,65,85,.5);cursor:pointer}
+.vae-day-cell:nth-child(7n){border-right:none}
+.vae-day-cell.other-month{opacity:.35}
+.vae-day-number{font-size:13px;font-weight:700;margin-bottom:8px}
+.vae-day-actions{display:flex;flex-direction:column;gap:6px}
+.vae-chip{border-radius:12px;padding:8px 9px;background:rgba(255,255,255,.04);border-left:4px solid transparent;font-size:12px;line-height:1.25}
+.vae-chip.programada{border-left-color:#94a3b8}
+.vae-chip.realizada{border-left-color:#16a34a}
+.vae-chip.no_realizada{border-left-color:#ef4444}
+.vae-chip.reprogramada{border-left-color:#f59e0b}
+.vae-chip.seguimiento{border-left-color:#38bdf8}
+.vae-chip-title{display:block;font-weight:700}
+.vae-chip-meta{display:block;color:var(--muted);margin-top:2px}
+.vae-list-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220}
+.vae-list-title{font-weight:700;margin-bottom:4px}
+.vae-list-meta{font-size:13px;color:var(--muted);margin-bottom:8px;line-height:1.45}
+@media (max-width:1100px){
+  #vaeView .split{grid-template-columns:1fr !important}
+}
+@media (max-width:900px){
+  .vae-stats{grid-template-columns:repeat(2,1fr)}
+  .vae-calendar-head,.vae-calendar-grid{min-width:980px}
+  .vae-calendar-wrap{overflow-x:auto}
+}
+
 </style>
 </head>
 <body>
@@ -173,6 +212,7 @@
   <div class="tabs">
     <button id="tabOperativa" class="tab-btn active" type="button">Asistencia</button>
     <button id="tabAdmin" class="tab-btn hidden" type="button">Administración</button>
+    <button id="tabVae" class="tab-btn hidden" type="button">VAE</button>
   </div>
 
   <div id="operativaView">
@@ -481,6 +521,158 @@
   </div>
 </div>
 
+  <div id="vaeView" class="hidden">
+    <div class="vae-shell">
+      <div class="vae-header">
+        <div>
+          <h2 class="vae-title">VAE</h2>
+          <div class="hint">Planificación mensual, validación y seguimiento.</div>
+        </div>
+        <div class="row-actions">
+          <button id="vaeTodayBtn" type="button">Hoy</button>
+          <button id="vaeNewActionBtn" class="primary" type="button">Nueva acción</button>
+        </div>
+      </div>
+
+      <div class="vae-tabs">
+        <button class="vae-subtab active" data-vae-tab="calendario" type="button">Calendario</button>
+        <button class="vae-subtab" data-vae-tab="validacion" type="button">Validación</button>
+        <button class="vae-subtab" data-vae-tab="seguimiento" type="button">Seguimiento</button>
+      </div>
+
+      <div class="vae-panel active" data-vae-panel="calendario">
+        <div class="panel">
+          <div class="vae-toolbar">
+            <div class="row-actions">
+              <button id="vaePrevMonthBtn" type="button">◀</button>
+              <div id="vaeMonthLabel" class="vae-month-label">Mes Año</div>
+              <button id="vaeNextMonthBtn" type="button">▶</button>
+            </div>
+            <div class="vae-toolbar-filters">
+              <select id="vaeFilterGroup">
+                <option value="">Todos los grupos</option>
+              </select>
+              <select id="vaeFilterResponsible">
+                <option value="">Todos los responsables</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="vae-stats cards">
+            <div class="card"><div class="label">Programadas</div><div id="vaeStatProgramadas" class="value">0</div></div>
+            <div class="card"><div class="label">Realizadas</div><div id="vaeStatRealizadas" class="value">0</div></div>
+            <div class="card"><div class="label">Pendientes</div><div id="vaeStatPendientes" class="value">0</div></div>
+            <div class="card"><div class="label">No realizadas</div><div id="vaeStatNoRealizadas" class="value">0</div></div>
+          </div>
+
+          <div class="vae-calendar-wrap">
+            <div class="vae-calendar-head">
+              <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+            </div>
+            <div id="vaeCalendarGrid" class="vae-calendar-grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vae-panel hidden" data-vae-panel="validacion">
+        <div class="panel">
+          <div class="row-actions" style="justify-content:space-between; margin-bottom:12px;">
+            <h2 style="margin:0;">Validación</h2>
+            <span id="vaePendingValidationCount" class="badge">0</span>
+          </div>
+          <div id="vaeValidationList" class="stack"></div>
+        </div>
+      </div>
+
+      <div class="vae-panel hidden" data-vae-panel="seguimiento">
+        <div class="split" style="grid-template-columns:1.2fr .8fr;">
+          <div class="panel">
+            <h2>Visitados</h2>
+            <div id="vaeVisitedList" class="stack"></div>
+          </div>
+          <div class="panel">
+            <h2>Alertas</h2>
+            <div id="vaeAlertsList" class="stack"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="vaeModal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width:980px;">
+      <div class="row-actions" style="justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 id="vaeModalTitle" style="margin:0;">Nueva acción VAE</h2>
+        <button id="vaeCloseModalBtn" class="secondary" type="button">Cerrar</button>
+      </div>
+
+      <div class="stack">
+        <div class="filters">
+          <div>
+            <div class="hint">Fecha</div>
+            <input id="vaeFormDate" type="date" style="width:100%">
+          </div>
+          <div>
+            <div class="hint">Estado</div>
+            <select id="vaeFormStatus" style="width:100%">
+              <option value="programada">Programada</option>
+              <option value="realizada">Realizada</option>
+              <option value="no_realizada">No realizada</option>
+              <option value="reprogramada">Reprogramada</option>
+              <option value="seguimiento">Seguimiento pendiente</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filters">
+          <div>
+            <div class="hint">Grupo responsable</div>
+            <select id="vaeFormGroup" style="width:100%">
+              <option value="">Seleccionar grupo</option>
+            </select>
+          </div>
+          <div>
+            <div class="hint">Tipo / acción</div>
+            <input id="vaeFormType" type="text" placeholder="Ej.: Visita pastoral" style="width:100%">
+          </div>
+        </div>
+
+        <div>
+          <div class="hint">Ejecutores (members)</div>
+          <select id="vaeFormExecutorsMembers" multiple size="8" style="width:100%"></select>
+          <div class="hint" style="margin-top:6px;">Podés seleccionar uno o varios miembros.</div>
+        </div>
+
+        <div>
+          <div class="hint">Ejecutores extra (texto libre)</div>
+          <input id="vaeFormExecutorsText" type="text" placeholder="Acompañante ocasional, invitado, etc." style="width:100%">
+        </div>
+
+        <div>
+          <div class="hint">Visitados (members)</div>
+          <select id="vaeFormVisitedMembers" multiple size="8" style="width:100%"></select>
+          <div class="hint" style="margin-top:6px;">Podés seleccionar uno o varios miembros visitados.</div>
+        </div>
+
+        <div>
+          <div class="hint">Visitados extra (texto libre)</div>
+          <input id="vaeFormVisitedText" type="text" placeholder="Familia Gómez, vecino de Ana, etc." style="width:100%">
+        </div>
+
+        <div>
+          <div class="hint">Observaciones</div>
+          <textarea id="vaeFormNotes" rows="4" style="width:100%;"></textarea>
+        </div>
+
+        <div class="row-actions" style="justify-content:flex-end;">
+          <button id="vaeCancelModalBtn" class="secondary" type="button">Cancelar</button>
+          <button id="vaeSaveActionBtn" class="primary" type="button">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
 <!-- MODAL DE FICHA DE MIEMBRO -->
 <div id="modalFicha" class="modal-overlay hidden">
   <div class="modal-content">
@@ -610,7 +802,8 @@ const RELATIONSHIP_INVERSE = {"Padre":"Hijo/a","Madre":"Hijo/a","Hijo/a":"Padre/
 let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
-let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [] };
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [] };
+const VAE_GROUP_OPTIONS = ["Pastoral","Jóvenes","Diáconos","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Recepción","Oración"];
 
 function activateMemberTab(tab) {
   document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -673,6 +866,7 @@ function applyAdminRoleVisibility(){
   const canViewAdmin = userCanViewAdmin();
 
   $("tabAdmin")?.classList.toggle("hidden", !canViewAdmin);
+  $("tabVae")?.classList.toggle("hidden", !userCanOperative());
 
   const toolbar = $("adminToolbar");
   const agendaPanel = $("adminAgendaPanel");
@@ -695,14 +889,17 @@ function applyAdminRoleVisibility(){
   if (weekly) weekly.classList.toggle("hidden", !isAdmin);
 
   if (!canViewAdmin && $("tabAdmin")?.classList.contains("active")) switchTab("operativa");
+  if (!userCanOperative() && $("tabVae")?.classList.contains("active")) switchTab("operativa");
 }
 function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
 function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); setStatus("Conectado", "ok"); }
 function switchTab(tab){
   $("tabOperativa").classList.toggle("active", tab==="operativa");
   $("tabAdmin").classList.toggle("active", tab==="admin");
+  if ($("tabVae")) $("tabVae").classList.toggle("active", tab==="vae");
   $("operativaView").classList.toggle("hidden", tab!=="operativa");
   $("adminView").classList.toggle("hidden", tab!=="admin");
+  if ($("vaeView")) $("vaeView").classList.toggle("hidden", tab!=="vae");
 }
 
 async function initSupabase(){
@@ -817,12 +1014,13 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
     fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date"),
     fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id"),
-    fetchOptionalAllRows("member_events", "id,member_id,event_date,title,description,category,include_in_weekly,created_at", 1000, "event_date")
+    fetchOptionalAllRows("member_events", "id,member_id,event_date,title,description,category,include_in_weekly,created_at", 1000, "event_date"),
+    fetchOptionalAllRows("vae_actions", "*", 1000, "action_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
 
-  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, eventRows, alertSettings] = await Promise.all(promises);
+  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, eventRows, vaeRows, alertSettings] = await Promise.all(promises);
   if (alertSettings.error) throw alertSettings.error;
 
   state.people = [];
@@ -869,6 +1067,18 @@ async function cargarTodoDesdeServidor(){
   });
 
   state.alertSettings = alertSettings.data || null;
+  state.vaeActions = (vaeRows || []).map(r => ({
+    id: r.id,
+    date: r.action_date,
+    status: r.status || "programada",
+    group: r.group_name || "",
+    type: r.action_type || "",
+    executorsMemberIds: Array.isArray(r.executors_member_ids) ? r.executors_member_ids.map(String) : [],
+    executorsText: r.executors_text || "",
+    visitedMemberIds: Array.isArray(r.visited_member_ids) ? r.visited_member_ids.map(String) : [],
+    visitedText: r.visited_text || "",
+    notes: r.notes || ""
+  }));
 }
 
 function parseVisitasPayload(count, rawText){
@@ -2883,6 +3093,308 @@ async function evaluateSession(){
     __panelEvaluatingSession = false;
   }
 }
+/* =========================
+   VAE
+========================= */
+const VAE_MONTH_NAMES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+let vaeCurrentYear = new Date().getFullYear();
+let vaeCurrentMonth = new Date().getMonth();
+let vaeEditingId = null;
+
+function getMembersSource(){
+  return Object.values(state.membersFullData || {}).sort((a,b)=> String(a.name || "").localeCompare(String(b.name || ""), "es"));
+}
+function vaeIsoDate(dateObj){
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth()+1).padStart(2,"0");
+  const d = String(dateObj.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
+}
+function vaeGetMemberName(id){
+  return state.membersFullData?.[String(id)]?.name || state.membersById?.[String(id)] || `ID ${id}`;
+}
+function vaeGetMemberNames(ids){
+  return (ids || []).map(vaeGetMemberName).filter(Boolean);
+}
+function initVaeSelectors(){
+  const groupSel = $("vaeFormGroup");
+  const filterGroup = $("vaeFilterGroup");
+  const exSel = $("vaeFormExecutorsMembers");
+  const visSel = $("vaeFormVisitedMembers");
+  const filterResp = $("vaeFilterResponsible");
+  if (!groupSel || !filterGroup || !exSel || !visSel || !filterResp) return;
+
+  const currentGroup = groupSel.value;
+  const currentFilterGroup = filterGroup.value;
+  const currentFilterResponsible = filterResp.value;
+  const selectedExecutors = Array.from(exSel.selectedOptions).map(o=>o.value);
+  const selectedVisited = Array.from(visSel.selectedOptions).map(o=>o.value);
+
+  groupSel.innerHTML = `<option value="">Seleccionar grupo</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  filterGroup.innerHTML = `<option value="">Todos los grupos</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  const memberOptions = getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
+  exSel.innerHTML = memberOptions;
+  visSel.innerHTML = memberOptions;
+  filterResp.innerHTML = `<option value="">Todos los responsables</option>` + getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
+
+  if (currentGroup) groupSel.value = currentGroup;
+  if (currentFilterGroup) filterGroup.value = currentFilterGroup;
+  if (currentFilterResponsible) filterResp.value = currentFilterResponsible;
+  Array.from(exSel.options).forEach(opt => opt.selected = selectedExecutors.includes(opt.value));
+  Array.from(visSel.options).forEach(opt => opt.selected = selectedVisited.includes(opt.value));
+}
+function getSelectedOptionsValues(el){
+  return Array.from(el?.selectedOptions || []).map(o => String(o.value));
+}
+function vaeOpenModal(dateStr="", action=null){
+  vaeEditingId = action ? action.id : null;
+  $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
+  $("vaeFormDate").value = action?.date || dateStr || selectedDate();
+  $("vaeFormStatus").value = action?.status || "programada";
+  $("vaeFormGroup").value = action?.group || "";
+  $("vaeFormType").value = action?.type || "";
+  $("vaeFormExecutorsText").value = action?.executorsText || "";
+  $("vaeFormVisitedText").value = action?.visitedText || "";
+  $("vaeFormNotes").value = action?.notes || "";
+  Array.from($("vaeFormExecutorsMembers").options).forEach(opt => opt.selected = (action?.executorsMemberIds || []).includes(String(opt.value)));
+  Array.from($("vaeFormVisitedMembers").options).forEach(opt => opt.selected = (action?.visitedMemberIds || []).includes(String(opt.value)));
+  $("vaeModal").classList.remove("hidden");
+}
+function vaeCloseModal(){
+  $("vaeModal").classList.add("hidden");
+  vaeEditingId = null;
+}
+function vaeShortExecutors(action){
+  const parts = [...vaeGetMemberNames(action.executorsMemberIds || [])];
+  if (action.executorsText) parts.push(action.executorsText);
+  return parts.join(", ") || "Sin ejecutores";
+}
+function vaeShortVisited(action){
+  const parts = [...vaeGetMemberNames(action.visitedMemberIds || [])];
+  if (action.visitedText) parts.push(action.visitedText);
+  return parts.join(", ") || "Sin visitados";
+}
+function vaeGetFilteredActions(){
+  const group = $("vaeFilterGroup")?.value || "";
+  const responsible = $("vaeFilterResponsible")?.value || "";
+  return (state.vaeActions || []).filter(action => {
+    const okGroup = !group || action.group === group;
+    const okResponsible = !responsible || (action.executorsMemberIds || []).map(String).includes(String(responsible));
+    return okGroup && okResponsible;
+  });
+}
+function renderVaeCalendar(){
+  const grid = $("vaeCalendarGrid");
+  const label = $("vaeMonthLabel");
+  if (!grid || !label) return;
+  label.textContent = `${VAE_MONTH_NAMES[vaeCurrentMonth]} ${vaeCurrentYear}`;
+  grid.innerHTML = "";
+
+  const firstDay = new Date(vaeCurrentYear, vaeCurrentMonth, 1);
+  const lastDay = new Date(vaeCurrentYear, vaeCurrentMonth + 1, 0);
+  let startOffset = firstDay.getDay();
+  startOffset = startOffset === 0 ? 6 : startOffset - 1;
+  const totalDays = lastDay.getDate();
+  const prevMonthLastDay = new Date(vaeCurrentYear, vaeCurrentMonth, 0).getDate();
+  const filtered = vaeGetFilteredActions();
+  const cells = [];
+
+  function buildDayCell(dateObj, otherMonth){
+    const dateStr = vaeIsoDate(dateObj);
+    const dayActions = filtered.filter(a => a.date === dateStr);
+    const div = document.createElement("div");
+    div.className = `vae-day-cell${otherMonth ? " other-month" : ""}`;
+    div.innerHTML = `<div class="vae-day-number">${dateObj.getDate()}</div><div class="vae-day-actions"></div>`;
+    const actionsWrap = div.querySelector(".vae-day-actions");
+    dayActions.slice(0,3).forEach(action => {
+      const chip = document.createElement("div");
+      chip.className = `vae-chip ${action.status || "programada"}`;
+      chip.innerHTML = `
+        <span class="vae-chip-title">${escapeHtml(action.group || action.type || "Acción")}</span>
+        <span class="vae-chip-meta">${escapeHtml(vaeShortExecutors(action))}</span>
+        <span class="vae-chip-meta">${escapeHtml(vaeShortVisited(action))}</span>
+      `;
+      chip.addEventListener("click", ev => {
+        ev.stopPropagation();
+        vaeOpenModal(dateStr, action);
+      });
+      actionsWrap.appendChild(chip);
+    });
+    if (dayActions.length > 3){
+      const more = document.createElement("div");
+      more.className = "vae-chip";
+      more.textContent = `+${dayActions.length - 3} más`;
+      actionsWrap.appendChild(more);
+    }
+    div.addEventListener("click", () => vaeOpenModal(dateStr));
+    return div;
+  }
+
+  for (let i=0;i<startOffset;i++){
+    const dayNum = prevMonthLastDay - startOffset + i + 1;
+    cells.push(buildDayCell(new Date(vaeCurrentYear, vaeCurrentMonth - 1, dayNum), true));
+  }
+  for (let day=1; day<=totalDays; day++){
+    cells.push(buildDayCell(new Date(vaeCurrentYear, vaeCurrentMonth, day), false));
+  }
+  while (cells.length % 7 !== 0){
+    const nextDay = cells.length - (startOffset + totalDays) + 1;
+    cells.push(buildDayCell(new Date(vaeCurrentYear, vaeCurrentMonth + 1, nextDay), true));
+  }
+  cells.forEach(c => grid.appendChild(c));
+  renderVaeStats(filtered);
+}
+function renderVaeStats(filteredActions=null){
+  const list = filteredActions || vaeGetFilteredActions();
+  const sameMonth = list.filter(a => {
+    const d = new Date(`${a.date}T00:00:00`);
+    return d.getFullYear() === vaeCurrentYear && d.getMonth() === vaeCurrentMonth;
+  });
+  $("vaeStatProgramadas").textContent = sameMonth.length;
+  $("vaeStatRealizadas").textContent = sameMonth.filter(a => a.status === "realizada").length;
+  $("vaeStatPendientes").textContent = sameMonth.filter(a => a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada").length;
+  $("vaeStatNoRealizadas").textContent = sameMonth.filter(a => a.status === "no_realizada").length;
+}
+function renderVaeValidation(){
+  const box = $("vaeValidationList");
+  const badge = $("vaePendingValidationCount");
+  if (!box || !badge) return;
+  const today = selectedDate();
+  const pending = (state.vaeActions || []).filter(a => a.date <= today && (a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada"));
+  badge.textContent = pending.length;
+  if (!pending.length){
+    box.innerHTML = `<div class="vae-list-item">No hay acciones pendientes de validación.</div>`;
+    return;
+  }
+  box.innerHTML = pending.sort((a,b) => a.date.localeCompare(b.date)).map(action => `
+    <div class="vae-list-item">
+      <div class="vae-list-title">${escapeHtml(action.group || action.type || "Acción")}</div>
+      <div class="vae-list-meta">
+        ${escapeHtml(formatDate(action.date))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+        Visitados: ${escapeHtml(vaeShortVisited(action))}
+      </div>
+      <div class="row-actions">
+        <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','realizada')">Realizada</button>
+        <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','no_realizada')">No realizada</button>
+        <button type="button" class="secondary" onclick="window.__vaeSetStatus('${escapeHtml(String(action.id))}','reprogramada')">Reprogramada</button>
+        <button type="button" class="secondary" onclick="window.__vaeEditAction('${escapeHtml(String(action.id))}')">Editar</button>
+      </div>
+    </div>
+  `).join("");
+}
+function renderVaeFollowup(){
+  const visitedBox = $("vaeVisitedList");
+  const alertsBox = $("vaeAlertsList");
+  if (!visitedBox || !alertsBox) return;
+  const map = new Map();
+  (state.vaeActions || []).forEach(action => {
+    (action.visitedMemberIds || []).forEach(id => {
+      const key = `m:${id}`;
+      const prev = map.get(key);
+      if (!prev || action.date > prev.lastDate){
+        map.set(key, {label: vaeGetMemberName(id), lastDate: action.date, status: action.status, notes: action.notes || ""});
+      }
+    });
+    if (action.visitedText){
+      const key = `t:${String(action.visitedText).trim().toLowerCase()}`;
+      const prev = map.get(key);
+      if (!prev || action.date > prev.lastDate){
+        map.set(key, {label: action.visitedText, lastDate: action.date, status: action.status, notes: action.notes || ""});
+      }
+    }
+  });
+  const rows = Array.from(map.values()).sort((a,b) => b.lastDate.localeCompare(a.lastDate) || a.label.localeCompare(b.label, "es"));
+  visitedBox.innerHTML = rows.length ? rows.map(row => `
+    <div class="vae-list-item">
+      <div class="vae-list-title">${escapeHtml(row.label)}</div>
+      <div class="vae-list-meta">Última visita: ${escapeHtml(formatDate(row.lastDate))} · Estado: ${escapeHtml(row.status)}</div>
+      <div>${escapeHtml(row.notes || "Sin observaciones")}</div>
+    </div>
+  `).join("") : `<div class="vae-list-item">Todavía no hay visitados registrados.</div>`;
+
+  const alerts = rows.map(row => ({...row, days: diffDaysBetween(row.lastDate, selectedDate())})).filter(row => row.days >= 30).sort((a,b)=>b.days-a.days);
+  alertsBox.innerHTML = alerts.length ? alerts.map(row => `
+    <div class="vae-list-item">
+      <div class="vae-list-title">${escapeHtml(row.label)}</div>
+      <div class="vae-list-meta">Hace ${row.days} días que no figura una visita</div>
+    </div>
+  `).join("") : `<div class="vae-list-item">No hay alertas de antigüedad por ahora.</div>`;
+}
+function renderVae(){
+  if (!$("vaeView")) return;
+  initVaeSelectors();
+  renderVaeCalendar();
+  renderVaeValidation();
+  renderVaeFollowup();
+}
+async function persistVaeAction(action){
+  const payload = {
+    id: action.id,
+    action_date: action.date,
+    status: action.status,
+    group_name: action.group || null,
+    action_type: action.type || null,
+    executors_member_ids: action.executorsMemberIds || [],
+    executors_text: action.executorsText || null,
+    visited_member_ids: action.visitedMemberIds || [],
+    visited_text: action.visitedText || null,
+    notes: action.notes || null
+  };
+  const res = await supabaseClient.from("vae_actions").upsert(payload);
+  if (res.error){
+    const msg = String(res.error.message || res.error || "");
+    if (msg.includes("schema cache") || msg.includes("does not exist") || msg.includes("Could not find") || msg.includes("relation")){
+      throw new Error("No pude guardar VAE porque falta crear la tabla vae_actions en Supabase.");
+    }
+    throw new Error("No pude guardar la acción VAE: " + msg);
+  }
+}
+async function vaeSaveAction(){
+  const payload = {
+    id: vaeEditingId || (window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now())),
+    date: $("vaeFormDate").value,
+    status: $("vaeFormStatus").value,
+    group: $("vaeFormGroup").value,
+    type: normalizeName($("vaeFormType").value),
+    executorsMemberIds: getSelectedOptionsValues($("vaeFormExecutorsMembers")),
+    executorsText: normalizeName($("vaeFormExecutorsText").value),
+    visitedMemberIds: getSelectedOptionsValues($("vaeFormVisitedMembers")),
+    visitedText: normalizeName($("vaeFormVisitedText").value),
+    notes: $("vaeFormNotes").value.trim()
+  };
+  if (!payload.date){ alert("Completá la fecha."); return; }
+  if (!payload.group && !payload.type){ alert("Completá al menos el grupo o el tipo de acción."); return; }
+  await persistVaeAction(payload);
+  const idx = (state.vaeActions || []).findIndex(x => String(x.id) === String(payload.id));
+  if (idx >= 0) state.vaeActions[idx] = payload; else state.vaeActions.push(payload);
+  vaeCloseModal();
+  renderVae();
+}
+async function vaeSetStatus(actionId, status){
+  const action = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
+  if (!action) return;
+  action.status = status;
+  await persistVaeAction(action);
+  renderVae();
+}
+function vaeEditAction(actionId){
+  const action = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
+  if (!action) return;
+  vaeOpenModal(action.date, action);
+}
+function initVaeTabs(){
+  document.querySelectorAll(".vae-subtab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".vae-subtab").forEach(x => x.classList.toggle("active", x === btn));
+      const tab = btn.dataset.vaeTab;
+      document.querySelectorAll(".vae-panel").forEach(panel => {
+        panel.classList.toggle("hidden", panel.dataset.vaePanel !== tab);
+        panel.classList.toggle("active", panel.dataset.vaePanel === tab);
+      });
+    });
+  });
+}
+
 function wireEvents(){
   $("btnLoginPassword").addEventListener("click", loginWithPassword);
   $("btnRegisterPassword").addEventListener("click", registerWithPassword);
@@ -2923,6 +3435,7 @@ function wireEvents(){
   if ($("btnDeleteMemberPermanent")) $("btnDeleteMemberPermanent").addEventListener("click", eliminarMiembroDefinitivo);
   $("tabOperativa").addEventListener("click", ()=>switchTab("operativa"));
   $("tabAdmin").addEventListener("click", ()=>userCanViewAdmin() && (switchTab("admin"), renderAdminAnalytics()));
+  if ($("tabVae")) $("tabVae").addEventListener("click", ()=>userCanOperative() && (switchTab("vae"), renderVae()));
   $("btnAdminReload").addEventListener("click", renderAdminAnalytics);
   if ($("btnExportMembersExcel")) $("btnExportMembersExcel").addEventListener("click", exportMembersToExcel);
   $("btnSaveAlerts").addEventListener("click", saveAlertSettings);
@@ -2963,6 +3476,21 @@ function wireEvents(){
   if ($("btnSaveEvent")) $("btnSaveEvent").addEventListener("click", saveMemberEvent);
   if ($("btnResetEvent")) $("btnResetEvent").addEventListener("click", ()=> resetEventForm(selectedDate()));
 
+
+  initVaeTabs();
+  if ($("vaePrevMonthBtn")) $("vaePrevMonthBtn").addEventListener("click", ()=>{ vaeCurrentMonth--; if (vaeCurrentMonth < 0){ vaeCurrentMonth = 11; vaeCurrentYear--; } renderVaeCalendar(); });
+  if ($("vaeNextMonthBtn")) $("vaeNextMonthBtn").addEventListener("click", ()=>{ vaeCurrentMonth++; if (vaeCurrentMonth > 11){ vaeCurrentMonth = 0; vaeCurrentYear++; } renderVaeCalendar(); });
+  if ($("vaeTodayBtn")) $("vaeTodayBtn").addEventListener("click", ()=>{ const now = new Date(); vaeCurrentMonth = now.getMonth(); vaeCurrentYear = now.getFullYear(); renderVaeCalendar(); });
+  if ($("vaeNewActionBtn")) $("vaeNewActionBtn").addEventListener("click", ()=> vaeOpenModal(selectedDate()));
+  if ($("vaeCloseModalBtn")) $("vaeCloseModalBtn").addEventListener("click", vaeCloseModal);
+  if ($("vaeCancelModalBtn")) $("vaeCancelModalBtn").addEventListener("click", vaeCloseModal);
+  if ($("vaeSaveActionBtn")) $("vaeSaveActionBtn").addEventListener("click", async ()=>{ try { await vaeSaveAction(); } catch(err){ alert(String(err.message || err || "No pude guardar la acción VAE.")); } });
+  if ($("vaeFilterGroup")) $("vaeFilterGroup").addEventListener("change", renderVae);
+  if ($("vaeFilterResponsible")) $("vaeFilterResponsible").addEventListener("change", renderVae);
+  if ($("vaeModal")) $("vaeModal").addEventListener("click", ev => { if (ev.target === $("vaeModal")) vaeCloseModal(); });
+  window.__vaeSetStatus = async function(id, status){ try { await vaeSetStatus(id, status); } catch(err){ alert(String(err.message || err || "No pude actualizar el estado.")); } };
+  window.__vaeEditAction = vaeEditAction;
+
   document.addEventListener("click", e => {
     if ($("memberSuggestionsBox") && !$("memberSuggestionsBox").contains(e.target) && e.target !== $("removeMemberSearch")) { $("memberSuggestionsBox").style.display="none"; }
     if ($("relatedMemberSuggestions") && !$("relatedMemberSuggestions").contains(e.target) && e.target !== $("relatedMemberSearch")) { $("relatedMemberSuggestions").style.display="none"; }
@@ -2982,7 +3510,7 @@ function initializeDefaults(){
   if ($("groupDateTo")) $("groupDateTo").value = $("fecha").value;
   switchTab("operativa");
 }
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); resumen(); updateSaveStatus(); }
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); resumen(); renderVae(); updateSaveStatus(); }
 async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
