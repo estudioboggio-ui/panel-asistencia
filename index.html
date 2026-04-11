@@ -676,10 +676,14 @@
       </div>
 
       <div class="stack">
-        <div class="filters">
+        <div class="filters" style="grid-template-columns:1fr .85fr .85fr;">
           <div>
             <div class="hint">Fecha</div>
             <input id="vaeFormDate" type="date" style="width:100%">
+          </div>
+          <div>
+            <div class="hint">Horario</div>
+            <input id="vaeFormTime" type="time" style="width:100%">
           </div>
           <div>
             <div class="hint">Estado</div>
@@ -750,7 +754,11 @@
         </div>
 
         <div class="row-actions" style="justify-content:space-between;">
-          <button id="vaeDeleteActionBtn" class="danger hidden" type="button">Eliminar evento</button>
+          <div class="row-actions">
+            <button id="vaeMoveUpBtn" class="secondary hidden" type="button">Subir</button>
+            <button id="vaeMoveDownBtn" class="secondary hidden" type="button">Bajar</button>
+            <button id="vaeDeleteActionBtn" class="danger hidden" type="button">Eliminar evento</button>
+          </div>
           <div class="row-actions">
             <button id="vaeCancelModalBtn" class="secondary" type="button">Cancelar</button>
             <button id="vaeSaveActionBtn" class="primary" type="button">Guardar</button>
@@ -1159,6 +1167,8 @@ async function cargarTodoDesdeServidor(){
   state.vaeActions = (vaeRows || []).map(r => ({
     id: r.id,
     date: r.action_date,
+    time: r.action_time || "",
+    sortOrder: Number(r.sort_order || 0),
     status: r.status || "sin_estado",
     group: r.group_name || "",
     type: r.action_type || "",
@@ -1875,7 +1885,7 @@ function abrirFicha(id) {
     activateMemberTab("personal");
     $("modalTitle").textContent = member.name || "Ficha del miembro";
 
-    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
+    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => compareVaeActions(b, a));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
         (historial.length ? historial.slice(0,5).map(h => formatDate(h.date)).join(", ") : "Sin registros previos.");
 
@@ -3210,6 +3220,50 @@ function vaeGetMemberName(id){
 function vaeGetMemberNames(ids){
   return (ids || []).map(vaeGetMemberName).filter(Boolean);
 }
+function getActionDisplayTitle(action){
+  const group = normalizeName(action?.group || "");
+  const type = normalizeName(action?.type || "");
+  return group && type ? `${group} · ${type}` : (group || type || "Acción");
+}
+function vaeFormatTime(value){
+  return String(value || "").slice(0,5);
+}
+function compareVaeActions(a, b){
+  const dateCmp = String(a?.date || "").localeCompare(String(b?.date || ""));
+  if (dateCmp !== 0) return dateCmp;
+  const aTime = vaeFormatTime(a?.time || "");
+  const bTime = vaeFormatTime(b?.time || "");
+  if (aTime && bTime){
+    const timeCmp = aTime.localeCompare(bTime);
+    if (timeCmp !== 0) return timeCmp;
+  } else if (aTime && !bTime){
+    return -1;
+  } else if (!aTime && bTime){
+    return 1;
+  }
+  const aSort = Number.isFinite(Number(a?.sortOrder)) ? Number(a.sortOrder) : 0;
+  const bSort = Number.isFinite(Number(b?.sortOrder)) ? Number(b.sortOrder) : 0;
+  if (aSort !== bSort) return aSort - bSort;
+  return getActionDisplayTitle(a).localeCompare(getActionDisplayTitle(b), "es");
+}
+function vaeNormalizeDayOrdering(dateStr){
+  const sameDay = (state.vaeActions || [])
+    .filter(action => action.date === dateStr)
+    .sort(compareVaeActions);
+  sameDay.forEach((action, index) => { action.sortOrder = index + 1; });
+}
+function vaeCanMoveAction(actionId, direction){
+  const action = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
+  if (!action) return false;
+  const sameDay = (state.vaeActions || [])
+    .filter(a => a.date === action.date)
+    .sort(compareVaeActions);
+  const idx = sameDay.findIndex(a => String(a.id) === String(actionId));
+  if (idx < 0) return false;
+  if (direction === "up") return idx > 0;
+  if (direction === "down") return idx < sameDay.length - 1;
+  return false;
+}
 function initVaeSelectors(){
   const groupSel = $("vaeFormGroup");
   const filterGroup = $("vaeFilterGroup");
@@ -3360,8 +3414,11 @@ function vaeOpenModal(dateStr="", action=null){
   vaePendingVisitedId = null;
   $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
+  if ($("vaeFormTime")) $("vaeFormTime").value = vaeFormatTime(action?.time || "");
   $("vaeFormStatus").value = action?.status || "sin_estado";
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.toggle("hidden", !action);
+  if ($("vaeMoveUpBtn")) $("vaeMoveUpBtn").classList.toggle("hidden", !action || !vaeCanMoveAction(action.id, "up"));
+  if ($("vaeMoveDownBtn")) $("vaeMoveDownBtn").classList.toggle("hidden", !action || !vaeCanMoveAction(action.id, "down"));
   $("vaeFormGroup").value = action?.group || "";
   $("vaeFormType").value = action?.type || "";
   $("vaeFormExecutorsText").value = action?.executorsText || "";
@@ -3379,6 +3436,8 @@ function vaeCloseModal(){
   $("vaeModal").classList.add("hidden");
   vaeEditingId = null;
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.add("hidden");
+  if ($("vaeMoveUpBtn")) $("vaeMoveUpBtn").classList.add("hidden");
+  if ($("vaeMoveDownBtn")) $("vaeMoveDownBtn").classList.add("hidden");
 }
 function vaeShortExecutors(action){
   const parts = [...vaeGetMemberNames(action.executorsMemberIds || [])];
@@ -3417,7 +3476,7 @@ function renderVaeCalendar(){
 
   function buildDayCell(dateObj, otherMonth){
     const dateStr = vaeIsoDate(dateObj);
-    const dayActions = filtered.filter(a => a.date === dateStr);
+    const dayActions = filtered.filter(a => a.date === dateStr).sort(compareVaeActions);
     const div = document.createElement("div");
     div.className = `vae-day-cell${otherMonth ? " other-month" : ""}`;
     div.innerHTML = `<div class="vae-day-number">${dateObj.getDate()}</div><div class="vae-day-actions"></div>`;
@@ -3426,8 +3485,8 @@ function renderVaeCalendar(){
       const chip = document.createElement("div");
       chip.className = `vae-chip ${action.status || "programada"}`;
       chip.innerHTML = `
-        <span class="vae-chip-title">${escapeHtml(action.group || action.type || "Acción")}</span>
-        <span class="vae-chip-meta">${escapeHtml(vaeShortExecutors(action))}</span>
+        <span class="vae-chip-title">${escapeHtml(getActionDisplayTitle(action))}</span>
+        <span class="vae-chip-meta">${escapeHtml([vaeFormatTime(action.time), vaeShortExecutors(action)].filter(Boolean).join(" · "))}</span>
         <span class="vae-chip-meta">${escapeHtml(vaeShortVisited(action))}</span>
       `;
       chip.addEventListener("click", ev => {
@@ -3479,7 +3538,7 @@ function renderVaeValidation(){
   const actions = (state.vaeActions || []);
   const pending = actions
     .filter(a => a.date <= today && (a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada"))
-    .sort((a,b) => a.date.localeCompare(b.date) || String(a.group || a.type || "").localeCompare(String(b.group || b.type || ""), "es"));
+    .sort(compareVaeActions);
   const overdue = pending.filter(a => a.date < today);
   const todayPending = pending.filter(a => a.date === today);
   const recentlyClosed = actions
@@ -3493,11 +3552,11 @@ function renderVaeValidation(){
     return `
       <div class="vae-list-item">
         <div class="row-actions" style="justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">
-          <div class="vae-list-title">${escapeHtml(action.group || action.type || "Acción")}</div>
+          <div class="vae-list-title">${escapeHtml(getActionDisplayTitle(action))}</div>
           <span class="vae-soft-badge">${escapeHtml(action.status || "programada")}</span>
         </div>
         <div class="vae-list-meta">
-          ${escapeHtml(formatDate(action.date))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+          ${escapeHtml([formatDate(action.date), vaeFormatTime(action.time)].filter(Boolean).join(" · "))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
           Visitados: ${escapeHtml(vaeShortVisited(action))}
           ${action.notes ? `<br>Obs.: ${escapeHtml(action.notes)}` : ``}
         </div>
@@ -3535,11 +3594,11 @@ function renderVaeValidation(){
           ${recentlyClosed.length ? recentlyClosed.map(action => `
             <div class="vae-list-item">
               <div class="row-actions" style="justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:6px;">
-                <div class="vae-list-title">${escapeHtml(action.group || action.type || "Acción")}</div>
+                <div class="vae-list-title">${escapeHtml(getActionDisplayTitle(action))}</div>
                 <span class="vae-soft-badge">${escapeHtml(action.status)}</span>
               </div>
               <div class="vae-list-meta">
-                ${escapeHtml(formatDate(action.date))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+                ${escapeHtml([formatDate(action.date), vaeFormatTime(action.time)].filter(Boolean).join(" · "))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
                 Visitados: ${escapeHtml(vaeShortVisited(action))}
               </div>
               <div class="row-actions">
@@ -3558,7 +3617,7 @@ function buildVaeFollowupRows(){
     const memberId = String(member.id);
     const memberActions = (state.vaeActions || [])
       .filter(action => effectiveStatuses.has(String(action.status || "")) && (action.visitedMemberIds || []).map(String).includes(memberId))
-      .sort((a,b) => b.date.localeCompare(a.date));
+      .sort((a,b) => compareVaeActions(b, a));
     const lastAction = memberActions[0] || null;
     const lastDate = lastAction?.date || "";
     const days = lastDate ? diffDaysBetween(lastDate, selectedDate()) : null;
@@ -3713,13 +3772,17 @@ async function deleteVaeAction(actionId){
     }
     throw res.error;
   }
+  const deleted = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
   state.vaeActions = (state.vaeActions || []).filter(a => String(a.id) !== String(actionId));
+  if (deleted?.date) vaeNormalizeDayOrdering(deleted.date);
 }
 
 async function persistVaeAction(action){
   const payload = {
     id: action.id,
     action_date: action.date,
+    action_time: vaeFormatTime(action.time || "") || null,
+    sort_order: Number(action.sortOrder || 0),
     status: action.status,
     group_name: action.group || null,
     action_type: action.type || null,
@@ -3742,6 +3805,8 @@ async function vaeSaveAction(){
   const payload = {
     id: vaeEditingId || (window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now())),
     date: $("vaeFormDate").value,
+    time: vaeFormatTime($("vaeFormTime")?.value || ""),
+    sortOrder: 0,
     status: $("vaeFormStatus").value,
     group: $("vaeFormGroup").value,
     type: normalizeName($("vaeFormType").value),
@@ -3753,9 +3818,20 @@ async function vaeSaveAction(){
   };
   if (!payload.date){ alert("Completá la fecha."); return; }
   if (!payload.group && !payload.type){ alert("Completá al menos el grupo o el tipo de acción."); return; }
+  const existing = (state.vaeActions || []).find(x => String(x.id) === String(payload.id));
+  if (existing && existing.date !== payload.date){
+    vaeNormalizeDayOrdering(existing.date);
+  }
+  if (existing){
+    payload.sortOrder = Number(existing.sortOrder || 0);
+  } else {
+    const sameDay = (state.vaeActions || []).filter(x => x.date === payload.date);
+    payload.sortOrder = sameDay.length + 1;
+  }
   await persistVaeAction(payload);
   const idx = (state.vaeActions || []).findIndex(x => String(x.id) === String(payload.id));
   if (idx >= 0) state.vaeActions[idx] = payload; else state.vaeActions.push(payload);
+  vaeNormalizeDayOrdering(payload.date);
   vaeCloseModal();
   renderVae();
 }
@@ -3764,6 +3840,23 @@ async function vaeSetStatus(actionId, status){
   if (!action) return;
   action.status = status;
   await persistVaeAction(action);
+  renderVae();
+}
+async function vaeMoveAction(actionId, direction){
+  const action = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
+  if (!action) return;
+  const sameDay = (state.vaeActions || []).filter(a => a.date === action.date).sort(compareVaeActions);
+  const idx = sameDay.findIndex(a => String(a.id) === String(actionId));
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapIdx < 0 || swapIdx >= sameDay.length) return;
+  const current = sameDay[idx];
+  const other = sameDay[swapIdx];
+  const currentOrder = Number(current.sortOrder || 0);
+  current.sortOrder = Number(other.sortOrder || 0);
+  other.sortOrder = currentOrder;
+  await persistVaeAction(current);
+  await persistVaeAction(other);
+  vaeOpenModal(action.date, current);
   renderVae();
 }
 function vaeEditAction(actionId){
