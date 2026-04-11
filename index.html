@@ -574,7 +574,7 @@
                 <option value="">Todos los grupos</option>
               </select>
               <select id="vaeFilterResponsible">
-                <option value="">Todos los responsables</option>
+                <option value="">Todos los responsables tarea tarea</option>
               </select>
             </div>
           </div>
@@ -676,14 +676,10 @@
       </div>
 
       <div class="stack">
-        <div class="filters" style="grid-template-columns:1fr .85fr .85fr;">
+        <div class="filters">
           <div>
             <div class="hint">Fecha</div>
             <input id="vaeFormDate" type="date" style="width:100%">
-          </div>
-          <div>
-            <div class="hint">Horario</div>
-            <input id="vaeFormTime" type="time" style="width:100%">
           </div>
           <div>
             <div class="hint">Estado</div>
@@ -712,21 +708,21 @@
         </div>
 
         <div>
-          <div class="hint">Ejecutores</div>
+          <div class="hint">Responsables tarea</div>
           <div class="stack" style="gap:8px;">
             <div>
               <div id="vaeFrequentExecutors" class="chips-wrap"></div>
             </div>
             <div>
-              <div class="hint" style="margin-bottom:6px;">Seleccionados</div>
+              <div class="hint" style="margin-bottom:6px;">Responsables tarea seleccionados</div>
               <div id="vaeExecutorsSelected" class="chips-wrap"></div>
             </div>
           </div>
         </div>
 
         <div>
-          <div class="hint">Ejecutores extra (texto libre)</div>
-          <input id="vaeFormExecutorsText" type="text" placeholder="Acompañante ocasional, invitado, etc." style="width:100%">
+          <div class="hint">Responsables extra (texto libre)</div>
+          <input id="vaeFormExecutorsText" type="text" placeholder="Responsable ocasional, invitado, etc." style="width:100%">
         </div>
 
         <div>
@@ -754,11 +750,7 @@
         </div>
 
         <div class="row-actions" style="justify-content:space-between;">
-          <div class="row-actions">
-            <button id="vaeMoveUpBtn" class="secondary hidden" type="button">Subir</button>
-            <button id="vaeMoveDownBtn" class="secondary hidden" type="button">Bajar</button>
-            <button id="vaeDeleteActionBtn" class="danger hidden" type="button">Eliminar evento</button>
-          </div>
+          <button id="vaeDeleteActionBtn" class="danger hidden" type="button">Eliminar evento</button>
           <div class="row-actions">
             <button id="vaeCancelModalBtn" class="secondary" type="button">Cancelar</button>
             <button id="vaeSaveActionBtn" class="primary" type="button">Guardar</button>
@@ -1167,8 +1159,6 @@ async function cargarTodoDesdeServidor(){
   state.vaeActions = (vaeRows || []).map(r => ({
     id: r.id,
     date: r.action_date,
-    time: r.action_time || "",
-    sortOrder: Number(r.sort_order || 0),
     status: r.status || "sin_estado",
     group: r.group_name || "",
     type: r.action_type || "",
@@ -1885,7 +1875,7 @@ function abrirFicha(id) {
     activateMemberTab("personal");
     $("modalTitle").textContent = member.name || "Ficha del miembro";
 
-    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => compareVaeActions(b, a));
+    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
         (historial.length ? historial.slice(0,5).map(h => formatDate(h.date)).join(", ") : "Sin registros previos.");
 
@@ -3220,50 +3210,6 @@ function vaeGetMemberName(id){
 function vaeGetMemberNames(ids){
   return (ids || []).map(vaeGetMemberName).filter(Boolean);
 }
-function getActionDisplayTitle(action){
-  const group = normalizeName(action?.group || "");
-  const type = normalizeName(action?.type || "");
-  return group && type ? `${group} · ${type}` : (group || type || "Acción");
-}
-function vaeFormatTime(value){
-  return String(value || "").slice(0,5);
-}
-function compareVaeActions(a, b){
-  const dateCmp = String(a?.date || "").localeCompare(String(b?.date || ""));
-  if (dateCmp !== 0) return dateCmp;
-  const aTime = vaeFormatTime(a?.time || "");
-  const bTime = vaeFormatTime(b?.time || "");
-  if (aTime && bTime){
-    const timeCmp = aTime.localeCompare(bTime);
-    if (timeCmp !== 0) return timeCmp;
-  } else if (aTime && !bTime){
-    return -1;
-  } else if (!aTime && bTime){
-    return 1;
-  }
-  const aSort = Number.isFinite(Number(a?.sortOrder)) ? Number(a.sortOrder) : 0;
-  const bSort = Number.isFinite(Number(b?.sortOrder)) ? Number(b.sortOrder) : 0;
-  if (aSort !== bSort) return aSort - bSort;
-  return getActionDisplayTitle(a).localeCompare(getActionDisplayTitle(b), "es");
-}
-function vaeNormalizeDayOrdering(dateStr){
-  const sameDay = (state.vaeActions || [])
-    .filter(action => action.date === dateStr)
-    .sort(compareVaeActions);
-  sameDay.forEach((action, index) => { action.sortOrder = index + 1; });
-}
-function vaeCanMoveAction(actionId, direction){
-  const action = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
-  if (!action) return false;
-  const sameDay = (state.vaeActions || [])
-    .filter(a => a.date === action.date)
-    .sort(compareVaeActions);
-  const idx = sameDay.findIndex(a => String(a.id) === String(actionId));
-  if (idx < 0) return false;
-  if (direction === "up") return idx > 0;
-  if (direction === "down") return idx < sameDay.length - 1;
-  return false;
-}
 function initVaeSelectors(){
   const groupSel = $("vaeFormGroup");
   const filterGroup = $("vaeFilterGroup");
@@ -3276,7 +3222,7 @@ function initVaeSelectors(){
 
   groupSel.innerHTML = `<option value="">Seleccionar grupo</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
   filterGroup.innerHTML = `<option value="">Todos los grupos</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
-  filterResp.innerHTML = `<option value="">Todos los responsables</option>` + getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
+  filterResp.innerHTML = `<option value="">Todos los responsables tarea tarea</option>` + getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
 
   if (currentGroup) groupSel.value = currentGroup;
   if (currentFilterGroup) filterGroup.value = currentFilterGroup;
@@ -3288,7 +3234,22 @@ function initVaeSelectors(){
 }
 function vaeFindMemberByName(name){
   const target = normalizeComparableName(name);
-  return getMembersSource().find(m => normalizeComparableName(m.name || "") === target) || null;
+  const targetSig = tokenSignature(name);
+  const targetTokens = target.split(/\s+/).filter(Boolean);
+  const members = getMembersSource();
+
+  return members.find(m => normalizeComparableName(m.name || "") === target)
+    || members.find(m => tokenSignature(m.name || "") === targetSig)
+    || members.find(m => {
+      const memberNorm = normalizeComparableName(m.name || "");
+      const memberTokens = memberNorm.split(/\s+/).filter(Boolean);
+      return targetTokens.length >= 2 && targetTokens.every(tok => memberTokens.includes(tok));
+    })
+    || members.find(m => {
+      const memberNorm = normalizeComparableName(m.name || "");
+      return target && (memberNorm.includes(target) || target.includes(memberNorm));
+    })
+    || null;
 }
 function vaeFindMemberById(id){
   return getMembersSource().find(m => String(m.id) === String(id)) || null;
@@ -3342,7 +3303,7 @@ function renderVaeSelectedMembers(kind){
   const ids = kind === "executor" ? vaeSelectedExecutors : vaeSelectedVisited;
   if (!container) return;
   if (!ids.length){
-    container.innerHTML = `<span class="hint">Todavía no hay ${kind === "executor" ? "ejecutores" : "visitados"} seleccionados.</span>`;
+    container.innerHTML = `<span class="hint">Todavía no hay ${kind === "executor" ? "responsables tarea" : "visitados"} seleccionados.</span>`;
     return;
   }
   container.innerHTML = ids.map(id => {
@@ -3414,11 +3375,8 @@ function vaeOpenModal(dateStr="", action=null){
   vaePendingVisitedId = null;
   $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
-  if ($("vaeFormTime")) $("vaeFormTime").value = vaeFormatTime(action?.time || "");
   $("vaeFormStatus").value = action?.status || "sin_estado";
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.toggle("hidden", !action);
-  if ($("vaeMoveUpBtn")) $("vaeMoveUpBtn").classList.toggle("hidden", !action || !vaeCanMoveAction(action.id, "up"));
-  if ($("vaeMoveDownBtn")) $("vaeMoveDownBtn").classList.toggle("hidden", !action || !vaeCanMoveAction(action.id, "down"));
   $("vaeFormGroup").value = action?.group || "";
   $("vaeFormType").value = action?.type || "";
   $("vaeFormExecutorsText").value = action?.executorsText || "";
@@ -3436,13 +3394,11 @@ function vaeCloseModal(){
   $("vaeModal").classList.add("hidden");
   vaeEditingId = null;
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.add("hidden");
-  if ($("vaeMoveUpBtn")) $("vaeMoveUpBtn").classList.add("hidden");
-  if ($("vaeMoveDownBtn")) $("vaeMoveDownBtn").classList.add("hidden");
 }
 function vaeShortExecutors(action){
   const parts = [...vaeGetMemberNames(action.executorsMemberIds || [])];
   if (action.executorsText) parts.push(action.executorsText);
-  return parts.join(", ") || "Sin ejecutores";
+  return parts.join(", ") || "Sin responsables tarea";
 }
 function vaeShortVisited(action){
   const parts = [...vaeGetMemberNames(action.visitedMemberIds || [])];
@@ -3476,7 +3432,7 @@ function renderVaeCalendar(){
 
   function buildDayCell(dateObj, otherMonth){
     const dateStr = vaeIsoDate(dateObj);
-    const dayActions = filtered.filter(a => a.date === dateStr).sort(compareVaeActions);
+    const dayActions = filtered.filter(a => a.date === dateStr);
     const div = document.createElement("div");
     div.className = `vae-day-cell${otherMonth ? " other-month" : ""}`;
     div.innerHTML = `<div class="vae-day-number">${dateObj.getDate()}</div><div class="vae-day-actions"></div>`;
@@ -3486,7 +3442,7 @@ function renderVaeCalendar(){
       chip.className = `vae-chip ${action.status || "programada"}`;
       chip.innerHTML = `
         <span class="vae-chip-title">${escapeHtml(getActionDisplayTitle(action))}</span>
-        <span class="vae-chip-meta">${escapeHtml([vaeFormatTime(action.time), vaeShortExecutors(action)].filter(Boolean).join(" · "))}</span>
+        <span class="vae-chip-meta">${escapeHtml(vaeShortExecutors(action))}</span>
         <span class="vae-chip-meta">${escapeHtml(vaeShortVisited(action))}</span>
       `;
       chip.addEventListener("click", ev => {
@@ -3538,7 +3494,7 @@ function renderVaeValidation(){
   const actions = (state.vaeActions || []);
   const pending = actions
     .filter(a => a.date <= today && (a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada"))
-    .sort(compareVaeActions);
+    .sort((a,b) => a.date.localeCompare(b.date) || String(a.group || a.type || "").localeCompare(String(b.group || b.type || ""), "es"));
   const overdue = pending.filter(a => a.date < today);
   const todayPending = pending.filter(a => a.date === today);
   const recentlyClosed = actions
@@ -3556,7 +3512,7 @@ function renderVaeValidation(){
           <span class="vae-soft-badge">${escapeHtml(action.status || "programada")}</span>
         </div>
         <div class="vae-list-meta">
-          ${escapeHtml([formatDate(action.date), vaeFormatTime(action.time)].filter(Boolean).join(" · "))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+          ${escapeHtml(formatDate(action.date))} · Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}<br>
           Visitados: ${escapeHtml(vaeShortVisited(action))}
           ${action.notes ? `<br>Obs.: ${escapeHtml(action.notes)}` : ``}
         </div>
@@ -3598,7 +3554,7 @@ function renderVaeValidation(){
                 <span class="vae-soft-badge">${escapeHtml(action.status)}</span>
               </div>
               <div class="vae-list-meta">
-                ${escapeHtml([formatDate(action.date), vaeFormatTime(action.time)].filter(Boolean).join(" · "))} · Ejecutores: ${escapeHtml(vaeShortExecutors(action))}<br>
+                ${escapeHtml(formatDate(action.date))} · Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}<br>
                 Visitados: ${escapeHtml(vaeShortVisited(action))}
               </div>
               <div class="row-actions">
@@ -3617,7 +3573,7 @@ function buildVaeFollowupRows(){
     const memberId = String(member.id);
     const memberActions = (state.vaeActions || [])
       .filter(action => effectiveStatuses.has(String(action.status || "")) && (action.visitedMemberIds || []).map(String).includes(memberId))
-      .sort((a,b) => compareVaeActions(b, a));
+      .sort((a,b) => b.date.localeCompare(a.date));
     const lastAction = memberActions[0] || null;
     const lastDate = lastAction?.date || "";
     const days = lastDate ? diffDaysBetween(lastDate, selectedDate()) : null;
@@ -3772,17 +3728,13 @@ async function deleteVaeAction(actionId){
     }
     throw res.error;
   }
-  const deleted = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
   state.vaeActions = (state.vaeActions || []).filter(a => String(a.id) !== String(actionId));
-  if (deleted?.date) vaeNormalizeDayOrdering(deleted.date);
 }
 
 async function persistVaeAction(action){
   const payload = {
     id: action.id,
     action_date: action.date,
-    action_time: vaeFormatTime(action.time || "") || null,
-    sort_order: Number(action.sortOrder || 0),
     status: action.status,
     group_name: action.group || null,
     action_type: action.type || null,
@@ -3805,8 +3757,6 @@ async function vaeSaveAction(){
   const payload = {
     id: vaeEditingId || (window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now())),
     date: $("vaeFormDate").value,
-    time: vaeFormatTime($("vaeFormTime")?.value || ""),
-    sortOrder: 0,
     status: $("vaeFormStatus").value,
     group: $("vaeFormGroup").value,
     type: normalizeName($("vaeFormType").value),
@@ -3818,20 +3768,9 @@ async function vaeSaveAction(){
   };
   if (!payload.date){ alert("Completá la fecha."); return; }
   if (!payload.group && !payload.type){ alert("Completá al menos el grupo o el tipo de acción."); return; }
-  const existing = (state.vaeActions || []).find(x => String(x.id) === String(payload.id));
-  if (existing && existing.date !== payload.date){
-    vaeNormalizeDayOrdering(existing.date);
-  }
-  if (existing){
-    payload.sortOrder = Number(existing.sortOrder || 0);
-  } else {
-    const sameDay = (state.vaeActions || []).filter(x => x.date === payload.date);
-    payload.sortOrder = sameDay.length + 1;
-  }
   await persistVaeAction(payload);
   const idx = (state.vaeActions || []).findIndex(x => String(x.id) === String(payload.id));
   if (idx >= 0) state.vaeActions[idx] = payload; else state.vaeActions.push(payload);
-  vaeNormalizeDayOrdering(payload.date);
   vaeCloseModal();
   renderVae();
 }
@@ -3840,23 +3779,6 @@ async function vaeSetStatus(actionId, status){
   if (!action) return;
   action.status = status;
   await persistVaeAction(action);
-  renderVae();
-}
-async function vaeMoveAction(actionId, direction){
-  const action = (state.vaeActions || []).find(a => String(a.id) === String(actionId));
-  if (!action) return;
-  const sameDay = (state.vaeActions || []).filter(a => a.date === action.date).sort(compareVaeActions);
-  const idx = sameDay.findIndex(a => String(a.id) === String(actionId));
-  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-  if (idx < 0 || swapIdx < 0 || swapIdx >= sameDay.length) return;
-  const current = sameDay[idx];
-  const other = sameDay[swapIdx];
-  const currentOrder = Number(current.sortOrder || 0);
-  current.sortOrder = Number(other.sortOrder || 0);
-  other.sortOrder = currentOrder;
-  await persistVaeAction(current);
-  await persistVaeAction(other);
-  vaeOpenModal(action.date, current);
   renderVae();
 }
 function vaeEditAction(actionId){
