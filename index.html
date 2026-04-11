@@ -3881,6 +3881,18 @@ function wireEvents(){
   if ($("vaeCloseModalBtn")) $("vaeCloseModalBtn").addEventListener("click", vaeCloseModal);
   if ($("vaeCancelModalBtn")) $("vaeCancelModalBtn").addEventListener("click", vaeCloseModal);
   if ($("vaeSaveActionBtn")) $("vaeSaveActionBtn").addEventListener("click", async ()=>{ try { await vaeSaveAction(); } catch(err){ alert(String(err.message || err || "No pude guardar la acción VAE.")); } });
+  if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").addEventListener("click", async ()=>{
+    if (!vaeEditingId) return;
+    const ok = confirm("¿Querés eliminar este evento VAE?");
+    if (!ok) return;
+    try {
+      await deleteVaeAction(vaeEditingId);
+      vaeCloseModal();
+      renderVae();
+    } catch(err){
+      alert(String(err.message || err || "No pude eliminar el evento VAE."));
+    }
+  });
   if ($("vaeFilterGroup")) $("vaeFilterGroup").addEventListener("change", renderVae);
   if ($("vaeFilterResponsible")) $("vaeFilterResponsible").addEventListener("change", renderVae);
   if ($("vaeModal")) $("vaeModal").addEventListener("click", ev => { if (ev.target === $("vaeModal")) vaeCloseModal(); });
