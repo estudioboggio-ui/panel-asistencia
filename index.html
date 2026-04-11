@@ -661,6 +661,7 @@
               <h2>Visitados extra / texto libre</h2>
               <div class="hint" style="margin-bottom:10px;">Estos registros no se comparan contra la base de miembros, pero quedan visibles para seguimiento general.</div>
               <div id="vaeVisitedList" class="stack"></div>
+              <div id="vaeAlertsList" class="hidden"></div>
             </div>
           </div>
         </div>
@@ -712,6 +713,11 @@
           <div class="stack" style="gap:8px;">
             <div>
               <div id="vaeFrequentExecutors" class="chips-wrap"></div>
+              <div style="display:none;">
+                <input id="vaeExecutorSearch" type="text">
+                <div id="vaeExecutorSuggestions" class="hidden"></div>
+                <button id="vaeAddExecutorBtn" type="button">Agregar</button>
+              </div>
             </div>
             <div>
               <div class="hint" style="margin-bottom:6px;">Responsables tarea seleccionados</div>
@@ -3677,7 +3683,7 @@ function renderVaeFollowup(){
 function renderVae(){
   const visitedBox = $("vaeVisitedList");
   const alertsBox = $("vaeAlertsList");
-  if (!visitedBox || !alertsBox) return;
+  if (!visitedBox) return;
   const map = new Map();
   (state.vaeActions || []).forEach(action => {
     (action.visitedMemberIds || []).forEach(id => {
