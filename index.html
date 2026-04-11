@@ -164,6 +164,9 @@
 .vae-day-cell{min-height:140px;padding:10px;border-right:1px solid rgba(51,65,85,.5);border-bottom:1px solid rgba(51,65,85,.5);cursor:pointer}
 .vae-day-cell:nth-child(7n){border-right:none}
 .vae-day-cell.other-month{opacity:.35}
+  .vae-calendar-head > div:nth-child(3), .vae-calendar-head > div:nth-child(7){background:rgba(255,255,255,.06);}
+  .vae-day-cell:nth-child(7n+3), .vae-day-cell:nth-child(7n){background:rgba(255,255,255,.025);}
+  .vae-day-cell.other-month:nth-child(7n+3), .vae-day-cell.other-month:nth-child(7n){background:rgba(255,255,255,.02);} 
 .vae-day-number{font-size:13px;font-weight:700;margin-bottom:8px}
 .vae-day-actions{display:flex;flex-direction:column;gap:6px}
 .vae-chip{border-radius:12px;padding:8px 9px;background:rgba(255,255,255,.04);border-left:4px solid transparent;font-size:12px;line-height:1.25}
@@ -171,6 +174,7 @@
 .vae-chip.realizada{border-left-color:#16a34a}
 .vae-chip.no_realizada{border-left-color:#ef4444}
 .vae-chip.reprogramada{border-left-color:#f59e0b}
+  .vae-chip.sin_estado{border-left-color:#64748b}
 .vae-chip.seguimiento{border-left-color:#38bdf8}
 .vae-chip-title{display:block;font-weight:700}
 .vae-chip-meta{display:block;color:var(--muted);margin-top:2px}
@@ -680,6 +684,7 @@
           <div>
             <div class="hint">Estado</div>
             <select id="vaeFormStatus" style="width:100%">
+              <option value="sin_estado">Sin estado</option>
               <option value="programada">Programada</option>
               <option value="realizada">Realizada</option>
               <option value="no_realizada">No realizada</option>
@@ -726,9 +731,6 @@
             <div class="vae-picker">
               <input id="vaeVisitedSearch" type="text" placeholder="Buscar visitado..." style="width:100%">
               <div id="vaeVisitedSuggestions" class="scroll vae-suggestions hidden"></div>
-              <div class="row-actions" style="margin-top:8px;">
-                <button id="vaeAddVisitedBtn" type="button" class="secondary">Agregar visitado</button>
-              </div>
             </div>
             <div>
               <div class="hint" style="margin-bottom:6px;">Seleccionados</div>
@@ -747,9 +749,12 @@
           <textarea id="vaeFormNotes" rows="4" style="width:100%;"></textarea>
         </div>
 
-        <div class="row-actions" style="justify-content:flex-end;">
-          <button id="vaeCancelModalBtn" class="secondary" type="button">Cancelar</button>
-          <button id="vaeSaveActionBtn" class="primary" type="button">Guardar</button>
+        <div class="row-actions" style="justify-content:space-between;">
+          <button id="vaeDeleteActionBtn" class="danger hidden" type="button">Eliminar evento</button>
+          <div class="row-actions">
+            <button id="vaeCancelModalBtn" class="secondary" type="button">Cancelar</button>
+            <button id="vaeSaveActionBtn" class="primary" type="button">Guardar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -886,7 +891,7 @@ let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
 let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [] };
-const VAE_GROUP_OPTIONS = ["Pastoral","Jóvenes","Diáconos","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Recepción","Oración"];
+const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
 
 function activateMemberTab(tab) {
   document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -1154,7 +1159,7 @@ async function cargarTodoDesdeServidor(){
   state.vaeActions = (vaeRows || []).map(r => ({
     id: r.id,
     date: r.action_date,
-    status: r.status || "programada",
+    status: r.status || "sin_estado",
     group: r.group_name || "",
     type: r.action_type || "",
     executorsMemberIds: Array.isArray(r.executors_member_ids) ? r.executors_member_ids.map(String) : [],
@@ -3269,7 +3274,12 @@ function vaeRenderSuggestions(kind, query){
   box.innerHTML = items.map(m => `<div class="suggestion-item" data-id="${escapeHtml(String(m.id))}" data-name="${escapeHtml(m.name || "")}">${escapeHtml(m.name || "")}</div>`).join("");
   box.classList.remove("hidden");
   box.querySelectorAll(".suggestion-item").forEach(el => el.addEventListener("click", () => {
-    vaeSetPendingSelection(kind, String(el.dataset.id || ""));
+    const clickedId = String(el.dataset.id || "");
+    if (kind === "visited") {
+      vaeAddSelectedMember("visited", clickedId);
+    } else {
+      vaeSetPendingSelection(kind, clickedId);
+    }
   }));
   vaeSetPendingSelection(kind, String(items[0].id));
 }
@@ -3305,11 +3315,13 @@ function vaeAddSelectedMember(kind, memberId){
     if ($("vaeVisitedSuggestions")) { $("vaeVisitedSuggestions").innerHTML = ""; $("vaeVisitedSuggestions").classList.add("hidden"); }
   }
   renderVaeSelectedMembers(kind);
+  if (kind === "executor") renderVaeFrequentExecutors();
 }
 function vaeRemoveSelectedMember(kind, memberId){
   if (kind === "executor") vaeSelectedExecutors = vaeSelectedExecutors.filter(id => String(id) !== String(memberId));
   else vaeSelectedVisited = vaeSelectedVisited.filter(id => String(id) !== String(memberId));
   renderVaeSelectedMembers(kind);
+  if (kind === "executor") renderVaeFrequentExecutors();
 }
 function renderVaeFrequentExecutors(){
   const box = $("vaeFrequentExecutors");
@@ -3348,7 +3360,8 @@ function vaeOpenModal(dateStr="", action=null){
   vaePendingVisitedId = null;
   $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
-  $("vaeFormStatus").value = action?.status || "programada";
+  $("vaeFormStatus").value = action?.status || "sin_estado";
+  if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.toggle("hidden", !action);
   $("vaeFormGroup").value = action?.group || "";
   $("vaeFormType").value = action?.type || "";
   $("vaeFormExecutorsText").value = action?.executorsText || "";
@@ -3365,6 +3378,7 @@ function vaeOpenModal(dateStr="", action=null){
 function vaeCloseModal(){
   $("vaeModal").classList.add("hidden");
   vaeEditingId = null;
+  if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.add("hidden");
 }
 function vaeShortExecutors(action){
   const parts = [...vaeGetMemberNames(action.executorsMemberIds || [])];
@@ -3690,6 +3704,18 @@ function renderVae(){
   renderVaeValidation();
   renderVaeFollowup();
 }
+async function deleteVaeAction(actionId){
+  const res = await supabaseClient.from("vae_actions").delete().eq("id", actionId);
+  if (res.error){
+    const msg = String(res.error.message || res.error || "");
+    if (msg.includes("schema cache") || msg.includes("does not exist") || msg.includes("Could not find") || msg.includes("42P01")) {
+      throw new Error("No pude eliminar VAE porque falta crear la tabla vae_actions en Supabase.");
+    }
+    throw res.error;
+  }
+  state.vaeActions = (state.vaeActions || []).filter(a => String(a.id) !== String(actionId));
+}
+
 async function persistVaeAction(action){
   const payload = {
     id: action.id,
@@ -3848,7 +3874,6 @@ function wireEvents(){
   if ($("vaeExecutorSearch")) $("vaeExecutorSearch").addEventListener("input", ()=> vaeRenderSuggestions("executor", $("vaeExecutorSearch").value));
   if ($("vaeVisitedSearch")) $("vaeVisitedSearch").addEventListener("input", ()=> vaeRenderSuggestions("visited", $("vaeVisitedSearch").value));
   if ($("vaeAddExecutorBtn")) $("vaeAddExecutorBtn").addEventListener("click", ()=> vaeAddSelectedMember("executor", vaePendingExecutorId));
-  if ($("vaeAddVisitedBtn")) $("vaeAddVisitedBtn").addEventListener("click", ()=> vaeAddSelectedMember("visited", vaePendingVisitedId));
   if ($("vaeFollowupFilterRange")) $("vaeFollowupFilterRange").addEventListener("change", renderVaeFollowup);
   if ($("vaeFollowupSearch")) $("vaeFollowupSearch").addEventListener("input", renderVaeFollowup);
   if ($("vaeExecutorSearch")) $("vaeExecutorSearch").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); vaeAddSelectedMember("executor", vaePendingExecutorId); } });
