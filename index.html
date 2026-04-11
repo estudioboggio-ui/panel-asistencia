@@ -233,7 +233,7 @@
   <div class="tabs">
     <button id="tabOperativa" class="tab-btn active" type="button">Asistencia</button>
     <button id="tabAdmin" class="tab-btn hidden" type="button">Administración</button>
-    <button id="tabVae" class="tab-btn hidden" type="button">VAE</button>
+    <button id="tabVae" class="tab-btn hidden" type="button">Planificación</button>
   </div>
 
   <div id="operativaView">
@@ -546,7 +546,7 @@
     <div class="vae-shell">
       <div class="vae-header">
         <div>
-          <h2 class="vae-title">VAE</h2>
+          <h2 class="vae-title">Planificación</h2>
           <div class="hint">Planificación mensual, validación y seguimiento.</div>
         </div>
         <div class="row-actions">
@@ -672,7 +672,7 @@
   <div id="vaeModal" class="modal-overlay hidden">
     <div class="modal-content" style="max-width:980px;">
       <div class="row-actions" style="justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h2 id="vaeModalTitle" style="margin:0;">Nueva acción VAE</h2>
+        <h2 id="vaeModalTitle" style="margin:0;">Nueva acción de planificación</h2>
         <button id="vaeCloseModalBtn" class="secondary" type="button">Cerrar</button>
       </div>
 
@@ -959,13 +959,30 @@ function setStatus(text, cls=""){ const el=$("sbStatus"); el.textContent=text; e
 function userCanAdmin(){ return currentProfile?.role === "admin"; }
 function userCanViewAdmin(){ return ["admin","oficiante"].includes(currentProfile?.role); }
 function userCanVae(){ return ["admin","oficiante"].includes(currentProfile?.role); }
+function userCanVaeAdvanced(){ return currentProfile?.role === "admin"; }
 function userCanOperative(){ return ["admin","carga","oficiante"].includes(currentProfile?.role); }
 function applyAdminRoleVisibility(){
   const isAdmin = userCanAdmin();
   const canViewAdmin = userCanViewAdmin();
+  const canViewVae = userCanVae();
+  const canViewVaeAdvanced = userCanVaeAdvanced();
 
   $("tabAdmin")?.classList.toggle("hidden", !canViewAdmin);
-  $("tabVae")?.classList.toggle("hidden", !userCanVae());
+  $("tabVae")?.classList.toggle("hidden", !canViewVae);
+
+  document.querySelectorAll('[data-vae-tab="validacion"], [data-vae-tab="seguimiento"], [data-vae-panel="validacion"], [data-vae-panel="seguimiento"]').forEach(el => {
+    el.classList.toggle("hidden", !canViewVaeAdvanced);
+  });
+
+  const activeVaeTabBtn = document.querySelector('.vae-subtab.active');
+  const activeVaeTab = activeVaeTabBtn?.dataset?.vaeTab || 'calendario';
+  if (!canViewVaeAdvanced && (activeVaeTab === 'validacion' || activeVaeTab === 'seguimiento')){
+    document.querySelectorAll('.vae-subtab').forEach(x => x.classList.toggle('active', x.dataset.vaeTab === 'calendario'));
+    document.querySelectorAll('.vae-panel').forEach(panel => {
+      panel.classList.toggle('hidden', panel.dataset.vaePanel !== 'calendario');
+      panel.classList.toggle('active', panel.dataset.vaePanel === 'calendario');
+    });
+  }
 
   const toolbar = $("adminToolbar");
   const agendaPanel = $("adminAgendaPanel");
@@ -3420,7 +3437,7 @@ function vaeOpenModal(dateStr="", action=null){
   vaeSelectedVisited = [...(action?.visitedMemberIds || []).map(String)];
   vaePendingExecutorId = null;
   vaePendingVisitedId = null;
-  $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
+  $("vaeModalTitle").textContent = action ? "Editar acción de planificación" : "Nueva acción de planificación";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
   if ($("vaeFormTime")) $("vaeFormTime").value = vaeFormatTime(action?.time || "");
   $("vaeFormStatus").value = action?.status || "sin_estado";
@@ -3857,8 +3874,9 @@ function vaeEditAction(actionId){
 function initVaeTabs(){
   document.querySelectorAll(".vae-subtab").forEach(btn => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".vae-subtab").forEach(x => x.classList.toggle("active", x === btn));
       const tab = btn.dataset.vaeTab;
+      if (!userCanVaeAdvanced() && (tab === "validacion" || tab === "seguimiento")) return;
+      document.querySelectorAll(".vae-subtab").forEach(x => x.classList.toggle("active", x === btn));
       document.querySelectorAll(".vae-panel").forEach(panel => {
         panel.classList.toggle("hidden", panel.dataset.vaePanel !== tab);
         panel.classList.toggle("active", panel.dataset.vaePanel === tab);
