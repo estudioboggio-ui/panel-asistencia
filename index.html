@@ -3216,6 +3216,12 @@ function vaeGetMemberName(id){
 function vaeGetMemberNames(ids){
   return (ids || []).map(vaeGetMemberName).filter(Boolean);
 }
+function getActionDisplayTitle(action){
+  const group = normalizeName(action?.group || "");
+  const type = normalizeName(action?.type || "");
+  if (group && type) return `${group} · ${type}`;
+  return group || type || "Acción";
+}
 function initVaeSelectors(){
   const groupSel = $("vaeFormGroup");
   const filterGroup = $("vaeFilterGroup");
@@ -3228,7 +3234,12 @@ function initVaeSelectors(){
 
   groupSel.innerHTML = `<option value="">Seleccionar grupo</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
   filterGroup.innerHTML = `<option value="">Todos los grupos</option>` + VAE_GROUP_OPTIONS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
-  filterResp.innerHTML = `<option value="">Todos los responsables tarea tarea</option>` + getMembersSource().map(m => `<option value="${escapeHtml(String(m.id))}">${escapeHtml(m.name || "")}</option>`).join("");
+  const frequentResponsibleOptions = VAE_FREQUENT_EXECUTOR_NAMES.map(name => {
+    const member = vaeFindMemberByName(name);
+    if (member) return { value: `member:${member.id}`, label: member.name || name };
+    return { value: `text:${normalizeComparableName(name)}`, label: name };
+  }).filter((opt, idx, arr) => arr.findIndex(x => x.value === opt.value) === idx);
+  filterResp.innerHTML = `<option value="">Todos los responsables tarea</option>` + frequentResponsibleOptions.map(opt => `<option value="${escapeHtml(String(opt.value))}">${escapeHtml(opt.label || "")}</option>`).join("");
 
   if (currentGroup) groupSel.value = currentGroup;
   if (currentFilterGroup) filterGroup.value = currentFilterGroup;
@@ -3416,7 +3427,16 @@ function vaeGetFilteredActions(){
   const responsible = $("vaeFilterResponsible")?.value || "";
   return (state.vaeActions || []).filter(action => {
     const okGroup = !group || action.group === group;
-    const okResponsible = !responsible || (action.executorsMemberIds || []).map(String).includes(String(responsible));
+    let okResponsible = true;
+    if (responsible){
+      if (responsible.startsWith("member:")){
+        const memberId = responsible.slice(7);
+        okResponsible = (action.executorsMemberIds || []).map(String).includes(String(memberId));
+      } else if (responsible.startsWith("text:")){
+        const norm = responsible.slice(5);
+        okResponsible = normalizeComparableName(action.executorsText || "").includes(norm);
+      }
+    }
     return okGroup && okResponsible;
   });
 }
