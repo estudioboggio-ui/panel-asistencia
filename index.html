@@ -677,10 +677,14 @@
       </div>
 
       <div class="stack">
-        <div class="filters">
+        <div class="filters" style="grid-template-columns:1fr 1fr 1fr;">
           <div>
             <div class="hint">Fecha</div>
             <input id="vaeFormDate" type="date" style="width:100%">
+          </div>
+          <div>
+            <div class="hint">Horario</div>
+            <input id="vaeFormTime" type="time" style="width:100%">
           </div>
           <div>
             <div class="hint">Estado</div>
@@ -1165,6 +1169,8 @@ async function cargarTodoDesdeServidor(){
   state.vaeActions = (vaeRows || []).map(r => ({
     id: r.id,
     date: r.action_date,
+    time: r.action_time || "",
+    sortOrder: Number(r.sort_order || 0),
     status: r.status || "sin_estado",
     group: r.group_name || "",
     type: r.action_type || "",
@@ -1881,7 +1887,7 @@ function abrirFicha(id) {
     activateMemberTab("personal");
     $("modalTitle").textContent = member.name || "Ficha del miembro";
 
-    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => b.date.localeCompare(a.date));
+    const historial = state.attendance.filter(a => a.member_id === id).sort((a,b) => vaeCompareActions(b,a));
     $("memberHistory").innerHTML = `<strong>Últimas asistencias:</strong><br>` + 
         (historial.length ? historial.slice(0,5).map(h => formatDate(h.date)).join(", ") : "Sin registros previos.");
 
@@ -3384,6 +3390,30 @@ function renderVaeFrequentExecutors(){
     }
   }));
 }
+function vaeNormalizeTime(value){
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const m = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return "";
+  const hours = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, "0");
+  return `${hours}:${m[2]}`;
+}
+function vaeFormatTime(value){
+  return vaeNormalizeTime(value);
+}
+function vaeTimeSortValue(action){
+  const normalized = vaeNormalizeTime(action?.time);
+  return normalized ? Number(normalized.replace(":", "")) : 9999;
+}
+function vaeCompareActions(a,b){
+  const byDate = String(a?.date || "").localeCompare(String(b?.date || ""));
+  if (byDate !== 0) return byDate;
+  const byTime = vaeTimeSortValue(a) - vaeTimeSortValue(b);
+  if (byTime !== 0) return byTime;
+  const byOrder = Number(a?.sortOrder || 0) - Number(b?.sortOrder || 0);
+  if (byOrder !== 0) return byOrder;
+  return String(a?.group || a?.type || "").localeCompare(String(b?.group || b?.type || ""), "es");
+}
 function vaeOpenModal(dateStr="", action=null){
   vaeEditingId = action ? action.id : null;
   vaeSelectedExecutors = [...(action?.executorsMemberIds || []).map(String)];
@@ -3392,6 +3422,7 @@ function vaeOpenModal(dateStr="", action=null){
   vaePendingVisitedId = null;
   $("vaeModalTitle").textContent = action ? "Editar acción VAE" : "Nueva acción VAE";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
+  if ($("vaeFormTime")) $("vaeFormTime").value = vaeFormatTime(action?.time || "");
   $("vaeFormStatus").value = action?.status || "sin_estado";
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.toggle("hidden", !action);
   $("vaeFormGroup").value = action?.group || "";
@@ -3415,7 +3446,9 @@ function vaeCloseModal(){
 function vaeShortExecutors(action){
   const parts = [...vaeGetMemberNames(action.executorsMemberIds || [])];
   if (action.executorsText) parts.push(action.executorsText);
-  return parts.join(", ") || "Sin responsables tarea";
+  const base = parts.join(", ") || "Sin responsables tarea";
+  const time = vaeFormatTime(action?.time);
+  return time ? `${time} · ${base}` : base;
 }
 function vaeShortVisited(action){
   const parts = [...vaeGetMemberNames(action.visitedMemberIds || [])];
@@ -3458,7 +3491,7 @@ function renderVaeCalendar(){
 
   function buildDayCell(dateObj, otherMonth){
     const dateStr = vaeIsoDate(dateObj);
-    const dayActions = filtered.filter(a => a.date === dateStr);
+    const dayActions = filtered.filter(a => a.date === dateStr).sort(vaeCompareActions);
     const div = document.createElement("div");
     div.className = `vae-day-cell${otherMonth ? " other-month" : ""}`;
     div.innerHTML = `<div class="vae-day-number">${dateObj.getDate()}</div><div class="vae-day-actions"></div>`;
@@ -3520,12 +3553,12 @@ function renderVaeValidation(){
   const actions = (state.vaeActions || []);
   const pending = actions
     .filter(a => a.date <= today && (a.status === "programada" || a.status === "seguimiento" || a.status === "reprogramada"))
-    .sort((a,b) => a.date.localeCompare(b.date) || String(a.group || a.type || "").localeCompare(String(b.group || b.type || ""), "es"));
+    .sort(vaeCompareActions);
   const overdue = pending.filter(a => a.date < today);
   const todayPending = pending.filter(a => a.date === today);
   const recentlyClosed = actions
     .filter(a => a.date <= today && (a.status === "realizada" || a.status === "no_realizada"))
-    .sort((a,b) => b.date.localeCompare(a.date))
+    .sort((a,b) => vaeCompareActions(b,a))
     .slice(0,8);
 
   badge.textContent = pending.length;
@@ -3599,7 +3632,7 @@ function buildVaeFollowupRows(){
     const memberId = String(member.id);
     const memberActions = (state.vaeActions || [])
       .filter(action => effectiveStatuses.has(String(action.status || "")) && (action.visitedMemberIds || []).map(String).includes(memberId))
-      .sort((a,b) => b.date.localeCompare(a.date));
+      .sort((a,b) => vaeCompareActions(b,a));
     const lastAction = memberActions[0] || null;
     const lastDate = lastAction?.date || "";
     const days = lastDate ? diffDaysBetween(lastDate, selectedDate()) : null;
@@ -3650,7 +3683,7 @@ function renderVaeFollowup(){
   tableBody.innerHTML = filteredRows.length ? filteredRows.map(row => `
     <tr>
       <td>${escapeHtml(row.name)}</td>
-      <td>${row.lastDate ? escapeHtml(formatDate(row.lastDate)) : `<span class="hint">Nunca</span>`}</td>
+      <td>${row.lastDate ? `${escapeHtml(formatDate(row.lastDate))}${row.lastTime ? ` · ${escapeHtml(vaeFormatTime(row.lastTime))}` : ""}` : `<span class="hint">Nunca</span>`}</td>
       <td>${row.days !== null ? row.days : `<span class="hint">—</span>`}</td>
       <td>${row.visitsCount}</td>
       <td>${row.lastDate ? escapeHtml(row.lastNotes || row.lastStatus || "Sin observaciones") : `<span class="hint">Sin visitas registradas</span>`}</td>
@@ -3685,6 +3718,7 @@ function renderVaeFollowup(){
         freeTextMap.set(key, {
           label,
           lastDate: action.date,
+          lastTime: action.time || "",
           status: action.status,
           notes: action.notes || ""
         });
@@ -3710,14 +3744,14 @@ function renderVae(){
       const key = `m:${id}`;
       const prev = map.get(key);
       if (!prev || action.date > prev.lastDate){
-        map.set(key, {label: vaeGetMemberName(id), lastDate: action.date, status: action.status, notes: action.notes || ""});
+        map.set(key, {label: vaeGetMemberName(id), lastDate: action.date, lastTime: action.time || "", status: action.status, notes: action.notes || ""});
       }
     });
     if (action.visitedText){
       const key = `t:${String(action.visitedText).trim().toLowerCase()}`;
       const prev = map.get(key);
       if (!prev || action.date > prev.lastDate){
-        map.set(key, {label: action.visitedText, lastDate: action.date, status: action.status, notes: action.notes || ""});
+        map.set(key, {label: action.visitedText, lastDate: action.date, lastTime: action.time || "", status: action.status, notes: action.notes || ""});
       }
     }
   });
@@ -3761,6 +3795,8 @@ async function persistVaeAction(action){
   const payload = {
     id: action.id,
     action_date: action.date,
+    action_time: vaeNormalizeTime(action.time || "") || null,
+    sort_order: Number(action.sortOrder || 0),
     status: action.status,
     group_name: action.group || null,
     action_type: action.type || null,
@@ -3780,9 +3816,15 @@ async function persistVaeAction(action){
   }
 }
 async function vaeSaveAction(){
+  const targetDate = $("vaeFormDate").value;
+  const existing = vaeEditingId ? (state.vaeActions || []).find(x => String(x.id) === String(vaeEditingId)) : null;
   const payload = {
     id: vaeEditingId || (window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now())),
-    date: $("vaeFormDate").value,
+    date: targetDate,
+    time: vaeNormalizeTime($("vaeFormTime")?.value || ""),
+    sortOrder: existing && existing.date === targetDate
+      ? Number(existing.sortOrder || 0)
+      : ((state.vaeActions || []).filter(x => x.date === targetDate).reduce((max, x) => Math.max(max, Number(x.sortOrder || 0)), 0) + 1),
     status: $("vaeFormStatus").value,
     group: $("vaeFormGroup").value,
     type: normalizeName($("vaeFormType").value),
