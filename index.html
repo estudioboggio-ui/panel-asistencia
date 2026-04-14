@@ -366,11 +366,11 @@
       <h2>Agenda / Alertas</h2>
       <div class="split" style="grid-template-columns:repeat(2,1fr);">
         <div class="section-card">
-          <div class="hint" style="margin-bottom:10px;">Próximos 7 días</div>
+          <div class="hint" style="margin-bottom:10px;">Próximos 14 días</div>
           <div id="agendaEventsList" class="stack"></div>
         </div>
         <div class="section-card">
-          <div class="hint" style="margin-bottom:10px;">Cumpleaños de la semana</div>
+          <div class="hint" style="margin-bottom:10px;">Cumpleaños próximos (14 días)</div>
           <div id="agendaBirthdaysList" class="stack"></div>
         </div>
       </div>
@@ -404,7 +404,7 @@
 
           <div style="margin-top:12px;">
             <label>Vista previa</label>
-            <textarea id="weeklyEmailPreview" rows="14" style="width:100%;resize:vertical;"></textarea>
+            <textarea id="weeklyEmailPreview" rows="20" style="width:100%;resize:vertical;"></textarea>
           </div>
         </div>
       </details>
@@ -2493,11 +2493,39 @@ function formatDisplayDate(iso){
   if (!y || !m || !d) return iso;
   return `${d}/${m}/${y}`;
 }
-function getBirthdaysInNext7Days(){
+function calculateAgeOnDate(birthDateIso, targetDateIso){
+  if (!birthDateIso || !targetDateIso) return null;
+  const birth = String(birthDateIso).split("-").map(Number);
+  const target = String(targetDateIso).split("-").map(Number);
+  if (birth.length < 3 || target.length < 3 || birth.some(Number.isNaN) || target.some(Number.isNaN)) return null;
+  let age = target[0] - birth[0];
+  if (target[1] < birth[1] || (target[1] === birth[1] && target[2] < birth[2])) age -= 1;
+  return age >= 0 ? age : null;
+}
+function buildWeeklyDateRange(daysAhead=14){
   const today = new Date();
   today.setHours(0,0,0,0);
   const end = new Date(today);
-  end.setDate(end.getDate()+7);
+  end.setDate(end.getDate() + Number(daysAhead || 14));
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  const endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,"0")}-${String(end.getDate()).padStart(2,"0")}`;
+  return { today, end, todayIso, endIso };
+}
+function buildCurrentWeekRange(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const day = today.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() + diffToMonday);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekStartIso = `${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,"0")}-${String(weekStart.getDate()).padStart(2,"0")}`;
+  const weekEndIso = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,"0")}-${String(weekEnd.getDate()).padStart(2,"0")}`;
+  return { weekStart, weekEnd, weekStartIso, weekEndIso };
+}
+function getBirthdaysInDateRange(daysAhead=14){
+  const { today, end } = buildWeeklyDateRange(daysAhead);
   const rows = Object.values(state.membersFullData || {}).flatMap(member => {
     const bd = member?.birth_date;
     if (!bd) return [];
@@ -2516,40 +2544,87 @@ function getBirthdaysInNext7Days(){
     return [{
       name: member.name || "Sin nombre",
       dateIso: iso,
-      dateLabel: formatDisplayDate(iso)
+      dateLabel: formatDisplayDate(iso),
+      age: calculateAgeOnDate(bd, iso)
     }];
   });
   rows.sort((a,b) => a.dateIso.localeCompare(b.dateIso) || a.name.localeCompare(b.name, "es"));
   return rows;
 }
+function getWeeklyEventsData(daysAhead=14){
+  const { todayIso, endIso } = buildWeeklyDateRange(daysAhead);
+  const { weekStartIso, weekEndIso } = buildCurrentWeekRange();
+  const weeklyEvents = (state.events || [])
+    .filter(ev => ev && ev.event_date && ev.include_in_weekly !== false)
+    .map(ev => ({
+      ...ev,
+      member_name: state.membersById?.[ev.member_id] || state.membersFullData?.[ev.member_id]?.name || "Miembro"
+    }));
 
-function buildWeeklyDateRange(){
-  const { today, end, todayIso, endIso } = buildWeeklyDateRange();
-  return { today, end, todayIso, endIso };
+  const upcomingEvents = weeklyEvents
+    .filter(ev => ev.event_date >= todayIso && ev.event_date <= endIso)
+    .sort((a,b) => String(a.event_date || "").localeCompare(String(b.event_date || "")) || String(a.member_name || "").localeCompare(String(b.member_name || ""), "es") || String(a.title || "").localeCompare(String(b.title || ""), "es"));
+
+  const overdueEvents = weeklyEvents
+    .filter(ev => ev.event_date < todayIso)
+    .map(ev => ({
+      ...ev,
+      overdueDays: diffDaysBetween(ev.event_date, todayIso)
+    }))
+    .sort((a,b) => b.overdueDays - a.overdueDays || String(a.event_date || "").localeCompare(String(b.event_date || "")) || String(a.member_name || "").localeCompare(String(b.member_name || ""), "es"));
+
+  const planningEvents = (state.vaeActions || [])
+    .filter(action => action && action.date && action.date >= weekStartIso && action.date <= weekEndIso)
+    .sort(vaeCompareActions)
+    .map(action => ({
+      ...action,
+      displayTitle: getActionDisplayTitle(action),
+      executorsSummary: vaeShortExecutors(action)
+    }));
+
+  return { upcomingEvents, overdueEvents, planningEvents, todayIso, endIso, weekStartIso, weekEndIso };
 }
 function buildWeeklyMailContent(){
   const data = state.weeklyAgendaData || {};
-  const events = data.events || [];
   const birthdays = data.birthdays || [];
-  const rangeLabel = `${formatDisplayDate(data.todayIso || buildWeeklyDateRange().todayIso)} al ${formatDisplayDate(data.endIso || buildWeeklyDateRange().endIso)}`;
+  const upcomingEvents = data.upcomingEvents || [];
+  const overdueEvents = data.overdueEvents || [];
+  const planningEvents = data.planningEvents || [];
+  const dateRange = buildWeeklyDateRange(14);
+  const weekRange = buildCurrentWeekRange();
+  const rangeLabel = `${formatDisplayDate(data.todayIso || dateRange.todayIso)} al ${formatDisplayDate(data.endIso || dateRange.endIso)}`;
   const subject = `Resumen semanal | ${rangeLabel}`;
 
   const birthdayLines = birthdays.length
-    ? birthdays.map(item => `  * ${item.dateLabel || formatDisplayDate(item.dateIso)} — ${item.name}`).join("\n")
-    : "  * Sin cumpleaños en los próximos 7 días.";
+    ? birthdays.map(item => `  * ${item.dateLabel || formatDisplayDate(item.dateIso)} — ${item.name}${item.age !== null && item.age !== undefined ? ` (${item.age} años)` : ""}`).join("\n")
+    : "  * Sin cumpleaños en los próximos 14 días.";
 
-  const eventLines = events.length
-    ? events.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — ${formatDisplayDate(ev.event_date)}`).join("\n")
-    : "  * Sin acontecimientos cargados para los próximos 7 días.";
+  const upcomingLines = upcomingEvents.length
+    ? upcomingEvents.map(ev => `  * ${formatDisplayDate(ev.event_date)} — ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""}`).join("\n")
+    : "  * Sin acontecimientos próximos en los próximos 14 días.";
+
+  const overdueLines = overdueEvents.length
+    ? overdueEvents.map(ev => `  * ${ev.member_name}: ${ev.title}${ev.description ? ` (${ev.description})` : ""} — vencido hace ${ev.overdueDays} día${ev.overdueDays === 1 ? "" : "s"} (fecha ${formatDisplayDate(ev.event_date)})`).join("\n")
+    : "  * Sin acontecimientos vencidos pendientes.";
+
+  const planningLines = planningEvents.length
+    ? planningEvents.map(action => `  * ${formatDisplayDate(action.date)}${action.time ? ` ${vaeFormatTime(action.time)}` : ""} — ${action.displayTitle} — ${action.executorsSummary}`).join("\n")
+    : `  * Sin eventos de Planificación para la semana (${formatDisplayDate(data.weekStartIso || weekRange.weekStartIso)} al ${formatDisplayDate(data.weekEndIso || weekRange.weekEndIso)}).`;
 
   const body = [
     "Resumen semanal:",
     "",
-    "- Cumpleaños de la semana:",
+    "- Cumpleaños próximos (14 días):",
     birthdayLines,
     "",
-    "- Acontecimientos próximos:",
-    eventLines
+    "- Acontecimientos próximos (14 días):",
+    upcomingLines,
+    "",
+    "- Acontecimientos vencidos (fecha pasada + no eliminados):",
+    overdueLines,
+    "",
+    "- Planificación de la semana:",
+    planningLines
   ].join("\n");
 
   return { subject, body };
@@ -2628,58 +2703,63 @@ async function loadAgendaAlertas(){
   const birthdaysEl = $("agendaBirthdaysList");
   if (!eventsEl || !birthdaysEl) return;
 
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const end = new Date(today);
-  end.setDate(end.getDate()+7);
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-  const endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,"0")}-${String(end.getDate()).padStart(2,"0")}`;
-
   try {
-    const res = await supabaseClient
-      .from("member_events")
-      .select("id, member_id, event_date, title, description, category, include_in_weekly")
-      .gte("event_date", todayIso)
-      .lte("event_date", endIso)
-      .order("event_date", { ascending: true });
+    const birthdays = getBirthdaysInDateRange(14);
+    const weeklyData = getWeeklyEventsData(14);
+    const upcomingEvents = weeklyData.upcomingEvents || [];
+    const overdueEvents = weeklyData.overdueEvents || [];
+    const planningEvents = weeklyData.planningEvents || [];
 
-    if (res.error) throw res.error;
-
-    const events = (res.data || []).map(ev => ({
-      ...ev,
-      member_name: state.membersById?.[ev.member_id] || state.membersFullData?.[ev.member_id]?.name || "Miembro"
-    }));
-
-    if (!events.length) {
-      eventsEl.innerHTML = `<div class="hint">No hay acontecimientos cargados para los próximos 7 días.</div>`;
-    } else {
-      eventsEl.innerHTML = events.map(ev => `
+    const agendaCards = [];
+    upcomingEvents.forEach(ev => {
+      agendaCards.push(`
         <div class="alert-card">
           <div><strong>${escapeHtml(formatDisplayDate(ev.event_date))}</strong> · ${escapeHtml(ev.member_name)}</div>
           <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
         </div>
-      `).join("");
-    }
-
-    const birthdays = getBirthdaysInNext7Days();
-    if (!birthdays.length) {
-      birthdaysEl.innerHTML = `<div class="hint">No hay cumpleaños en los próximos 7 días.</div>`;
-    } else {
-      birthdaysEl.innerHTML = birthdays.map(item => `
+      `);
+    });
+    overdueEvents.forEach(ev => {
+      agendaCards.push(`
         <div class="alert-card">
-          <div><strong>${escapeHtml(item.dateLabel)}</strong> · ${escapeHtml(item.name)}</div>
+          <div><strong>Vencido hace ${escapeHtml(String(ev.overdueDays))} día${ev.overdueDays === 1 ? "" : "s"}</strong> · ${escapeHtml(ev.member_name)}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} · fecha ${escapeHtml(formatDisplayDate(ev.event_date))}</div>
+          ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
         </div>
-      `).join("");
-    }
+      `);
+    });
+    planningEvents.forEach(action => {
+      agendaCards.push(`
+        <div class="alert-card">
+          <div><strong>${escapeHtml(formatDisplayDate(action.date))}${action.time ? ` ${escapeHtml(vaeFormatTime(action.time))}` : ""}</strong> · Planificación</div>
+          <div style="margin-top:4px;">${escapeHtml(action.displayTitle || getActionDisplayTitle(action))}</div>
+          <div class="hint" style="margin-top:6px;">${escapeHtml(action.executorsSummary || vaeShortExecutors(action))}</div>
+        </div>
+      `);
+    });
 
-    state.weeklyAgendaData = { events, birthdays, todayIso, endIso };
+    eventsEl.innerHTML = agendaCards.length
+      ? agendaCards.join("")
+      : `<div class="hint">No hay acontecimientos ni eventos de Planificación para mostrar.</div>`;
+
+    birthdaysEl.innerHTML = birthdays.length
+      ? birthdays.map(item => `
+        <div class="alert-card">
+          <div><strong>${escapeHtml(item.dateLabel)}</strong> · ${escapeHtml(item.name)}${item.age !== null && item.age !== undefined ? ` (${escapeHtml(String(item.age))} años)` : ""}</div>
+        </div>
+      `).join("")
+      : `<div class="hint">No hay cumpleaños en los próximos 14 días.</div>`;
+
+    state.weeklyAgendaData = { ...weeklyData, birthdays };
     setupWeeklyEmailUI();
   } catch (err) {
     console.error(err);
     eventsEl.innerHTML = `<div class="hint">No pude cargar la agenda semanal.</div>`;
     birthdaysEl.innerHTML = `<div class="hint">No pude cargar los cumpleaños.</div>`;
-    state.weeklyAgendaData = { events: [], birthdays: [], todayIso, endIso };
+    const fallbackRange = buildWeeklyDateRange(14);
+    const fallbackWeek = buildCurrentWeekRange();
+    state.weeklyAgendaData = { upcomingEvents: [], overdueEvents: [], planningEvents: [], birthdays: [], ...fallbackRange, ...fallbackWeek };
     setupWeeklyEmailUI();
   }
 }
