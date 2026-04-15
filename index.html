@@ -2608,7 +2608,12 @@ function buildWeeklyMailContent(){
     : "  * Sin acontecimientos vencidos pendientes.";
 
   const planningLines = planningEvents.length
-    ? planningEvents.map(action => `  * ${formatDisplayDate(action.date)}${action.time ? ` ${vaeFormatTime(action.time)}` : ""} — ${action.displayTitle} — ${action.executorsSummary}`).join("\n")
+    ? planningEvents.map(action => {
+        const executors = [...vaeGetMemberNames(action.executorsMemberIds || [])];
+        if (action.executorsText) executors.push(action.executorsText);
+        const executorsSummary = executors.join(", ") || "Sin responsables tarea";
+        return `  * ${formatDisplayDate(action.date)}${action.time ? ` ${vaeFormatTime(action.time)}` : ""} — ${action.displayTitle} — ${executorsSummary}`;
+      }).join("\n")
     : `  * Sin eventos de Planificación para la semana (${formatDisplayDate(data.weekStartIso || weekRange.weekStartIso)} al ${formatDisplayDate(data.weekEndIso || weekRange.weekEndIso)}).`;
 
   const body = [
@@ -2620,7 +2625,7 @@ function buildWeeklyMailContent(){
     "- Acontecimientos próximos (14 días):",
     upcomingLines,
     "",
-    "- Acontecimientos vencidos (fecha pasada + no eliminados):",
+    "- Acontecimientos vencidos:",
     overdueLines,
     "",
     "- Planificación de la semana:",
@@ -2729,15 +2734,7 @@ async function loadAgendaAlertas(){
         </div>
       `);
     });
-    planningEvents.forEach(action => {
-      agendaCards.push(`
-        <div class="alert-card">
-          <div><strong>${escapeHtml(formatDisplayDate(action.date))}${action.time ? ` ${escapeHtml(vaeFormatTime(action.time))}` : ""}</strong> · Planificación</div>
-          <div style="margin-top:4px;">${escapeHtml(action.displayTitle || getActionDisplayTitle(action))}</div>
-          <div class="hint" style="margin-top:6px;">${escapeHtml(action.executorsSummary || vaeShortExecutors(action))}</div>
-        </div>
-      `);
-    });
+
 
     eventsEl.innerHTML = agendaCards.length
       ? agendaCards.join("")
