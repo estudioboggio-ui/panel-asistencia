@@ -689,7 +689,6 @@
           <div>
             <div class="hint">Estado</div>
             <select id="vaeFormStatus" style="width:100%">
-              <option value="sin_estado">Sin estado</option>
               <option value="programada">Programada</option>
               <option value="realizada">Realizada</option>
               <option value="no_realizada">No realizada</option>
@@ -1188,7 +1187,7 @@ async function cargarTodoDesdeServidor(){
     date: r.action_date,
     time: r.action_time || "",
     sortOrder: Number(r.sort_order || 0),
-    status: r.status || "sin_estado",
+    status: r.status || "programada",
     group: r.group_name || "",
     type: r.action_type || "",
     executorsMemberIds: Array.isArray(r.executors_member_ids) ? r.executors_member_ids.map(String) : [],
@@ -3517,7 +3516,7 @@ function vaeOpenModal(dateStr="", action=null){
   $("vaeModalTitle").textContent = action ? "Editar acción de planificación" : "Nueva acción de planificación";
   $("vaeFormDate").value = action?.date || dateStr || selectedDate();
   if ($("vaeFormTime")) $("vaeFormTime").value = vaeFormatTime(action?.time || "");
-  $("vaeFormStatus").value = action?.status || "sin_estado";
+  $("vaeFormStatus").value = action?.status || "programada";
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.toggle("hidden", !action);
   $("vaeFormGroup").value = action?.group || "";
   $("vaeFormType").value = action?.type || "";
@@ -3650,10 +3649,10 @@ function renderVaeValidation(){
     .sort(vaeCompareActions);
   const overdue = pending.filter(a => a.date < today);
   const todayPending = pending.filter(a => a.date === today);
+  const monthBounds = getMonthBounds(today);
   const recentlyClosed = actions
-    .filter(a => a.date <= today && (a.status === "realizada" || a.status === "no_realizada"))
-    .sort((a,b) => vaeCompareActions(b,a))
-    .slice(0,8);
+    .filter(a => a.date >= monthBounds.start && a.date <= monthBounds.end && (a.status === "realizada" || a.status === "no_realizada"))
+    .sort((a,b) => vaeCompareActions(b,a));
 
   badge.textContent = pending.length;
 
@@ -3685,7 +3684,7 @@ function renderVaeValidation(){
       <div class="card"><div class="label">Pendientes</div><div class="value">${pending.length}</div></div>
       <div class="card"><div class="label">Vencidas</div><div class="value">${overdue.length}</div></div>
       <div class="card"><div class="label">Para hoy</div><div class="value">${todayPending.length}</div></div>
-      <div class="card"><div class="label">Resueltas recientes</div><div class="value">${recentlyClosed.length}</div></div>
+      <div class="card"><div class="label">Resueltas del mes</div><div class="value">${recentlyClosed.length}</div></div>
     </div>
 
     <div class="hint" style="margin-bottom:12px;">Acá resolvés lo que pasó realmente con cada acción del calendario. La validación convierte la planificación en historial real.</div>
@@ -3698,7 +3697,7 @@ function renderVaeValidation(){
         </div>
       </div>
       <div class="panel" style="padding:14px;">
-        <h2 style="margin:0 0 10px 0;">Resueltas recientemente</h2>
+        <h2 style="margin:0 0 10px 0;">Resueltas del mes</h2>
         <div class="stack">
           ${recentlyClosed.length ? recentlyClosed.map(action => `
             <div class="vae-list-item">
