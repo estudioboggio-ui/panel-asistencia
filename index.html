@@ -1791,6 +1791,32 @@ function startEditEvent(eventId){
   $("btnSaveEvent").textContent = "Actualizar acontecimiento";
   activateMemberTab("events");
 }
+function openAgendaEventEditor(eventId){
+  const ev = (state.events || []).find(x => String(x.id) === String(eventId));
+  if (!ev) return;
+  abrirFicha(String(ev.member_id));
+  activateMemberTab("events");
+  startEditEvent(eventId);
+  if ($("eventDate")) $("eventDate").scrollIntoView({behavior:"smooth", block:"center"});
+}
+async function deleteAgendaEvent(eventId){
+  const ev = (state.events || []).find(x => String(x.id) === String(eventId));
+  if (!ev) return;
+  const title = ev.title || 'sin título';
+  const memberName = state.membersById?.[String(ev.member_id)] || state.membersFullData?.[String(ev.member_id)]?.name || 'miembro';
+  if (!confirm(`¿Eliminar el acontecimiento "${title}" de ${memberName}?`)) return;
+  const res = await supabaseClient.from('member_events').delete().eq('id', eventId);
+  if (res.error){
+    alert('No pude eliminar el acontecimiento: ' + String(res.error.message || res.error || ''));
+    return;
+  }
+  await cargarTodoDesdeServidor();
+  renderAll();
+  if (!$("modalFicha").classList.contains("hidden") && String($("editMemberId").value || '') === String(ev.member_id)){
+    renderMemberEvents(String(ev.member_id));
+    resetEventForm(selectedDate());
+  }
+}
 async function saveMemberEvent(){
   const memberId = String($("editMemberId").value || '');
   if (!memberId){ alert('No encontré el miembro de la ficha.'); return; }
@@ -2714,6 +2740,13 @@ async function loadAgendaAlertas(){
     const overdueEvents = weeklyData.overdueEvents || [];
     const planningEvents = weeklyData.planningEvents || [];
 
+    const renderEventActions = ev => `
+      <div class="row-actions" style="margin-top:10px;">
+        <button type="button" class="secondary btnAgendaEditEvent" data-id="${escapeHtml(String(ev.id))}">Modificar</button>
+        <button type="button" class="danger btnAgendaDeleteEvent" data-id="${escapeHtml(String(ev.id))}">Eliminar</button>
+      </div>
+    `;
+
     const agendaCards = [];
     upcomingEvents.forEach(ev => {
       agendaCards.push(`
@@ -2721,6 +2754,7 @@ async function loadAgendaAlertas(){
           <div><strong>${escapeHtml(formatDisplayDate(ev.event_date))}</strong> · ${escapeHtml(ev.member_name)}</div>
           <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
+          ${renderEventActions(ev)}
         </div>
       `);
     });
@@ -2730,14 +2764,19 @@ async function loadAgendaAlertas(){
           <div><strong>Vencido hace ${escapeHtml(String(ev.overdueDays))} día${ev.overdueDays === 1 ? "" : "s"}</strong> · ${escapeHtml(ev.member_name)}</div>
           <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} · fecha ${escapeHtml(formatDisplayDate(ev.event_date))}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
+          ${renderEventActions(ev)}
         </div>
       `);
     });
 
-
     eventsEl.innerHTML = agendaCards.length
       ? agendaCards.join("")
       : `<div class="hint">No hay acontecimientos ni eventos de Planificación para mostrar.</div>`;
+
+    eventsEl.querySelectorAll('.btnAgendaEditEvent').forEach(btn => btn.addEventListener('click', () => openAgendaEventEditor(String(btn.dataset.id || ''))));
+    eventsEl.querySelectorAll('.btnAgendaDeleteEvent').forEach(btn => btn.addEventListener('click', async () => {
+      await deleteAgendaEvent(String(btn.dataset.id || ''));
+    }));
 
     birthdaysEl.innerHTML = birthdays.length
       ? birthdays.map(item => `
