@@ -1298,13 +1298,119 @@ function isMemberActiveOn(name, date){
   if (end && date >= end) return false;
   return true;
 }
+function getAttendanceDraftNormalized(){
+  return [...new Set((draftAttendance || []).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
+}
+function sameStringArrays(a=[], b=[]){
+  if (a.length !== b.length) return false;
+  for (let i=0; i<a.length; i++) if (String(a[i]) !== String(b[i])) return false;
+  return true;
+}
+function recomputeDirtyState(){
+  dirty = attendanceDirty || extrasDirty;
+}
+function markAttendanceChanged(){
+  attendanceDirty = !sameStringArrays(getAttendanceDraftNormalized(), attendanceSnapshot);
+  recomputeDirtyState();
+  updateSaveStatus();
+}
+function markExtrasChanged(){
+  extrasDirty = true;
+  recomputeDirtyState();
+  updateSaveStatus();
+}
+function resetAttendanceSnapshot(){
+  attendanceSnapshot = getAttendanceDraftNormalized();
+  attendanceDirty = false;
+  recomputeDirtyState();
+}
+function autosaveTimeLabel(){
+  return new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+}
+async function persistAttendanceRecords(date, names){
+  const uniqueNames = [...new Set((names || []).filter(Boolean))];
+  let membersData = [];
+  if (uniqueNames.length){
+    const membersRes = await supabaseClient
+      .from("members")
+      .select("id,name")
+      .in("name", uniqueNames);
+    if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
+    membersData = membersRes.data || [];
+  }
+
+  const nameToId = {};
+  membersData.forEach(m => { nameToId[m.name] = m.id; });
+
+  const delAttendance = await supabaseClient
+    .from("attendance_records")
+    .delete()
+    .eq("attendance_date", date);
+  if (delAttendance.error) throw new Error("No pude limpiar asistencias del día: " + delAttendance.error.message);
+
+  const attendanceRows = uniqueNames
+    .filter(name => isMemberActiveOn(name, date) && nameToId[name])
+    .map(name => ({ attendance_date: date, member_id: nameToId[name] }));
+
+  if (attendanceRows.length){
+    const insAttendance = await supabaseClient
+      .from("attendance_records")
+      .insert(attendanceRows);
+    if (insAttendance.error) throw new Error("No pude guardar asistencias: " + insAttendance.error.message);
+  }
+
+  state.attendance = state.attendance.filter(x => x.date !== date);
+  for (const name of uniqueNames){
+    if (nameToId[name]) state.attendance.push({ date, member_id: nameToId[name], name });
+  }
+}
+async function guardarAsistenciaAutomaticamente(options={}){
+  const silent = !!options.silent;
+  if (!userCanOperative() || attendanceAutosaveInFlight || !attendanceDirty) return false;
+  const date = selectedDate();
+  const names = getAttendanceDraftNormalized();
+  attendanceAutosaveInFlight = true;
+
+  if (!silent){
+    $("saveStatus").textContent = "Autoguardando asistencia...";
+    $("saveStatus").style.color = "#86efac";
+  }
+
+  try {
+    await persistAttendanceRecords(date, names);
+    resetAttendanceSnapshot();
+    updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}`);
+    setSaveFeedback("Asistencia autoguardada automáticamente.", "success");
+    resumen();
+    if (userCanAdmin()) renderAdminAnalytics();
+    return true;
+  } catch (err) {
+    console.error("guardarAsistenciaAutomaticamente error:", err);
+    if (!silent){
+      $("saveStatus").textContent = "Error en autoguardado de asistencia";
+      $("saveStatus").style.color = "#fecaca";
+    }
+    setSaveFeedback(err.message || "Ocurrió un error al autoguardar la asistencia.", "error");
+    return false;
+  } finally {
+    attendanceAutosaveInFlight = false;
+  }
+}
+function startAttendanceAutosave(){
+  if (attendanceAutosaveIntervalId) clearInterval(attendanceAutosaveIntervalId);
+  attendanceAutosaveIntervalId = setInterval(() => {
+    guardarAsistenciaAutomaticamente({ silent:false });
+  }, ATTENDANCE_AUTOSAVE_MS);
+}
 function cargarBorradorDelDia(){
   const date = selectedDate();
   draftAttendance = dayRecords(date).filter(n => isMemberActiveOn(n, date));
   ensureDayExtras(date);
   loadExtrasUI(date);
   loadFirstTimeNamesForDate(date);
+  extrasDirty = false;
   dirty = false;
+  resetAttendanceSnapshot();
   updateSaveStatus();
 }
 let saveStatusTimeout = null;
@@ -1317,13 +1423,24 @@ function updateSaveStatus(message=null){
     $("saveStatus").textContent = message;
     $("saveStatus").style.color = "#86efac";
     saveStatusTimeout = setTimeout(() => {
-      $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
-      $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+      updateSaveStatus();
     }, 2500);
     return;
   }
-  $("saveStatus").textContent = dirty ? "Hay cambios pendientes para esta fecha" : "Sin cambios pendientes";
-  $("saveStatus").style.color = dirty ? "#fcd34d" : "";
+  let text = "Sin cambios pendientes";
+  let color = "";
+  if (attendanceDirty && extrasDirty){
+    text = "Hay cambios pendientes en asistencia y extras";
+    color = "#fcd34d";
+  } else if (attendanceDirty){
+    text = "Hay cambios pendientes en asistencia (autoguardado cada 2 min)";
+    color = "#fcd34d";
+  } else if (extrasDirty){
+    text = "Hay cambios pendientes para esta fecha";
+    color = "#fcd34d";
+  }
+  $("saveStatus").textContent = text;
+  $("saveStatus").style.color = color;
 }
 
 function setSaveFeedback(message="", type="success"){
@@ -1359,7 +1476,9 @@ function togglePresence(name){
   const i = draftAttendance.indexOf(name);
   if (i >= 0) draftAttendance.splice(i, 1); else draftAttendance.push(name);
   draftAttendance.sort((a,b)=>a.localeCompare(b,"es"));
-  dirty = true; updateSaveStatus(); renderPeople(); resumen();
+  markAttendanceChanged();
+  renderPeople();
+  resumen();
 }
 function changeCounter(kind, delta){
   const date = selectedDate();
@@ -1372,14 +1491,14 @@ function changeCounter(kind, delta){
       clearVisitasNames();
     }
   }
-  dirty = true; updateSaveStatus(); loadExtrasUI(date); resumen();
+  markExtrasChanged(); loadExtrasUI(date); resumen();
 }
 function updateExtraText(kind){
   const date = selectedDate();
   ensureDayExtras(date);
   if (kind === "visitas") state.dayExtras[date].visitas.text = $("visitasTexto").value;
   else state.dayExtras[date].primeraVez.text = $("primeraVezTexto").value;
-  dirty = true; updateSaveStatus();
+  markExtrasChanged();
 }
 
 function initCategorySelector(){
@@ -3108,7 +3227,7 @@ ${duplicateLines}
   await cargarTodoDesdeServidor(); cargarBorradorDelDia();
   const finalName = existingName || name;
   if (!draftAttendance.includes(finalName) && isMemberActiveOn(finalName, date)) draftAttendance.push(finalName);
-  dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
+  markAttendanceChanged(); renderAll(); calcularAdminKPIs();
 }
 
 async function inactivarMiembro(){
@@ -3119,7 +3238,7 @@ async function inactivarMiembro(){
   const res = await supabaseClient.from("members").update({ inactive_from: selectedDate() }).eq("name", existing);
   if (res.error){ alert("No pude ocultar el miembro: " + res.error.message); return; }
   $("removeMemberSearch").value = "";
-  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); dirty = true; updateSaveStatus(); renderAll(); calcularAdminKPIs();
+  await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs();
 }
 async function guardarDia(){
   if (!userCanOperative()) return;
@@ -3146,43 +3265,7 @@ async function guardarDia(){
       $("primeraVezCount").textContent = nombresPrimera.length;
     }
 
-    let membersData = [];
-    if (names.length){
-      const membersRes = await supabaseClient
-        .from("members")
-        .select("id,name")
-        .in("name", names);
-
-      if (membersRes.error) throw new Error("No pude resolver miembros: " + membersRes.error.message);
-      membersData = membersRes.data || [];
-    }
-
-    const nameToId = {};
-    membersData.forEach(m => {
-      nameToId[m.name] = m.id;
-    });
-
-    const delAttendance = await supabaseClient
-      .from("attendance_records")
-      .delete()
-      .eq("attendance_date", date);
-
-    if (delAttendance.error) throw new Error("No pude limpiar asistencias del día: " + delAttendance.error.message);
-
-    const attendanceRows = names
-      .filter(name => isMemberActiveOn(name, date) && nameToId[name])
-      .map(name => ({
-        attendance_date: date,
-        member_id: nameToId[name]
-      }));
-
-    if (attendanceRows.length){
-      const insAttendance = await supabaseClient
-        .from("attendance_records")
-        .insert(attendanceRows);
-
-      if (insAttendance.error) throw new Error("No pude guardar asistencias: " + insAttendance.error.message);
-    }
+    await persistAttendanceRecords(date, names);
 
     const saveExtras = await supabaseClient
       .from("day_extras")
@@ -3257,7 +3340,9 @@ async function guardarDia(){
 
     state.firstTimeByDate[date] = [...nombresPrimera];
 
+    extrasDirty = false;
     dirty = false;
+    resetAttendanceSnapshot();
     loadExtrasUI(date);
     loadFirstTimeNamesForDate(date);
     renderAll(); calcularAdminKPIs();
@@ -4006,7 +4091,13 @@ function wireEvents(){
   $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
   $("btnLogout").addEventListener("click", logout);
   $("btnExport").addEventListener("click", exportarReporteHTML);
-  $("btnToday").addEventListener("click", ()=>{ $("fecha").value = new Date().toISOString().slice(0,10); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
+  $("btnToday").addEventListener("click", async ()=>{
+    await guardarAsistenciaAutomaticamente({ silent:true });
+    $("fecha").value = new Date().toISOString().slice(0,10);
+    cargarBorradorDelDia();
+    renderAll();
+    calcularAdminKPIs();
+  });
   $("btnSaveDay").addEventListener("click", guardarDia);
   $("btnAddMember").addEventListener("click", agregarNuevoMiembro);
   $("newMemberName").addEventListener("input", renderDuplicateWarning);
@@ -4018,18 +4109,21 @@ function wireEvents(){
   $("visitasTexto").addEventListener("input", ()=>updateExtraText("visitas"));
   if ($("visitasNombres")) $("visitasNombres").addEventListener("input", ()=>{
     syncVisitasCountFromNames();
-    dirty = true;
-    updateSaveStatus();
+    markExtrasChanged();
   });
   $("primeraVezTexto").addEventListener("input", ()=>updateExtraText("primeraVez"));
   if ($("primeraVezNombres")) $("primeraVezNombres").addEventListener("input", ()=>{
     syncPrimeraVezCountFromNames();
-    dirty = true;
-    updateSaveStatus();
+    markExtrasChanged();
     resumen();
   });
   $("search").addEventListener("input", renderPeople);
-  $("fecha").addEventListener("change", ()=>{ cargarBorradorDelDia(); renderAll(); calcularAdminKPIs(); });
+  $("fecha").addEventListener("change", async ()=>{
+    await guardarAsistenciaAutomaticamente({ silent:true });
+    cargarBorradorDelDia();
+    renderAll();
+    calcularAdminKPIs();
+  });
   $("compMonthA").addEventListener("change", resumen);
   $("compYearA").addEventListener("change", resumen);
   $("compMonthB").addEventListener("change", resumen);
@@ -4144,6 +4238,7 @@ async function initialize(){
   await initSupabase();
   wireEvents();
   initializeDefaults();
+  startAttendanceAutosave();
   initCategorySelector();
   populateRelationTypeOptions();
 
