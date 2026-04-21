@@ -914,6 +914,12 @@ function refreshMemberOverview() {
 let selectedRelatedMemberId = null;
 let draftAttendance = [];
 let dirty = false;
+let attendanceDirty = false;
+let extrasDirty = false;
+let attendanceSnapshot = [];
+let attendanceAutosaveIntervalId = null;
+let attendanceAutosaveInFlight = false;
+const ATTENDANCE_AUTOSAVE_MS = 2 * 60 * 1000;
 
 const $ = id => document.getElementById(id);
 
