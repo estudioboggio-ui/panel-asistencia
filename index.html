@@ -769,6 +769,23 @@
     </div>
   </div>
 
+  <div id="vaeDayListModal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width:860px;">
+      <div class="row-actions" style="justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div>
+          <h2 id="vaeDayListTitle" style="margin:0;">Eventos del día</h2>
+          <div class="hint" id="vaeDayListSubtitle">Seleccioná un evento para verlo o editarlo.</div>
+        </div>
+        <button id="vaeCloseDayListBtn" class="secondary" type="button">Cerrar</button>
+      </div>
+      <div class="row-actions" style="justify-content:flex-end; margin-bottom:12px;">
+        <button id="vaeDayListNewBtn" class="primary" type="button">Nuevo evento este día</button>
+      </div>
+      <div id="vaeDayListBody" class="stack"></div>
+    </div>
+  </div>
+
+
 
 <!-- MODAL DE FICHA DE MIEMBRO -->
 <div id="modalFicha" class="modal-overlay hidden">
@@ -3666,6 +3683,55 @@ function vaeCloseModal(){
   vaeEditingId = null;
   if ($("vaeDeleteActionBtn")) $("vaeDeleteActionBtn").classList.add("hidden");
 }
+
+function vaeOpenDayList(dateStr){
+  const modal = $("vaeDayListModal");
+  const title = $("vaeDayListTitle");
+  const subtitle = $("vaeDayListSubtitle");
+  const body = $("vaeDayListBody");
+  if (!modal || !title || !subtitle || !body) return;
+  const actions = vaeGetFilteredActions().filter(a => a.date === dateStr).sort(vaeCompareActions);
+  title.textContent = `Eventos del ${formatDate(dateStr)}`;
+  subtitle.textContent = actions.length
+    ? `${actions.length} evento${actions.length === 1 ? "" : "s"} cargado${actions.length === 1 ? "" : "s"} para este día.`
+    : "No hay eventos cargados para este día.";
+  body.innerHTML = actions.length ? actions.map(action => `
+    <div class="vae-daylist-item">
+      <div class="vae-daylist-head">
+        <div>
+          <div class="vae-daylist-title">${escapeHtml(getActionDisplayTitle(action))}</div>
+          <div class="vae-daylist-meta">
+            ${escapeHtml(action.status || "programada")}${action.time ? ` · ${escapeHtml(vaeFormatTime(action.time))}` : ""}<br>
+            Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}<br>
+            Visitados: ${escapeHtml(vaeShortVisited(action))}
+            ${action.notes ? `<br>Obs.: ${escapeHtml(action.notes)}` : ``}
+          </div>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="secondary vae-daylist-edit" data-id="${escapeHtml(String(action.id))}">Ver / editar</button>
+        </div>
+      </div>
+    </div>
+  `).join("") : `<div class="vae-list-item">No hay eventos cargados para este día.</div>`;
+  body.querySelectorAll(".vae-daylist-edit").forEach(btn => btn.addEventListener("click", () => {
+    vaeCloseDayList();
+    vaeEditAction(String(btn.dataset.id || ""));
+  }));
+  const newBtn = $("vaeDayListNewBtn");
+  if (newBtn){
+    newBtn.onclick = () => {
+      vaeCloseDayList();
+      vaeOpenModal(dateStr);
+    };
+  }
+  modal.dataset.date = dateStr;
+  modal.classList.remove("hidden");
+}
+function vaeCloseDayList(){
+  const modal = $("vaeDayListModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+}
 function vaeShortExecutors(action){
   const parts = [...vaeGetMemberNames(action.executorsMemberIds || [])];
   if (action.executorsText) parts.push(action.executorsText);
@@ -3737,6 +3803,10 @@ function renderVaeCalendar(){
       const more = document.createElement("div");
       more.className = "vae-chip";
       more.textContent = `+${dayActions.length - 3} más`;
+      more.addEventListener("click", ev => {
+        ev.stopPropagation();
+        vaeOpenDayList(dateStr);
+      });
       actionsWrap.appendChild(more);
     }
     div.addEventListener("click", () => vaeOpenModal(dateStr));
@@ -4212,6 +4282,8 @@ function wireEvents(){
   if ($("vaeFilterGroup")) $("vaeFilterGroup").addEventListener("change", renderVae);
   if ($("vaeFilterResponsible")) $("vaeFilterResponsible").addEventListener("change", renderVae);
   if ($("vaeModal")) $("vaeModal").addEventListener("click", ev => { if (ev.target === $("vaeModal")) vaeCloseModal(); });
+  if ($("vaeCloseDayListBtn")) $("vaeCloseDayListBtn").addEventListener("click", vaeCloseDayList);
+  if ($("vaeDayListModal")) $("vaeDayListModal").addEventListener("click", ev => { if (ev.target === $("vaeDayListModal")) vaeCloseDayList(); });
   window.__vaeSetStatus = async function(id, status){ try { await vaeSetStatus(id, status); } catch(err){ alert(String(err.message || err || "No pude actualizar el estado.")); } };
   window.__vaeEditAction = vaeEditAction;
 
