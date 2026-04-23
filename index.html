@@ -1412,7 +1412,7 @@ async function guardarAsistenciaAutomaticamente(options={}){
     await persistAttendanceRecords(date, names);
     resetAttendanceSnapshot();
     if (extrasDirty) {
-      updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}. Quedan cambios manuales pendientes.`);
+      updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}. Quedan pendientes Visitas / 1ra. Vez.`);
       setSaveFeedback("", "success");
     } else {
       updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}`);
@@ -1468,13 +1468,13 @@ function updateSaveStatus(message=null){
   let color = "";
   clearSuccessFeedbackIfPending();
   if (attendanceDirty && extrasDirty){
-    text = "Hay cambios pendientes en asistencia y extras";
+    text = "Hay cambios pendientes en asistencia. También hay pendientes en Visitas / 1ra. Vez";
     color = "#fcd34d";
   } else if (attendanceDirty){
     text = "Hay cambios pendientes en asistencia (autoguardado cada 2 min)";
     color = "#fcd34d";
   } else if (extrasDirty){
-    text = "Hay cambios pendientes para esta fecha";
+    text = "Quedan pendientes Visitas / 1ra. Vez";
     color = "#fcd34d";
   }
   $("saveStatus").textContent = text;
