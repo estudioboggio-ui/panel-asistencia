@@ -3350,17 +3350,6 @@ async function guardarDia(){
       }
     }
 
-    state.attendance = state.attendance.filter(x => x.date !== date);
-    for (const name of names){
-      if (nameToId[name]){
-        state.attendance.push({
-          date,
-          member_id: nameToId[name],
-          name
-        });
-      }
-    }
-
     state.firstTimeByDate[date] = [...nombresPrimera];
 
     extrasDirty = false;
