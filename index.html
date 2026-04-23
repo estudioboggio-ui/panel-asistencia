@@ -934,6 +934,7 @@ let dirty = false;
 let attendanceDirty = false;
 let extrasDirty = false;
 let attendanceSnapshot = [];
+let extrasSnapshot = null;
 let attendanceAutosaveIntervalId = null;
 let attendanceAutosaveInFlight = false;
 const ATTENDANCE_AUTOSAVE_MS = 2 * 60 * 1000;
@@ -1329,6 +1330,34 @@ function sameStringArrays(a=[], b=[]){
   for (let i=0; i<a.length; i++) if (String(a[i]) !== String(b[i])) return false;
   return true;
 }
+function normalizeStringArray(values=[]){
+  return [...new Set((values || []).map(x => normalizeDisplayName(x)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
+}
+function getCurrentExtrasNormalized(date=selectedDate()){
+  ensureDayExtras(date);
+  const visitas = state.dayExtras[date]?.visitas || {};
+  const primera = state.dayExtras[date]?.primeraVez || {};
+  const primeraNames = $("primeraVezNombres")
+    ? parseNombresPrimeraVez()
+    : normalizeStringArray(state.firstTimeByDate?.[date] || []);
+  return {
+    visitasCount: Number(visitas.count || 0),
+    visitasText: String(visitas.text || ""),
+    visitasNames: normalizeStringArray(visitas.names || []),
+    primeraVezCount: Number(primera.count || 0),
+    primeraVezText: String(primera.text || ""),
+    primeraVezNames: normalizeStringArray(primeraNames || [])
+  };
+}
+function sameExtrasSnapshot(a=null, b=null){
+  if (!a || !b) return false;
+  return Number(a.visitasCount || 0) === Number(b.visitasCount || 0)
+    && String(a.visitasText || "") === String(b.visitasText || "")
+    && sameStringArrays(a.visitasNames || [], b.visitasNames || [])
+    && Number(a.primeraVezCount || 0) === Number(b.primeraVezCount || 0)
+    && String(a.primeraVezText || "") === String(b.primeraVezText || "")
+    && sameStringArrays(a.primeraVezNames || [], b.primeraVezNames || []);
+}
 function recomputeDirtyState(){
   dirty = attendanceDirty || extrasDirty;
 }
@@ -1346,7 +1375,7 @@ function markAttendanceChanged(){
   updateSaveStatus();
 }
 function markExtrasChanged(){
-  extrasDirty = true;
+  extrasDirty = !sameExtrasSnapshot(getCurrentExtrasNormalized(), extrasSnapshot);
   recomputeDirtyState();
   clearSuccessFeedbackIfPending();
   updateSaveStatus();
@@ -1354,6 +1383,11 @@ function markExtrasChanged(){
 function resetAttendanceSnapshot(){
   attendanceSnapshot = getAttendanceDraftNormalized();
   attendanceDirty = false;
+  recomputeDirtyState();
+}
+function resetExtrasSnapshot(date=selectedDate()){
+  extrasSnapshot = getCurrentExtrasNormalized(date);
+  extrasDirty = false;
   recomputeDirtyState();
 }
 function autosaveTimeLabel(){
@@ -1445,9 +1479,9 @@ function cargarBorradorDelDia(){
   ensureDayExtras(date);
   loadExtrasUI(date);
   loadFirstTimeNamesForDate(date);
-  extrasDirty = false;
   dirty = false;
   resetAttendanceSnapshot();
+  resetExtrasSnapshot(date);
   updateSaveStatus();
 }
 let saveStatusTimeout = null;
