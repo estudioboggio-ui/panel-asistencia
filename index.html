@@ -1430,38 +1430,119 @@ async function persistAttendanceRecords(date, names){
     if (nameToId[name]) state.attendance.push({ date, member_id: nameToId[name], name });
   }
 }
-async function guardarAsistenciaAutomaticamente(options={}){
+async function persistExtrasRecords(date, options={}){
+  ensureDayExtras(date);
+  const currentExtras = getCurrentExtrasNormalized(date);
+  const currentAttendanceNames = getAttendanceDraftNormalized();
+
+  state.dayExtras[date].visitas.count = Number(currentExtras.visitasCount || 0);
+  state.dayExtras[date].visitas.text = String(currentExtras.visitasText || "");
+  state.dayExtras[date].visitas.names = [...(currentExtras.visitasNames || [])];
+  state.dayExtras[date].primeraVez.count = Number(currentExtras.primeraVezCount || 0);
+  state.dayExtras[date].primeraVez.text = String(currentExtras.primeraVezText || "");
+
+  const saveExtras = await supabaseClient
+    .from("day_extras")
+    .upsert({
+      attendance_date: date,
+      visitas_count: Number(currentExtras.visitasCount || 0),
+      visitas_text: serializeVisitasPayload(state.dayExtras[date].visitas),
+      primera_vez_count: Number(currentExtras.primeraVezCount || 0),
+      primera_vez_text: String(currentExtras.primeraVezText || "")
+    }, { onConflict: "attendance_date" });
+  if (saveExtras.error) throw new Error("No pude guardar visitas / 1ra. vez: " + saveExtras.error.message);
+
+  const deleteTracking = await supabaseClient
+    .from("first_time_tracking")
+    .delete()
+    .eq("first_date", date);
+  if (deleteTracking.error) throw new Error("No pude actualizar primeras veces del día: " + deleteTracking.error.message);
+
+  const nombresPrimera = [...(currentExtras.primeraVezNames || [])];
+  if (nombresPrimera.length){
+    const trackingRows = nombresPrimera.map(name => ({
+      guest_name: name,
+      guest_name_normalized: normalizeComparableName(name),
+      first_date: date,
+      returned: false
+    }));
+
+    const insTracking = await supabaseClient
+      .from("first_time_tracking")
+      .insert(trackingRows);
+    if (insTracking.error) throw new Error("No pude guardar primeras veces: " + insTracking.error.message);
+  }
+
+  const presentComparableNames = [...new Set(currentAttendanceNames.map(normalizeComparableName))];
+  if (presentComparableNames.length){
+    const unresolved = await supabaseClient
+      .from("first_time_tracking")
+      .select("id, guest_name_normalized, first_date, returned")
+      .eq("returned", false)
+      .in("guest_name_normalized", presentComparableNames);
+    if (unresolved.error) throw new Error("No pude consultar retorno automático: " + unresolved.error.message);
+
+    for (const row of (unresolved.data || [])){
+      if (row.first_date !== date){
+        const upd = await supabaseClient
+          .from("first_time_tracking")
+          .update({ returned: true, return_date: date })
+          .eq("id", row.id);
+        if (upd.error) throw new Error("No pude marcar retorno automático: " + upd.error.message);
+      }
+    }
+  }
+
+  state.firstTimeByDate[date] = [...nombresPrimera];
+  if ($("visitasCount")) $("visitasCount").textContent = Number(currentExtras.visitasCount || 0);
+  if ($("primeraVezCount")) $("primeraVezCount").textContent = Number(currentExtras.primeraVezCount || 0);
+}
+async function guardarCambiosAutomaticamente(options={}){
   const silent = !!options.silent;
-  if (!userCanOperative() || attendanceAutosaveInFlight || !attendanceDirty) return false;
+  if (!userCanOperative() || attendanceAutosaveInFlight || (!attendanceDirty && !extrasDirty)) return false;
   const date = selectedDate();
+  const saveAttendance = attendanceDirty;
+  const saveExtras = extrasDirty;
   const names = getAttendanceDraftNormalized();
   attendanceAutosaveInFlight = true;
 
   if (!silent){
-    $("saveStatus").textContent = "Autoguardando asistencia...";
+    $("saveStatus").textContent = "Autoguardando cambios...";
     $("saveStatus").style.color = "#86efac";
   }
 
   try {
-    await persistAttendanceRecords(date, names);
-    resetAttendanceSnapshot();
-    if (extrasDirty) {
-      updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}. Quedan pendientes Visitas / 1ra. Vez.`);
-      setSaveFeedback("", "success");
-    } else {
-      updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}`);
-      setSaveFeedback("Asistencia autoguardada automáticamente.", "success");
+    if (saveAttendance) await persistAttendanceRecords(date, names);
+    if (saveExtras) await persistExtrasRecords(date);
+
+    if (saveAttendance) resetAttendanceSnapshot();
+    if (saveExtras) resetExtrasSnapshot(date);
+
+    let statusMessage = `Cambios autoguardados ${autosaveTimeLabel()}`;
+    let feedbackMessage = "Cambios autoguardados automáticamente.";
+    if (saveAttendance && saveExtras){
+      statusMessage = `Asistencia, Visitas y 1ra. Vez autoguardadas ${autosaveTimeLabel()}`;
+      feedbackMessage = "Asistencia, Visitas y 1ra. Vez autoguardadas automáticamente.";
+    } else if (saveAttendance){
+      statusMessage = `Asistencia autoguardada ${autosaveTimeLabel()}`;
+      feedbackMessage = "Asistencia autoguardada automáticamente.";
+    } else if (saveExtras){
+      statusMessage = `Visitas y 1ra. Vez autoguardadas ${autosaveTimeLabel()}`;
+      feedbackMessage = "Visitas y 1ra. Vez autoguardadas automáticamente.";
     }
+
+    updateSaveStatus(statusMessage);
+    setSaveFeedback(feedbackMessage, "success");
     resumen();
     if (userCanAdmin()) renderAdminAnalytics();
     return true;
   } catch (err) {
-    console.error("guardarAsistenciaAutomaticamente error:", err);
+    console.error("guardarCambiosAutomaticamente error:", err);
     if (!silent){
-      $("saveStatus").textContent = "Error en autoguardado de asistencia";
+      $("saveStatus").textContent = "Error en autoguardado";
       $("saveStatus").style.color = "#fecaca";
     }
-    setSaveFeedback(err.message || "Ocurrió un error al autoguardar la asistencia.", "error");
+    setSaveFeedback(err.message || "Ocurrió un error al autoguardar los cambios.", "error");
     return false;
   } finally {
     attendanceAutosaveInFlight = false;
@@ -1470,7 +1551,7 @@ async function guardarAsistenciaAutomaticamente(options={}){
 function startAttendanceAutosave(){
   if (attendanceAutosaveIntervalId) clearInterval(attendanceAutosaveIntervalId);
   attendanceAutosaveIntervalId = setInterval(() => {
-    guardarAsistenciaAutomaticamente({ silent:false });
+    guardarCambiosAutomaticamente({ silent:false });
   }, ATTENDANCE_AUTOSAVE_MS);
 }
 function cargarBorradorDelDia(){
@@ -3401,9 +3482,8 @@ async function guardarDia(){
 
     state.firstTimeByDate[date] = [...nombresPrimera];
 
-    extrasDirty = false;
-    dirty = false;
     resetAttendanceSnapshot();
+    resetExtrasSnapshot(date);
     loadExtrasUI(date);
     loadFirstTimeNamesForDate(date);
     renderAll(); calcularAdminKPIs();
@@ -4206,7 +4286,7 @@ function wireEvents(){
   $("btnLogout").addEventListener("click", logout);
   $("btnExport").addEventListener("click", exportarReporteHTML);
   $("btnToday").addEventListener("click", async ()=>{
-    await guardarAsistenciaAutomaticamente({ silent:true });
+    await guardarCambiosAutomaticamente({ silent:true });
     $("fecha").value = new Date().toISOString().slice(0,10);
     cargarBorradorDelDia();
     renderAll();
@@ -4233,7 +4313,7 @@ function wireEvents(){
   });
   $("search").addEventListener("input", renderPeople);
   $("fecha").addEventListener("change", async ()=>{
-    await guardarAsistenciaAutomaticamente({ silent:true });
+    await guardarCambiosAutomaticamente({ silent:true });
     cargarBorradorDelDia();
     renderAll();
     calcularAdminKPIs();
