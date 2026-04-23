@@ -1332,14 +1332,23 @@ function sameStringArrays(a=[], b=[]){
 function recomputeDirtyState(){
   dirty = attendanceDirty || extrasDirty;
 }
+function clearSuccessFeedbackIfPending(){
+  const box = $("saveFeedback");
+  if (!box) return;
+  if ((attendanceDirty || extrasDirty) && box.classList.contains("success")) {
+    setSaveFeedback("", "success");
+  }
+}
 function markAttendanceChanged(){
   attendanceDirty = !sameStringArrays(getAttendanceDraftNormalized(), attendanceSnapshot);
   recomputeDirtyState();
+  clearSuccessFeedbackIfPending();
   updateSaveStatus();
 }
 function markExtrasChanged(){
   extrasDirty = true;
   recomputeDirtyState();
+  clearSuccessFeedbackIfPending();
   updateSaveStatus();
 }
 function resetAttendanceSnapshot(){
@@ -1402,8 +1411,13 @@ async function guardarAsistenciaAutomaticamente(options={}){
   try {
     await persistAttendanceRecords(date, names);
     resetAttendanceSnapshot();
-    updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}`);
-    setSaveFeedback("Asistencia autoguardada automáticamente.", "success");
+    if (extrasDirty) {
+      updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}. Quedan cambios manuales pendientes.`);
+      setSaveFeedback("", "success");
+    } else {
+      updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}`);
+      setSaveFeedback("Asistencia autoguardada automáticamente.", "success");
+    }
     resumen();
     if (userCanAdmin()) renderAdminAnalytics();
     return true;
@@ -1444,7 +1458,7 @@ function updateSaveStatus(message=null){
   }
   if (message){
     $("saveStatus").textContent = message;
-    $("saveStatus").style.color = "#86efac";
+    $("saveStatus").style.color = extrasDirty ? "#fcd34d" : "#86efac";
     saveStatusTimeout = setTimeout(() => {
       updateSaveStatus();
     }, 2500);
@@ -1452,6 +1466,7 @@ function updateSaveStatus(message=null){
   }
   let text = "Sin cambios pendientes";
   let color = "";
+  clearSuccessFeedbackIfPending();
   if (attendanceDirty && extrasDirty){
     text = "Hay cambios pendientes en asistencia y extras";
     color = "#fcd34d";
