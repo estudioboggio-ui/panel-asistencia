@@ -178,6 +178,11 @@
 .vae-chip.seguimiento{border-left-color:#38bdf8}
 .vae-chip-title{display:block;font-weight:700}
 .vae-chip-meta{display:block;color:var(--muted);margin-top:2px}
+.vae-chip-meta-responsibles{color:var(--muted)}
+.vae-chip-meta-visited{color:#d6a044;font-weight:700}
+.vae-chip-meta-visited::before{content:"● ";font-size:10px;opacity:.9}
+.vae-list-visited,.vae-daylist-visited{color:#d6a044;font-weight:700}
+.vae-list-visited::before,.vae-daylist-visited::before{content:"● ";font-size:10px;opacity:.9}
 .vae-list-item{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220}
 .vae-list-title{font-weight:700;margin-bottom:4px}
 .vae-list-meta{font-size:13px;color:var(--muted);margin-bottom:8px;line-height:1.45}
@@ -934,7 +939,6 @@ let dirty = false;
 let attendanceDirty = false;
 let extrasDirty = false;
 let attendanceSnapshot = [];
-let extrasSnapshot = null;
 let attendanceAutosaveIntervalId = null;
 let attendanceAutosaveInFlight = false;
 const ATTENDANCE_AUTOSAVE_MS = 2 * 60 * 1000;
@@ -1330,64 +1334,22 @@ function sameStringArrays(a=[], b=[]){
   for (let i=0; i<a.length; i++) if (String(a[i]) !== String(b[i])) return false;
   return true;
 }
-function normalizeStringArray(values=[]){
-  return [...new Set((values || []).map(x => normalizeDisplayName(x)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"es"));
-}
-function getCurrentExtrasNormalized(date=selectedDate()){
-  ensureDayExtras(date);
-  const visitas = state.dayExtras[date]?.visitas || {};
-  const primera = state.dayExtras[date]?.primeraVez || {};
-  const primeraNames = $("primeraVezNombres")
-    ? parseNombresPrimeraVez()
-    : normalizeStringArray(state.firstTimeByDate?.[date] || []);
-  return {
-    visitasCount: Number(visitas.count || 0),
-    visitasText: String(visitas.text || ""),
-    visitasNames: normalizeStringArray(visitas.names || []),
-    primeraVezCount: Number(primera.count || 0),
-    primeraVezText: String(primera.text || ""),
-    primeraVezNames: normalizeStringArray(primeraNames || [])
-  };
-}
-function sameExtrasSnapshot(a=null, b=null){
-  if (!a || !b) return false;
-  return Number(a.visitasCount || 0) === Number(b.visitasCount || 0)
-    && String(a.visitasText || "") === String(b.visitasText || "")
-    && sameStringArrays(a.visitasNames || [], b.visitasNames || [])
-    && Number(a.primeraVezCount || 0) === Number(b.primeraVezCount || 0)
-    && String(a.primeraVezText || "") === String(b.primeraVezText || "")
-    && sameStringArrays(a.primeraVezNames || [], b.primeraVezNames || []);
-}
 function recomputeDirtyState(){
   dirty = attendanceDirty || extrasDirty;
-}
-function clearSuccessFeedbackIfPending(){
-  const box = $("saveFeedback");
-  if (!box) return;
-  if ((attendanceDirty || extrasDirty) && box.classList.contains("success")) {
-    setSaveFeedback("", "success");
-  }
 }
 function markAttendanceChanged(){
   attendanceDirty = !sameStringArrays(getAttendanceDraftNormalized(), attendanceSnapshot);
   recomputeDirtyState();
-  clearSuccessFeedbackIfPending();
   updateSaveStatus();
 }
 function markExtrasChanged(){
-  extrasDirty = !sameExtrasSnapshot(getCurrentExtrasNormalized(), extrasSnapshot);
+  extrasDirty = true;
   recomputeDirtyState();
-  clearSuccessFeedbackIfPending();
   updateSaveStatus();
 }
 function resetAttendanceSnapshot(){
   attendanceSnapshot = getAttendanceDraftNormalized();
   attendanceDirty = false;
-  recomputeDirtyState();
-}
-function resetExtrasSnapshot(date=selectedDate()){
-  extrasSnapshot = getCurrentExtrasNormalized(date);
-  extrasDirty = false;
   recomputeDirtyState();
 }
 function autosaveTimeLabel(){
@@ -1430,119 +1392,33 @@ async function persistAttendanceRecords(date, names){
     if (nameToId[name]) state.attendance.push({ date, member_id: nameToId[name], name });
   }
 }
-async function persistExtrasRecords(date, options={}){
-  ensureDayExtras(date);
-  const currentExtras = getCurrentExtrasNormalized(date);
-  const currentAttendanceNames = getAttendanceDraftNormalized();
-
-  state.dayExtras[date].visitas.count = Number(currentExtras.visitasCount || 0);
-  state.dayExtras[date].visitas.text = String(currentExtras.visitasText || "");
-  state.dayExtras[date].visitas.names = [...(currentExtras.visitasNames || [])];
-  state.dayExtras[date].primeraVez.count = Number(currentExtras.primeraVezCount || 0);
-  state.dayExtras[date].primeraVez.text = String(currentExtras.primeraVezText || "");
-
-  const saveExtras = await supabaseClient
-    .from("day_extras")
-    .upsert({
-      attendance_date: date,
-      visitas_count: Number(currentExtras.visitasCount || 0),
-      visitas_text: serializeVisitasPayload(state.dayExtras[date].visitas),
-      primera_vez_count: Number(currentExtras.primeraVezCount || 0),
-      primera_vez_text: String(currentExtras.primeraVezText || "")
-    }, { onConflict: "attendance_date" });
-  if (saveExtras.error) throw new Error("No pude guardar visitas / 1ra. vez: " + saveExtras.error.message);
-
-  const deleteTracking = await supabaseClient
-    .from("first_time_tracking")
-    .delete()
-    .eq("first_date", date);
-  if (deleteTracking.error) throw new Error("No pude actualizar primeras veces del día: " + deleteTracking.error.message);
-
-  const nombresPrimera = [...(currentExtras.primeraVezNames || [])];
-  if (nombresPrimera.length){
-    const trackingRows = nombresPrimera.map(name => ({
-      guest_name: name,
-      guest_name_normalized: normalizeComparableName(name),
-      first_date: date,
-      returned: false
-    }));
-
-    const insTracking = await supabaseClient
-      .from("first_time_tracking")
-      .insert(trackingRows);
-    if (insTracking.error) throw new Error("No pude guardar primeras veces: " + insTracking.error.message);
-  }
-
-  const presentComparableNames = [...new Set(currentAttendanceNames.map(normalizeComparableName))];
-  if (presentComparableNames.length){
-    const unresolved = await supabaseClient
-      .from("first_time_tracking")
-      .select("id, guest_name_normalized, first_date, returned")
-      .eq("returned", false)
-      .in("guest_name_normalized", presentComparableNames);
-    if (unresolved.error) throw new Error("No pude consultar retorno automático: " + unresolved.error.message);
-
-    for (const row of (unresolved.data || [])){
-      if (row.first_date !== date){
-        const upd = await supabaseClient
-          .from("first_time_tracking")
-          .update({ returned: true, return_date: date })
-          .eq("id", row.id);
-        if (upd.error) throw new Error("No pude marcar retorno automático: " + upd.error.message);
-      }
-    }
-  }
-
-  state.firstTimeByDate[date] = [...nombresPrimera];
-  if ($("visitasCount")) $("visitasCount").textContent = Number(currentExtras.visitasCount || 0);
-  if ($("primeraVezCount")) $("primeraVezCount").textContent = Number(currentExtras.primeraVezCount || 0);
-}
-async function guardarCambiosAutomaticamente(options={}){
+async function guardarAsistenciaAutomaticamente(options={}){
   const silent = !!options.silent;
-  if (!userCanOperative() || attendanceAutosaveInFlight || (!attendanceDirty && !extrasDirty)) return false;
+  if (!userCanOperative() || attendanceAutosaveInFlight || !attendanceDirty) return false;
   const date = selectedDate();
-  const saveAttendance = attendanceDirty;
-  const saveExtras = extrasDirty;
   const names = getAttendanceDraftNormalized();
   attendanceAutosaveInFlight = true;
 
   if (!silent){
-    $("saveStatus").textContent = "Autoguardando cambios...";
+    $("saveStatus").textContent = "Autoguardando asistencia...";
     $("saveStatus").style.color = "#86efac";
   }
 
   try {
-    if (saveAttendance) await persistAttendanceRecords(date, names);
-    if (saveExtras) await persistExtrasRecords(date);
-
-    if (saveAttendance) resetAttendanceSnapshot();
-    if (saveExtras) resetExtrasSnapshot(date);
-
-    let statusMessage = `Cambios autoguardados ${autosaveTimeLabel()}`;
-    let feedbackMessage = "Cambios autoguardados automáticamente.";
-    if (saveAttendance && saveExtras){
-      statusMessage = `Asistencia, Visitas y 1ra. Vez autoguardadas ${autosaveTimeLabel()}`;
-      feedbackMessage = "Asistencia, Visitas y 1ra. Vez autoguardadas automáticamente.";
-    } else if (saveAttendance){
-      statusMessage = `Asistencia autoguardada ${autosaveTimeLabel()}`;
-      feedbackMessage = "Asistencia autoguardada automáticamente.";
-    } else if (saveExtras){
-      statusMessage = `Visitas y 1ra. Vez autoguardadas ${autosaveTimeLabel()}`;
-      feedbackMessage = "Visitas y 1ra. Vez autoguardadas automáticamente.";
-    }
-
-    updateSaveStatus(statusMessage);
-    setSaveFeedback(feedbackMessage, "success");
+    await persistAttendanceRecords(date, names);
+    resetAttendanceSnapshot();
+    updateSaveStatus(`Asistencia autoguardada ${autosaveTimeLabel()}`);
+    setSaveFeedback("Asistencia autoguardada automáticamente.", "success");
     resumen();
     if (userCanAdmin()) renderAdminAnalytics();
     return true;
   } catch (err) {
-    console.error("guardarCambiosAutomaticamente error:", err);
+    console.error("guardarAsistenciaAutomaticamente error:", err);
     if (!silent){
-      $("saveStatus").textContent = "Error en autoguardado";
+      $("saveStatus").textContent = "Error en autoguardado de asistencia";
       $("saveStatus").style.color = "#fecaca";
     }
-    setSaveFeedback(err.message || "Ocurrió un error al autoguardar los cambios.", "error");
+    setSaveFeedback(err.message || "Ocurrió un error al autoguardar la asistencia.", "error");
     return false;
   } finally {
     attendanceAutosaveInFlight = false;
@@ -1551,7 +1427,7 @@ async function guardarCambiosAutomaticamente(options={}){
 function startAttendanceAutosave(){
   if (attendanceAutosaveIntervalId) clearInterval(attendanceAutosaveIntervalId);
   attendanceAutosaveIntervalId = setInterval(() => {
-    guardarCambiosAutomaticamente({ silent:false });
+    guardarAsistenciaAutomaticamente({ silent:false });
   }, ATTENDANCE_AUTOSAVE_MS);
 }
 function cargarBorradorDelDia(){
@@ -1560,9 +1436,9 @@ function cargarBorradorDelDia(){
   ensureDayExtras(date);
   loadExtrasUI(date);
   loadFirstTimeNamesForDate(date);
+  extrasDirty = false;
   dirty = false;
   resetAttendanceSnapshot();
-  resetExtrasSnapshot(date);
   updateSaveStatus();
 }
 let saveStatusTimeout = null;
@@ -1573,7 +1449,7 @@ function updateSaveStatus(message=null){
   }
   if (message){
     $("saveStatus").textContent = message;
-    $("saveStatus").style.color = extrasDirty ? "#fcd34d" : "#86efac";
+    $("saveStatus").style.color = "#86efac";
     saveStatusTimeout = setTimeout(() => {
       updateSaveStatus();
     }, 2500);
@@ -1581,15 +1457,14 @@ function updateSaveStatus(message=null){
   }
   let text = "Sin cambios pendientes";
   let color = "";
-  clearSuccessFeedbackIfPending();
   if (attendanceDirty && extrasDirty){
-    text = "Hay cambios pendientes en asistencia. También hay pendientes en Visitas / 1ra. Vez";
+    text = "Hay cambios pendientes en asistencia y extras";
     color = "#fcd34d";
   } else if (attendanceDirty){
     text = "Hay cambios pendientes en asistencia (autoguardado cada 2 min)";
     color = "#fcd34d";
   } else if (extrasDirty){
-    text = "Quedan pendientes Visitas / 1ra. Vez";
+    text = "Hay cambios pendientes para esta fecha";
     color = "#fcd34d";
   }
   $("saveStatus").textContent = text;
@@ -3480,10 +3355,22 @@ async function guardarDia(){
       }
     }
 
+    state.attendance = state.attendance.filter(x => x.date !== date);
+    for (const name of names){
+      if (nameToId[name]){
+        state.attendance.push({
+          date,
+          member_id: nameToId[name],
+          name
+        });
+      }
+    }
+
     state.firstTimeByDate[date] = [...nombresPrimera];
 
+    extrasDirty = false;
+    dirty = false;
     resetAttendanceSnapshot();
-    resetExtrasSnapshot(date);
     loadExtrasUI(date);
     loadFirstTimeNamesForDate(date);
     renderAll(); calcularAdminKPIs();
@@ -3821,7 +3708,7 @@ function vaeOpenDayList(dateStr){
           <div class="vae-daylist-meta">
             ${escapeHtml(action.status || "programada")}${action.time ? ` · ${escapeHtml(vaeFormatTime(action.time))}` : ""}<br>
             Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}<br>
-            Visitados: ${escapeHtml(vaeShortVisited(action))}
+            <span class="vae-daylist-visited">Visitados: ${escapeHtml(vaeShortVisited(action))}</span>
             ${action.notes ? `<br>Obs.: ${escapeHtml(action.notes)}` : ``}
           </div>
         </div>
@@ -3908,8 +3795,8 @@ function renderVaeCalendar(){
       chip.className = `vae-chip ${action.status || "programada"}`;
       chip.innerHTML = `
         <span class="vae-chip-title">${escapeHtml(getActionDisplayTitle(action))}</span>
-        <span class="vae-chip-meta">${escapeHtml(vaeShortExecutors(action))}</span>
-        <span class="vae-chip-meta">${escapeHtml(vaeShortVisited(action))}</span>
+        <span class="vae-chip-meta vae-chip-meta-responsibles">${escapeHtml(vaeShortExecutors(action))}</span>
+        <span class="vae-chip-meta vae-chip-meta-visited">${escapeHtml(vaeShortVisited(action))}</span>
       `;
       chip.addEventListener("click", ev => {
         ev.stopPropagation();
@@ -3983,7 +3870,7 @@ function renderVaeValidation(){
         </div>
         <div class="vae-list-meta">
           ${escapeHtml(formatDate(action.date))} · Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}<br>
-          Visitados: ${escapeHtml(vaeShortVisited(action))}
+          <span class="vae-list-visited">Visitados: ${escapeHtml(vaeShortVisited(action))}</span>
           ${action.notes ? `<br>Obs.: ${escapeHtml(action.notes)}` : ``}
         </div>
         <div class="row-actions">
@@ -4025,7 +3912,7 @@ function renderVaeValidation(){
               </div>
               <div class="vae-list-meta">
                 ${escapeHtml(formatDate(action.date))} · Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}<br>
-                Visitados: ${escapeHtml(vaeShortVisited(action))}
+                <span class="vae-list-visited">Visitados: ${escapeHtml(vaeShortVisited(action))}</span>
               </div>
               <div class="row-actions">
                 <button type="button" class="secondary" onclick="window.__vaeEditAction('${escapeHtml(String(action.id))}')">Editar</button>
@@ -4286,7 +4173,7 @@ function wireEvents(){
   $("btnLogout").addEventListener("click", logout);
   $("btnExport").addEventListener("click", exportarReporteHTML);
   $("btnToday").addEventListener("click", async ()=>{
-    await guardarCambiosAutomaticamente({ silent:true });
+    await guardarAsistenciaAutomaticamente({ silent:true });
     $("fecha").value = new Date().toISOString().slice(0,10);
     cargarBorradorDelDia();
     renderAll();
@@ -4313,7 +4200,7 @@ function wireEvents(){
   });
   $("search").addEventListener("input", renderPeople);
   $("fecha").addEventListener("change", async ()=>{
-    await guardarCambiosAutomaticamente({ silent:true });
+    await guardarAsistenciaAutomaticamente({ silent:true });
     cargarBorradorDelDia();
     renderAll();
     calcularAdminKPIs();
