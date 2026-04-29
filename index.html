@@ -93,6 +93,11 @@
   .member-tabpanel.theme-events.active .section-card{background:rgba(180,83,9,.08); border-color:rgba(251,191,36,.35)}
   .event-card{border:1px solid var(--line); border-radius:14px; padding:12px; background:#0b1220}
   .event-card + .event-card{margin-top:10px}
+  .event-privacy-box{border:1px solid rgba(51,65,85,.6);border-radius:12px;padding:10px 12px;background:#0b1220}
+  .event-privacy-options{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+  .event-privacy-option{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03);flex:1;min-width:220px}
+  .event-privacy-option input{width:auto;margin-top:2px;accent-color:#b7791f}
+  .event-visibility-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(183,121,31,.45);background:rgba(183,121,31,.12);color:#f6d58a;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700}
   .event-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
   .event-title{font-weight:700}
   .event-meta{font-size:12px; color:var(--muted); margin-top:4px}
@@ -887,6 +892,20 @@
               <label for="eventIncludeWeekly">Incluir en reporte semanal</label>
             </div>
           </div>
+
+          <div class="event-privacy-box" style="margin-top:10px;">
+            <div class="hint">Visibilidad del acontecimiento</div>
+            <div class="event-privacy-options">
+              <label class="event-privacy-option">
+                <input type="radio" name="eventVisibility" id="eventVisibilityShared" value="shared" checked>
+                <span><strong>Visible para todos</strong><br><span class="hint">Lo ven los usuarios habilitados de la plataforma.</span></span>
+              </label>
+              <label class="event-privacy-option">
+                <input type="radio" name="eventVisibility" id="eventVisibilityPrivate" value="private">
+                <span><strong>Solo para mí</strong><br><span class="hint">Solo lo ve el usuario que lo cargó.</span></span>
+              </label>
+            </div>
+          </div>
           <input id="editingEventId" type="hidden">
           <div class="row-actions" style="margin-top:12px;">
             <button id="btnSaveEvent" type="button" class="primary">Guardar acontecimiento</button>
@@ -1157,7 +1176,7 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
     fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date"),
     fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id"),
-    fetchOptionalAllRows("member_events", "id,member_id,event_date,title,description,category,include_in_weekly,created_at", 1000, "event_date"),
+    fetchOptionalAllRows("member_events", "*", 1000, "event_date"),
     fetchOptionalAllRows("vae_actions", "*", 1000, "action_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
@@ -1198,7 +1217,7 @@ async function cargarTodoDesdeServidor(){
 
   state.firstTimeByDate = {};
   state.relationships = (relationshipRows || []).filter(r => r.member_id && r.related_member_id);
-  state.events = (eventRows || []).filter(r => r.member_id && r.event_date);
+  state.events = (eventRows || []).filter(r => r.member_id && r.event_date).filter(canSeeMemberEvent);
   (firstTimeRows || []).forEach(r => {
     const name = r.guest_name || state.membersById[r.member_id];
     if (!name) return;
@@ -1881,6 +1900,28 @@ function renderFamilySection(memberId){
   circle.querySelectorAll('.family-open').forEach(btn => btn.addEventListener('click', ()=> abrirFicha(String(btn.dataset.id || ''))));
 }
 
+function getCurrentUserId(){
+  return String(currentProfile?.id || currentSession?.user?.id || "");
+}
+function getEventVisibility(){
+  const checked = document.querySelector('input[name="eventVisibility"]:checked');
+  return checked?.value === "private" ? "private" : "shared";
+}
+function setEventVisibility(value){
+  const visibility = value === "private" ? "private" : "shared";
+  const shared = $("eventVisibilityShared");
+  const priv = $("eventVisibilityPrivate");
+  if (shared) shared.checked = visibility === "shared";
+  if (priv) priv.checked = visibility === "private";
+}
+function canSeeMemberEvent(ev){
+  const visibility = ev?.visibility === "private" ? "private" : "shared";
+  if (visibility === "shared") return true;
+  return String(ev?.created_by || "") === getCurrentUserId();
+}
+function isSharedMemberEvent(ev){
+  return (ev?.visibility || "shared") !== "private";
+}
 function resetEventForm(defaultDate=""){
   if ($("editingEventId")) $("editingEventId").value = "";
   if ($("eventDate")) $("eventDate").value = defaultDate || selectedDate();
@@ -1888,6 +1929,7 @@ function resetEventForm(defaultDate=""){
   if ($("eventDescription")) $("eventDescription").value = "";
   if ($("eventCategory")) $("eventCategory").value = "";
   if ($("eventIncludeWeekly")) $("eventIncludeWeekly").checked = true;
+  setEventVisibility("shared");
   if ($("btnSaveEvent")) $("btnSaveEvent").textContent = "Guardar acontecimiento";
 }
 function getMemberEvents(memberId){
@@ -1906,13 +1948,14 @@ function renderMemberEvents(memberId){
     const meta = [
       ev.event_date ? formatDate(ev.event_date) : '',
       ev.category ? `Categoría: ${ev.category}` : '',
-      ev.include_in_weekly === false ? 'No se incluye en reporte semanal' : 'Incluido en reporte semanal'
+      ev.include_in_weekly === false ? 'No se incluye en reporte semanal' : 'Incluido en reporte semanal',
+      ev.visibility === "private" ? 'Solo para mí' : 'Visible para todos'
     ].filter(Boolean).join(' · ');
     const desc = ev.description ? `<div style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(ev.description)}</div>` : '';
     return `<div class="event-card">
       <div class="event-head">
         <div>
-          <div class="event-title">${escapeHtml(ev.title || 'Acontecimiento')}</div>
+          <div class="event-title">${escapeHtml(ev.title || 'Acontecimiento')} ${ev.visibility === "private" ? `<span class="event-visibility-badge">Privado</span>` : ``}</div>
           <div class="event-meta">${escapeHtml(meta)}</div>
         </div>
         <div class="event-actions">
@@ -1935,6 +1978,7 @@ function startEditEvent(eventId){
   $("eventDescription").value = ev.description || '';
   $("eventCategory").value = ev.category || '';
   $("eventIncludeWeekly").checked = ev.include_in_weekly !== false;
+  setEventVisibility(ev.visibility || "shared");
   $("btnSaveEvent").textContent = "Actualizar acontecimiento";
   activateMemberTab("events");
 }
@@ -1967,18 +2011,20 @@ async function deleteAgendaEvent(eventId){
 async function saveMemberEvent(){
   const memberId = String($("editMemberId").value || '');
   if (!memberId){ alert('No encontré el miembro de la ficha.'); return; }
+  const editingId = String($("editingEventId").value || '');
   const payload = {
     member_id: memberId,
     event_date: $("eventDate").value || null,
     title: normalizeName($("eventTitle").value),
     description: $("eventDescription").value.trim() || null,
     category: $("eventCategory").value.trim() || null,
-    include_in_weekly: !!$("eventIncludeWeekly").checked
+    include_in_weekly: !!$("eventIncludeWeekly").checked,
+    visibility: getEventVisibility()
   };
+  if (!editingId) payload.created_by = getCurrentUserId() || null;
   if (!payload.event_date){ alert('Completá la fecha del acontecimiento.'); return; }
   if (!payload.title){ alert('Completá el título del acontecimiento.'); return; }
 
-  const editingId = String($("editingEventId").value || '');
   let res;
   if (editingId) res = await supabaseClient.from('member_events').update(payload).eq('id', editingId);
   else res = await supabaseClient.from('member_events').insert(payload);
@@ -1986,7 +2032,7 @@ async function saveMemberEvent(){
   if (res.error){
     const msg = String(res.error.message || res.error || '');
     if (msg.includes('schema cache') || msg.includes('does not exist') || msg.includes('Could not find')){
-      alert('No pude guardar el acontecimiento porque falta la tabla member_events en Supabase o su esquema no está actualizado.');
+      alert('No pude guardar el acontecimiento porque falta actualizar la tabla member_events en Supabase. Ejecutá el SQL de visibilidad y luego volvé a intentar.');
     } else {
       alert('No pude guardar el acontecimiento: ' + msg);
     }
@@ -2759,8 +2805,8 @@ function getWeeklyEventsData(daysAhead=14){
 function buildWeeklyMailContent(){
   const data = state.weeklyAgendaData || {};
   const birthdays = data.birthdays || [];
-  const upcomingEvents = data.upcomingEvents || [];
-  const overdueEvents = data.overdueEvents || [];
+  const upcomingEvents = (data.upcomingEvents || []).filter(isSharedMemberEvent);
+  const overdueEvents = (data.overdueEvents || []).filter(isSharedMemberEvent);
   const planningEvents = data.planningEvents || [];
   const dateRange = buildWeeklyDateRange(14);
   const weekRange = buildCurrentWeekRange();
@@ -2899,7 +2945,7 @@ async function loadAgendaAlertas(){
       agendaCards.push(`
         <div class="alert-card">
           <div><strong>${escapeHtml(formatDisplayDate(ev.event_date))}</strong> · ${escapeHtml(ev.member_name)}</div>
-          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} ${ev.visibility === "private" ? `<span class="event-visibility-badge">Privado</span>` : ``}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
           ${renderEventActions(ev)}
         </div>
@@ -2909,7 +2955,7 @@ async function loadAgendaAlertas(){
       agendaCards.push(`
         <div class="alert-card">
           <div><strong>Vencido hace ${escapeHtml(String(ev.overdueDays))} día${ev.overdueDays === 1 ? "" : "s"}</strong> · ${escapeHtml(ev.member_name)}</div>
-          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} · fecha ${escapeHtml(formatDisplayDate(ev.event_date))}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} ${ev.visibility === "private" ? `<span class="event-visibility-badge">Privado</span>` : ``} · fecha ${escapeHtml(formatDisplayDate(ev.event_date))}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
           ${renderEventActions(ev)}
         </div>
