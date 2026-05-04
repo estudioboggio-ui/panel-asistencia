@@ -93,11 +93,6 @@
   .member-tabpanel.theme-events.active .section-card{background:rgba(180,83,9,.08); border-color:rgba(251,191,36,.35)}
   .event-card{border:1px solid var(--line); border-radius:14px; padding:12px; background:#0b1220}
   .event-card + .event-card{margin-top:10px}
-  .event-privacy-box{border:1px solid rgba(51,65,85,.6);border-radius:12px;padding:10px 12px;background:#0b1220}
-  .event-privacy-options{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-  .event-privacy-option{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:rgba(255,255,255,.03);flex:1;min-width:220px}
-  .event-privacy-option input{width:auto;margin-top:2px;accent-color:#b7791f}
-  .event-visibility-badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(183,121,31,.45);background:rgba(183,121,31,.12);color:#f6d58a;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700}
   .event-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
   .event-title{font-weight:700}
   .event-meta{font-size:12px; color:var(--muted); margin-top:4px}
@@ -221,6 +216,22 @@
         <button id="btnRegisterPassword" class="secondary" type="button">Crear cuenta</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
+    </div>
+  </div>
+</div>
+
+<div id="passwordRecoveryView" class="wrap login-wrap hidden">
+  <div class="panel">
+    <h1 style="font-size:30px;margin-bottom:8px;">Crear nueva contraseña</h1>
+    <div class="hint" style="margin-bottom:16px;">Ingresá una nueva contraseña para recuperar el acceso a la plataforma.</div>
+    <div class="stack">
+      <input id="recoveryPassword" type="password" placeholder="Nueva contraseña" autocomplete="new-password">
+      <input id="recoveryPasswordConfirm" type="password" placeholder="Repetir nueva contraseña" autocomplete="new-password">
+      <div class="row-actions">
+        <button id="btnUpdateRecoveryPassword" class="primary" type="button">Guardar nueva contraseña</button>
+        <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
+      </div>
+      <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
     </div>
   </div>
 </div>
@@ -892,20 +903,6 @@
               <label for="eventIncludeWeekly">Incluir en reporte semanal</label>
             </div>
           </div>
-
-          <div class="event-privacy-box" style="margin-top:10px;">
-            <div class="hint">Visibilidad del acontecimiento</div>
-            <div class="event-privacy-options">
-              <label class="event-privacy-option">
-                <input type="radio" name="eventVisibility" id="eventVisibilityShared" value="shared" checked>
-                <span><strong>Visible para todos</strong><br><span class="hint">Lo ven los usuarios habilitados de la plataforma.</span></span>
-              </label>
-              <label class="event-privacy-option">
-                <input type="radio" name="eventVisibility" id="eventVisibilityPrivate" value="private">
-                <span><strong>Solo para mí</strong><br><span class="hint">Solo lo ve el usuario que lo cargó.</span></span>
-              </label>
-            </div>
-          </div>
           <input id="editingEventId" type="hidden">
           <div class="row-actions" style="margin-top:12px;">
             <button id="btnSaveEvent" type="button" class="primary">Guardar acontecimiento</button>
@@ -1053,8 +1050,22 @@ function applyAdminRoleVisibility(){
   if (!canViewAdmin && $("tabAdmin")?.classList.contains("active")) switchTab("operativa");
   if (!userCanVae() && $("tabVae")?.classList.contains("active")) switchTab("operativa");
 }
-function showLogin(){ $("loginView").classList.remove("hidden"); $("appView").classList.add("hidden"); }
-function showApp(){ $("loginView").classList.add("hidden"); $("appView").classList.remove("hidden"); setStatus("Conectado", "ok"); }
+function showLogin(){
+  $("loginView").classList.remove("hidden");
+  $("appView").classList.add("hidden");
+  if ($("passwordRecoveryView")) $("passwordRecoveryView").classList.add("hidden");
+}
+function showRecovery(){
+  $("loginView").classList.add("hidden");
+  $("appView").classList.add("hidden");
+  if ($("passwordRecoveryView")) $("passwordRecoveryView").classList.remove("hidden");
+}
+function showApp(){
+  $("loginView").classList.add("hidden");
+  if ($("passwordRecoveryView")) $("passwordRecoveryView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+  setStatus("Conectado", "ok");
+}
 function switchTab(tab){
   $("tabOperativa").classList.toggle("active", tab==="operativa");
   $("tabAdmin").classList.toggle("active", tab==="admin");
@@ -1133,6 +1144,126 @@ async function registerWithPassword(){
   $("loginStatus").className = "hint ok";
 }
 
+
+function readAuthParamsFromUrl(){
+  const params = new URLSearchParams(window.location.search || "");
+  const hash = (window.location.hash || "").replace(/^#/, "");
+  if (hash) {
+    const hashParams = new URLSearchParams(hash);
+    hashParams.forEach((value, key) => {
+      if (!params.has(key)) params.set(key, value);
+    });
+  }
+  return params;
+}
+function isPasswordRecoveryUrl(){
+  const params = readAuthParamsFromUrl();
+  return params.get("type") === "recovery" || params.has("access_token") || params.has("code");
+}
+function cleanRecoveryUrl(){
+  try {
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&](code|type)=[^&]*/g, "").replace(/^&/, "?"));
+    if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname);
+  } catch (_) {}
+}
+async function preparePasswordRecoveryFromUrl(){
+  const params = readAuthParamsFromUrl();
+  if (!isPasswordRecoveryUrl()) return false;
+
+  showRecovery();
+  if ($("recoveryStatus")) {
+    $("recoveryStatus").textContent = "Validando link de recuperación...";
+    $("recoveryStatus").className = "hint";
+  }
+
+  try {
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const code = params.get("code");
+
+    if (accessToken && refreshToken) {
+      const res = await supabaseClient.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+      if (res.error) throw res.error;
+    } else if (code) {
+      const res = await supabaseClient.auth.exchangeCodeForSession(code);
+      if (res.error) throw res.error;
+    } else {
+      throw new Error("El link de recuperación no trae una sesión válida.");
+    }
+
+    if ($("recoveryStatus")) {
+      $("recoveryStatus").textContent = "Link validado. Ingresá tu nueva contraseña.";
+      $("recoveryStatus").className = "hint ok";
+    }
+    if ($("recoveryPassword")) $("recoveryPassword").focus();
+    return true;
+  } catch (err) {
+    console.error("preparePasswordRecoveryFromUrl error:", err);
+    if ($("recoveryStatus")) {
+      $("recoveryStatus").textContent = "El link de recuperación no es válido o venció. Pedí que te envíen un nuevo reseteo.";
+      $("recoveryStatus").className = "hint bad";
+    }
+    return true;
+  }
+}
+async function updateRecoveryPassword(){
+  const pass1 = $("recoveryPassword")?.value || "";
+  const pass2 = $("recoveryPasswordConfirm")?.value || "";
+  const status = $("recoveryStatus");
+  const btn = $("btnUpdateRecoveryPassword");
+  const original = btn ? btn.textContent : "Guardar nueva contraseña";
+
+  if (status) {
+    status.textContent = "";
+    status.className = "hint";
+  }
+  if (!pass1 || !pass2){
+    if (status){ status.textContent = "Completá ambos campos."; status.className = "hint bad"; }
+    return;
+  }
+  if (pass1 !== pass2){
+    if (status){ status.textContent = "Las contraseñas no coinciden."; status.className = "hint bad"; }
+    return;
+  }
+  if (pass1.length < 6){
+    if (status){ status.textContent = "La contraseña debe tener al menos 6 caracteres."; status.className = "hint bad"; }
+    return;
+  }
+
+  try {
+    if (btn){ btn.disabled = true; btn.textContent = "Guardando..."; }
+    const res = await supabaseClient.auth.updateUser({ password: pass1 });
+    if (res.error) throw res.error;
+
+    if (status){
+      status.textContent = "Contraseña actualizada correctamente. Volvé a ingresar con tu nueva clave.";
+      status.className = "hint ok";
+    }
+    if ($("recoveryPassword")) $("recoveryPassword").value = "";
+    if ($("recoveryPasswordConfirm")) $("recoveryPasswordConfirm").value = "";
+    await supabaseClient.auth.signOut();
+    currentSession = null;
+    currentProfile = null;
+    cleanRecoveryUrl();
+    setTimeout(() => showLogin(), 1200);
+  } catch (err) {
+    console.error("updateRecoveryPassword error:", err);
+    if (status){
+      status.textContent = "No se pudo actualizar la contraseña: " + (err?.message || err || "error desconocido");
+      status.className = "hint bad";
+    }
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = original; }
+  }
+}
+function cancelPasswordRecovery(){
+  cleanRecoveryUrl();
+  showLogin();
+}
+
 async function fetchProfile(){
   if (!currentSession?.user?.id) return null;
   const res = await supabaseClient
@@ -1176,7 +1307,7 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("day_extras", "attendance_date,visitas_count,visitas_text,primera_vez_count,primera_vez_text", 1000, "attendance_date"),
     fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date"),
     fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id"),
-    fetchOptionalAllRows("member_events", "*", 1000, "event_date"),
+    fetchOptionalAllRows("member_events", "id,member_id,event_date,title,description,category,include_in_weekly,created_at", 1000, "event_date"),
     fetchOptionalAllRows("vae_actions", "*", 1000, "action_date")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
@@ -1217,7 +1348,7 @@ async function cargarTodoDesdeServidor(){
 
   state.firstTimeByDate = {};
   state.relationships = (relationshipRows || []).filter(r => r.member_id && r.related_member_id);
-  state.events = (eventRows || []).filter(r => r.member_id && r.event_date).filter(canSeeMemberEvent);
+  state.events = (eventRows || []).filter(r => r.member_id && r.event_date);
   (firstTimeRows || []).forEach(r => {
     const name = r.guest_name || state.membersById[r.member_id];
     if (!name) return;
@@ -1900,28 +2031,6 @@ function renderFamilySection(memberId){
   circle.querySelectorAll('.family-open').forEach(btn => btn.addEventListener('click', ()=> abrirFicha(String(btn.dataset.id || ''))));
 }
 
-function getCurrentUserId(){
-  return String(currentProfile?.id || currentSession?.user?.id || "");
-}
-function getEventVisibility(){
-  const checked = document.querySelector('input[name="eventVisibility"]:checked');
-  return checked?.value === "private" ? "private" : "shared";
-}
-function setEventVisibility(value){
-  const visibility = value === "private" ? "private" : "shared";
-  const shared = $("eventVisibilityShared");
-  const priv = $("eventVisibilityPrivate");
-  if (shared) shared.checked = visibility === "shared";
-  if (priv) priv.checked = visibility === "private";
-}
-function canSeeMemberEvent(ev){
-  const visibility = ev?.visibility === "private" ? "private" : "shared";
-  if (visibility === "shared") return true;
-  return String(ev?.created_by || "") === getCurrentUserId();
-}
-function isSharedMemberEvent(ev){
-  return (ev?.visibility || "shared") !== "private";
-}
 function resetEventForm(defaultDate=""){
   if ($("editingEventId")) $("editingEventId").value = "";
   if ($("eventDate")) $("eventDate").value = defaultDate || selectedDate();
@@ -1929,7 +2038,6 @@ function resetEventForm(defaultDate=""){
   if ($("eventDescription")) $("eventDescription").value = "";
   if ($("eventCategory")) $("eventCategory").value = "";
   if ($("eventIncludeWeekly")) $("eventIncludeWeekly").checked = true;
-  setEventVisibility("shared");
   if ($("btnSaveEvent")) $("btnSaveEvent").textContent = "Guardar acontecimiento";
 }
 function getMemberEvents(memberId){
@@ -1948,14 +2056,13 @@ function renderMemberEvents(memberId){
     const meta = [
       ev.event_date ? formatDate(ev.event_date) : '',
       ev.category ? `Categoría: ${ev.category}` : '',
-      ev.include_in_weekly === false ? 'No se incluye en reporte semanal' : 'Incluido en reporte semanal',
-      ev.visibility === "private" ? 'Solo para mí' : 'Visible para todos'
+      ev.include_in_weekly === false ? 'No se incluye en reporte semanal' : 'Incluido en reporte semanal'
     ].filter(Boolean).join(' · ');
     const desc = ev.description ? `<div style="margin-top:8px; white-space:pre-wrap;">${escapeHtml(ev.description)}</div>` : '';
     return `<div class="event-card">
       <div class="event-head">
         <div>
-          <div class="event-title">${escapeHtml(ev.title || 'Acontecimiento')} ${ev.visibility === "private" ? `<span class="event-visibility-badge">Privado</span>` : ``}</div>
+          <div class="event-title">${escapeHtml(ev.title || 'Acontecimiento')}</div>
           <div class="event-meta">${escapeHtml(meta)}</div>
         </div>
         <div class="event-actions">
@@ -1978,7 +2085,6 @@ function startEditEvent(eventId){
   $("eventDescription").value = ev.description || '';
   $("eventCategory").value = ev.category || '';
   $("eventIncludeWeekly").checked = ev.include_in_weekly !== false;
-  setEventVisibility(ev.visibility || "shared");
   $("btnSaveEvent").textContent = "Actualizar acontecimiento";
   activateMemberTab("events");
 }
@@ -2011,20 +2117,18 @@ async function deleteAgendaEvent(eventId){
 async function saveMemberEvent(){
   const memberId = String($("editMemberId").value || '');
   if (!memberId){ alert('No encontré el miembro de la ficha.'); return; }
-  const editingId = String($("editingEventId").value || '');
   const payload = {
     member_id: memberId,
     event_date: $("eventDate").value || null,
     title: normalizeName($("eventTitle").value),
     description: $("eventDescription").value.trim() || null,
     category: $("eventCategory").value.trim() || null,
-    include_in_weekly: !!$("eventIncludeWeekly").checked,
-    visibility: getEventVisibility()
+    include_in_weekly: !!$("eventIncludeWeekly").checked
   };
-  if (!editingId) payload.created_by = getCurrentUserId() || null;
   if (!payload.event_date){ alert('Completá la fecha del acontecimiento.'); return; }
   if (!payload.title){ alert('Completá el título del acontecimiento.'); return; }
 
+  const editingId = String($("editingEventId").value || '');
   let res;
   if (editingId) res = await supabaseClient.from('member_events').update(payload).eq('id', editingId);
   else res = await supabaseClient.from('member_events').insert(payload);
@@ -2032,7 +2136,7 @@ async function saveMemberEvent(){
   if (res.error){
     const msg = String(res.error.message || res.error || '');
     if (msg.includes('schema cache') || msg.includes('does not exist') || msg.includes('Could not find')){
-      alert('No pude guardar el acontecimiento porque falta actualizar la tabla member_events en Supabase. Ejecutá el SQL de visibilidad y luego volvé a intentar.');
+      alert('No pude guardar el acontecimiento porque falta la tabla member_events en Supabase o su esquema no está actualizado.');
     } else {
       alert('No pude guardar el acontecimiento: ' + msg);
     }
@@ -2805,8 +2909,8 @@ function getWeeklyEventsData(daysAhead=14){
 function buildWeeklyMailContent(){
   const data = state.weeklyAgendaData || {};
   const birthdays = data.birthdays || [];
-  const upcomingEvents = (data.upcomingEvents || []).filter(isSharedMemberEvent);
-  const overdueEvents = (data.overdueEvents || []).filter(isSharedMemberEvent);
+  const upcomingEvents = data.upcomingEvents || [];
+  const overdueEvents = data.overdueEvents || [];
   const planningEvents = data.planningEvents || [];
   const dateRange = buildWeeklyDateRange(14);
   const weekRange = buildCurrentWeekRange();
@@ -2945,7 +3049,7 @@ async function loadAgendaAlertas(){
       agendaCards.push(`
         <div class="alert-card">
           <div><strong>${escapeHtml(formatDisplayDate(ev.event_date))}</strong> · ${escapeHtml(ev.member_name)}</div>
-          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} ${ev.visibility === "private" ? `<span class="event-visibility-badge">Privado</span>` : ``}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
           ${renderEventActions(ev)}
         </div>
@@ -2955,7 +3059,7 @@ async function loadAgendaAlertas(){
       agendaCards.push(`
         <div class="alert-card">
           <div><strong>Vencido hace ${escapeHtml(String(ev.overdueDays))} día${ev.overdueDays === 1 ? "" : "s"}</strong> · ${escapeHtml(ev.member_name)}</div>
-          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} ${ev.visibility === "private" ? `<span class="event-visibility-badge">Privado</span>` : ``} · fecha ${escapeHtml(formatDisplayDate(ev.event_date))}</div>
+          <div style="margin-top:4px;">${escapeHtml(ev.title || "Sin título")} · fecha ${escapeHtml(formatDisplayDate(ev.event_date))}</div>
           ${ev.description ? `<div class="hint" style="margin-top:6px;">${escapeHtml(ev.description)}</div>` : ``}
           ${renderEventActions(ev)}
         </div>
@@ -4216,6 +4320,9 @@ function wireEvents(){
   $("btnLoginPassword").addEventListener("click", loginWithPassword);
   $("btnRegisterPassword").addEventListener("click", registerWithPassword);
   $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
+  if ($("btnUpdateRecoveryPassword")) $("btnUpdateRecoveryPassword").addEventListener("click", updateRecoveryPassword);
+  if ($("btnCancelRecovery")) $("btnCancelRecovery").addEventListener("click", cancelPasswordRecovery);
+  if ($("recoveryPasswordConfirm")) $("recoveryPasswordConfirm").addEventListener("keydown", (e) => { if (e.key === "Enter") updateRecoveryPassword(); });
   $("btnLogout").addEventListener("click", logout);
   $("btnExport").addEventListener("click", exportarReporteHTML);
   $("btnToday").addEventListener("click", async ()=>{
@@ -4366,6 +4473,11 @@ async function initialize(){
 
   await initSupabase();
   wireEvents();
+
+  if (await preparePasswordRecoveryFromUrl()) {
+    return;
+  }
+
   initializeDefaults();
   startAttendanceAutosave();
   initCategorySelector();
