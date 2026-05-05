@@ -938,6 +938,8 @@ const RELATIONSHIP_INVERSE = {"Padre":"Hijo/a","Madre":"Hijo/a","Hijo/a":"Padre/
 let supabaseClient = null;
 let currentSession = null;
 let currentProfile = null;
+let passwordRecoveryMode = false;
+let authRecoverySubscription = null;
 let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [] };
 const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
 
@@ -1092,6 +1094,23 @@ async function initSupabase(){
     );
   }
   supabaseClient = window.__panelSupabaseClient;
+
+  if (!window.__panelAuthRecoveryListenerAttached) {
+    window.__panelAuthRecoveryListenerAttached = true;
+    const listener = supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        passwordRecoveryMode = true;
+        currentSession = session || null;
+        showRecovery();
+        if ($("recoveryStatus")) {
+          $("recoveryStatus").textContent = "Link validado. Ingresá tu nueva contraseña.";
+          $("recoveryStatus").className = "hint ok";
+        }
+        setTimeout(() => { if ($("recoveryPassword")) $("recoveryPassword").focus(); }, 50);
+      }
+    });
+    authRecoverySubscription = listener?.data?.subscription || null;
+  }
 }
 
 async function loginWithPassword(){
@@ -1160,14 +1179,25 @@ function readAuthParamsFromUrl(){
 function isPasswordRecoveryUrl(){
   const params = readAuthParamsFromUrl();
   const type = String(params.get("type") || "").toLowerCase();
-  return type === "recovery" || type === "password_recovery";
+  const action = String(params.get("auth_action") || "").toLowerCase();
+  return (
+    action === "recovery" ||
+    type === "recovery" ||
+    type === "password_recovery" ||
+    params.has("access_token") ||
+    params.has("refresh_token") ||
+    params.has("code")
+  );
 }
 function getCurrentRedirectUrl(){
   return window.location.origin + window.location.pathname;
 }
+function getPasswordRecoveryRedirectUrl(){
+  return getCurrentRedirectUrl() + "?auth_action=recovery";
+}
 function cleanRecoveryUrl(){
   try {
-    window.history.replaceState({}, document.title, window.location.pathname);
+    window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
   } catch (_) {}
 }
 async function requestPasswordRecovery(){
@@ -1192,13 +1222,13 @@ async function requestPasswordRecovery(){
     }
 
     const res = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: getCurrentRedirectUrl()
+      redirectTo: getPasswordRecoveryRedirectUrl()
     });
 
     if (res.error) throw res.error;
 
     if (status){
-      status.textContent = "Te enviamos un mail para crear una nueva contraseña. Revisá también spam/promociones.";
+      status.textContent = "Te enviamos un mail para crear una nueva contraseña. Abrí el botón ‘Reset password’ del correo. Revisá también spam/promociones.";
       status.className = "hint ok";
     }
   } catch (err) {
@@ -1214,6 +1244,7 @@ async function requestPasswordRecovery(){
 async function preparePasswordRecoveryFromUrl(){
   if (!isPasswordRecoveryUrl()) return false;
 
+  passwordRecoveryMode = true;
   showRecovery();
   if ($("recoveryStatus")) {
     $("recoveryStatus").textContent = "Validando link de recuperación...";
@@ -1237,9 +1268,8 @@ async function preparePasswordRecoveryFromUrl(){
       if (res.error) throw res.error;
     }
 
-    // Con detectSessionInUrl:true, Supabase puede procesar el hash automáticamente.
-    // Esperamos un instante y validamos que haya sesión activa antes de permitir el cambio.
-    await new Promise(resolve => setTimeout(resolve, 250));
+    // Supabase puede terminar de procesar el evento PASSWORD_RECOVERY unos instantes después.
+    await new Promise(resolve => setTimeout(resolve, 900));
     const sessionRes = await supabaseClient.auth.getSession();
     const recoverySession = sessionRes?.data?.session;
     if (!recoverySession?.user?.id) {
@@ -4543,6 +4573,11 @@ async function initialize(){
   if (await preparePasswordRecoveryFromUrl()) {
     return;
   }
+
+  // Por seguridad, damos tiempo a Supabase para disparar PASSWORD_RECOVERY
+  // cuando el proveedor devuelve el token en el hash de la URL.
+  await new Promise(resolve => setTimeout(resolve, 500));
+  if (passwordRecoveryMode) return;
 
   initializeDefaults();
   startAttendanceAutosave();
