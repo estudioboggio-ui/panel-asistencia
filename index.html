@@ -217,7 +217,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.8 · recovery directo</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.9 · recovery corregido</span>
     </div>
   </div>
 </div>
@@ -235,7 +235,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.8 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.9 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -1189,15 +1189,17 @@ function readAuthParamsFromUrl(){
 function isPasswordRecoveryUrl(){
   const params = readAuthParamsFromUrl();
   const type = String(params.get("type") || "").toLowerCase();
-  const action = String(params.get("auth_action") || "").toLowerCase();
   return (
-    action === "recovery" ||
     type === "recovery" ||
     type === "password_recovery" ||
     params.has("access_token") ||
     params.has("refresh_token") ||
     params.has("code")
   );
+}
+function isPasswordRecoveryActionUrl(){
+  const params = readAuthParamsFromUrl();
+  return String(params.get("auth_action") || "").toLowerCase() === "recovery";
 }
 function getCurrentRedirectUrl(){
   return window.location.origin + window.location.pathname;
@@ -1255,23 +1257,9 @@ async function requestPasswordRecovery(){
 }
 async function preparePasswordRecoveryFromUrl(){
   const hasRecoveryUrl = isPasswordRecoveryUrl();
+  const hasRecoveryActionUrl = isPasswordRecoveryActionUrl();
 
-  // Si venimos del mail de reset y Supabase ya consumió la URL, puede existir sesión
-  // aunque la URL haya quedado limpia. También contemplamos el caso de pending local.
-  let pendingRecovery = false;
-  try {
-    const pending = JSON.parse(localStorage.getItem(PASSWORD_RECOVERY_PENDING_KEY) || "{}");
-    pendingRecovery = !!pending?.email && (Date.now() - Number(pending.ts || 0)) < 30 * 60 * 1000;
-  } catch (_) {}
-
-  if (!hasRecoveryUrl && !pendingRecovery) return false;
-
-  passwordRecoveryMode = true;
-  showRecovery();
-  if ($("recoveryStatus")) {
-    $("recoveryStatus").textContent = "Validando link de recuperación...";
-    $("recoveryStatus").className = "hint";
-  }
+  if (!hasRecoveryUrl && !hasRecoveryActionUrl) return false;
 
   try {
     const params = readAuthParamsFromUrl();
@@ -1290,19 +1278,32 @@ async function preparePasswordRecoveryFromUrl(){
       if (res.error) throw res.error;
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    await new Promise(resolve => setTimeout(resolve, 800));
     const sessionRes = await supabaseClient.auth.getSession();
     const recoverySession = sessionRes?.data?.session;
 
     if (!recoverySession?.user?.id) {
+      // Si solo quedó ?auth_action=recovery sin token/sesión, no fuerces la pantalla de reset:
+      // limpiamos la URL y volvemos al login normal.
+      if (hasRecoveryActionUrl && !hasRecoveryUrl) {
+        cleanRecoveryUrl();
+        passwordRecoveryMode = false;
+        showLogin();
+        return true;
+      }
+
+      passwordRecoveryMode = true;
+      showRecovery();
       if ($("recoveryStatus")) {
-        $("recoveryStatus").textContent = "Abriste la pantalla de recuperación, pero el link no trajo una sesión válida. Volvé a pedir el reseteo y abrí el último mail recibido.";
+        $("recoveryStatus").textContent = "El link de recuperación no trajo una sesión válida o ya venció. Pedí el reseteo nuevamente y abrí el último mail recibido.";
         $("recoveryStatus").className = "hint bad";
       }
       return true;
     }
 
+    passwordRecoveryMode = true;
     currentSession = recoverySession;
+    showRecovery();
     if ($("recoveryEmail")) $("recoveryEmail").value = recoverySession.user.email || $("recoveryEmail").value || "";
     cleanRecoveryUrl();
 
@@ -1314,6 +1315,8 @@ async function preparePasswordRecoveryFromUrl(){
     return true;
   } catch (err) {
     console.error("preparePasswordRecoveryFromUrl error:", err);
+    passwordRecoveryMode = true;
+    showRecovery();
     if ($("recoveryStatus")) {
       $("recoveryStatus").textContent = "El link de recuperación no es válido o venció. Pedí un nuevo reseteo de contraseña.";
       $("recoveryStatus").className = "hint bad";
