@@ -217,6 +217,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.8 · recovery directo</span>
     </div>
   </div>
 </div>
@@ -226,6 +227,7 @@
     <h1 style="font-size:30px;margin-bottom:8px;">Crear nueva contraseña</h1>
     <div class="hint" style="margin-bottom:16px;">Ingresá una nueva contraseña para recuperar el acceso a la plataforma.</div>
     <div class="stack">
+      <input id="recoveryEmail" type="email" placeholder="Email" autocomplete="username">
       <input id="recoveryPassword" type="password" placeholder="Nueva contraseña" autocomplete="new-password">
       <input id="recoveryPasswordConfirm" type="password" placeholder="Repetir nueva contraseña" autocomplete="new-password">
       <div class="row-actions">
@@ -233,6 +235,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.8 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -941,6 +944,7 @@ let currentProfile = null;
 let passwordRecoveryMode = false;
 let authRecoverySubscription = null;
 let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [] };
+const PASSWORD_RECOVERY_PENDING_KEY = "panel-asistencia-password-recovery-pending";
 const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
 
 function activateMemberTab(tab) {
@@ -1062,6 +1066,12 @@ function showRecovery(){
   $("loginView").classList.add("hidden");
   $("appView").classList.add("hidden");
   if ($("passwordRecoveryView")) $("passwordRecoveryView").classList.remove("hidden");
+  try {
+    const pending = JSON.parse(localStorage.getItem(PASSWORD_RECOVERY_PENDING_KEY) || "{}");
+    const sessionEmail = currentSession?.user?.email || "";
+    const fallbackEmail = pending?.email || $("loginEmail")?.value || "";
+    if ($("recoveryEmail") && !$("recoveryEmail").value) $("recoveryEmail").value = sessionEmail || fallbackEmail;
+  } catch (_) {}
 }
 function showApp(){
   $("loginView").classList.add("hidden");
@@ -1098,7 +1108,7 @@ async function initSupabase(){
   if (!window.__panelAuthRecoveryListenerAttached) {
     window.__panelAuthRecoveryListenerAttached = true;
     const listener = supabaseClient.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && isPasswordRecoveryUrl())) {
         passwordRecoveryMode = true;
         currentSession = session || null;
         showRecovery();
@@ -1221,6 +1231,8 @@ async function requestPasswordRecovery(){
       status.className = "hint";
     }
 
+    try { localStorage.setItem(PASSWORD_RECOVERY_PENDING_KEY, JSON.stringify({ email, ts: Date.now() })); } catch (_) {}
+
     const res = await supabaseClient.auth.resetPasswordForEmail(email, {
       redirectTo: getPasswordRecoveryRedirectUrl()
     });
@@ -1242,7 +1254,17 @@ async function requestPasswordRecovery(){
   }
 }
 async function preparePasswordRecoveryFromUrl(){
-  if (!isPasswordRecoveryUrl()) return false;
+  const hasRecoveryUrl = isPasswordRecoveryUrl();
+
+  // Si venimos del mail de reset y Supabase ya consumió la URL, puede existir sesión
+  // aunque la URL haya quedado limpia. También contemplamos el caso de pending local.
+  let pendingRecovery = false;
+  try {
+    const pending = JSON.parse(localStorage.getItem(PASSWORD_RECOVERY_PENDING_KEY) || "{}");
+    pendingRecovery = !!pending?.email && (Date.now() - Number(pending.ts || 0)) < 30 * 60 * 1000;
+  } catch (_) {}
+
+  if (!hasRecoveryUrl && !pendingRecovery) return false;
 
   passwordRecoveryMode = true;
   showRecovery();
@@ -1268,15 +1290,20 @@ async function preparePasswordRecoveryFromUrl(){
       if (res.error) throw res.error;
     }
 
-    // Supabase puede terminar de procesar el evento PASSWORD_RECOVERY unos instantes después.
-    await new Promise(resolve => setTimeout(resolve, 900));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     const sessionRes = await supabaseClient.auth.getSession();
     const recoverySession = sessionRes?.data?.session;
+
     if (!recoverySession?.user?.id) {
-      throw new Error("No se pudo abrir una sesión temporal de recuperación.");
+      if ($("recoveryStatus")) {
+        $("recoveryStatus").textContent = "Abriste la pantalla de recuperación, pero el link no trajo una sesión válida. Volvé a pedir el reseteo y abrí el último mail recibido.";
+        $("recoveryStatus").className = "hint bad";
+      }
+      return true;
     }
 
     currentSession = recoverySession;
+    if ($("recoveryEmail")) $("recoveryEmail").value = recoverySession.user.email || $("recoveryEmail").value || "";
     cleanRecoveryUrl();
 
     if ($("recoveryStatus")) {
@@ -1336,6 +1363,7 @@ async function updateRecoveryPassword(){
     if ($("recoveryPassword")) $("recoveryPassword").value = "";
     if ($("recoveryPasswordConfirm")) $("recoveryPasswordConfirm").value = "";
 
+    try { localStorage.removeItem(PASSWORD_RECOVERY_PENDING_KEY); } catch (_) {}
     await supabaseClient.auth.signOut();
     currentSession = null;
     currentProfile = null;
@@ -1352,6 +1380,7 @@ async function updateRecoveryPassword(){
   }
 }
 async function cancelPasswordRecovery(){
+  try { localStorage.removeItem(PASSWORD_RECOVERY_PENDING_KEY); } catch (_) {}
   try { await supabaseClient.auth.signOut(); } catch (_) {}
   currentSession = null;
   currentProfile = null;
@@ -4570,6 +4599,8 @@ async function initialize(){
   await initSupabase();
   wireEvents();
 
+  // Esperamos a que Supabase procese code/hash del mail de recuperación antes de decidir qué pantalla mostrar.
+  await new Promise(resolve => setTimeout(resolve, 800));
   if (await preparePasswordRecoveryFromUrl()) {
     return;
   }
