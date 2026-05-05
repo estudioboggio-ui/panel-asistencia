@@ -214,6 +214,7 @@
       <div class="row-actions">
         <button id="btnLoginPassword" class="primary" type="button">Ingresar</button>
         <button id="btnRegisterPassword" class="secondary" type="button">Crear cuenta</button>
+        <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
     </div>
@@ -1085,7 +1086,7 @@ async function initSupabase(){
           storageKey: "panel-asistencia-auth",
           persistSession: true,
           autoRefreshToken: true,
-          detectSessionInUrl: false
+          detectSessionInUrl: true
         }
       }
     );
@@ -1158,16 +1159,59 @@ function readAuthParamsFromUrl(){
 }
 function isPasswordRecoveryUrl(){
   const params = readAuthParamsFromUrl();
-  return params.get("type") === "recovery" || params.has("access_token") || params.has("code");
+  const type = String(params.get("type") || "").toLowerCase();
+  return type === "recovery" || type === "password_recovery";
+}
+function getCurrentRedirectUrl(){
+  return window.location.origin + window.location.pathname;
 }
 function cleanRecoveryUrl(){
   try {
-    window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&](code|type)=[^&]*/g, "").replace(/^&/, "?"));
-    if (window.location.hash) window.history.replaceState({}, document.title, window.location.pathname);
+    window.history.replaceState({}, document.title, window.location.pathname);
   } catch (_) {}
 }
+async function requestPasswordRecovery(){
+  const email = $("loginEmail")?.value?.trim() || "";
+  const status = $("loginStatus");
+  const btn = $("btnForgotPassword");
+  const original = btn ? btn.textContent : "Olvidé mi contraseña";
+
+  if (!email){
+    if (status){
+      status.textContent = "Ingresá tu email y después tocá ‘Olvidé mi contraseña’.";
+      status.className = "hint bad";
+    }
+    return;
+  }
+
+  try {
+    if (btn){ btn.disabled = true; btn.textContent = "Enviando..."; }
+    if (status){
+      status.textContent = "Enviando mail de recuperación...";
+      status.className = "hint";
+    }
+
+    const res = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: getCurrentRedirectUrl()
+    });
+
+    if (res.error) throw res.error;
+
+    if (status){
+      status.textContent = "Te enviamos un mail para crear una nueva contraseña. Revisá también spam/promociones.";
+      status.className = "hint ok";
+    }
+  } catch (err) {
+    console.error("requestPasswordRecovery error:", err);
+    if (status){
+      status.textContent = "No pude enviar el mail de recuperación: " + (err?.message || err || "error desconocido");
+      status.className = "hint bad";
+    }
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = original; }
+  }
+}
 async function preparePasswordRecoveryFromUrl(){
-  const params = readAuthParamsFromUrl();
   if (!isPasswordRecoveryUrl()) return false;
 
   showRecovery();
@@ -1177,6 +1221,7 @@ async function preparePasswordRecoveryFromUrl(){
   }
 
   try {
+    const params = readAuthParamsFromUrl();
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
     const code = params.get("code");
@@ -1190,9 +1235,19 @@ async function preparePasswordRecoveryFromUrl(){
     } else if (code) {
       const res = await supabaseClient.auth.exchangeCodeForSession(code);
       if (res.error) throw res.error;
-    } else {
-      throw new Error("El link de recuperación no trae una sesión válida.");
     }
+
+    // Con detectSessionInUrl:true, Supabase puede procesar el hash automáticamente.
+    // Esperamos un instante y validamos que haya sesión activa antes de permitir el cambio.
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const sessionRes = await supabaseClient.auth.getSession();
+    const recoverySession = sessionRes?.data?.session;
+    if (!recoverySession?.user?.id) {
+      throw new Error("No se pudo abrir una sesión temporal de recuperación.");
+    }
+
+    currentSession = recoverySession;
+    cleanRecoveryUrl();
 
     if ($("recoveryStatus")) {
       $("recoveryStatus").textContent = "Link validado. Ingresá tu nueva contraseña.";
@@ -1203,7 +1258,7 @@ async function preparePasswordRecoveryFromUrl(){
   } catch (err) {
     console.error("preparePasswordRecoveryFromUrl error:", err);
     if ($("recoveryStatus")) {
-      $("recoveryStatus").textContent = "El link de recuperación no es válido o venció. Pedí que te envíen un nuevo reseteo.";
+      $("recoveryStatus").textContent = "El link de recuperación no es válido o venció. Pedí un nuevo reseteo de contraseña.";
       $("recoveryStatus").className = "hint bad";
     }
     return true;
@@ -1228,27 +1283,34 @@ async function updateRecoveryPassword(){
     if (status){ status.textContent = "Las contraseñas no coinciden."; status.className = "hint bad"; }
     return;
   }
-  if (pass1.length < 6){
-    if (status){ status.textContent = "La contraseña debe tener al menos 6 caracteres."; status.className = "hint bad"; }
+  if (pass1.length < 8){
+    if (status){ status.textContent = "La contraseña debe tener al menos 8 caracteres."; status.className = "hint bad"; }
     return;
   }
 
   try {
     if (btn){ btn.disabled = true; btn.textContent = "Guardando..."; }
+
+    const sessionRes = await supabaseClient.auth.getSession();
+    if (!sessionRes?.data?.session?.user?.id) {
+      throw new Error("La sesión de recuperación venció. Pedí un nuevo link de recuperación.");
+    }
+
     const res = await supabaseClient.auth.updateUser({ password: pass1 });
     if (res.error) throw res.error;
 
     if (status){
-      status.textContent = "Contraseña actualizada correctamente. Volvé a ingresar con tu nueva clave.";
+      status.textContent = "Contraseña actualizada correctamente. Ya podés ingresar con tu nueva clave.";
       status.className = "hint ok";
     }
     if ($("recoveryPassword")) $("recoveryPassword").value = "";
     if ($("recoveryPasswordConfirm")) $("recoveryPasswordConfirm").value = "";
+
     await supabaseClient.auth.signOut();
     currentSession = null;
     currentProfile = null;
     cleanRecoveryUrl();
-    setTimeout(() => showLogin(), 1200);
+    setTimeout(() => showLogin(), 1500);
   } catch (err) {
     console.error("updateRecoveryPassword error:", err);
     if (status){
@@ -1259,7 +1321,10 @@ async function updateRecoveryPassword(){
     if (btn){ btn.disabled = false; btn.textContent = original; }
   }
 }
-function cancelPasswordRecovery(){
+async function cancelPasswordRecovery(){
+  try { await supabaseClient.auth.signOut(); } catch (_) {}
+  currentSession = null;
+  currentProfile = null;
   cleanRecoveryUrl();
   showLogin();
 }
@@ -4319,6 +4384,7 @@ function initVaeTabs(){
 function wireEvents(){
   $("btnLoginPassword").addEventListener("click", loginWithPassword);
   $("btnRegisterPassword").addEventListener("click", registerWithPassword);
+  if ($("btnForgotPassword")) $("btnForgotPassword").addEventListener("click", requestPasswordRecovery);
   $("loginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginWithPassword(); });
   if ($("btnUpdateRecoveryPassword")) $("btnUpdateRecoveryPassword").addEventListener("click", updateRecoveryPassword);
   if ($("btnCancelRecovery")) $("btnCancelRecovery").addEventListener("click", cancelPasswordRecovery);
