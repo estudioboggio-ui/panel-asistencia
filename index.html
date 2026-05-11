@@ -3678,16 +3678,8 @@ async function guardarDia(){
       }
     }
 
-    state.attendance = state.attendance.filter(x => x.date !== date);
-    for (const name of names){
-      if (nameToId[name]){
-        state.attendance.push({
-          date,
-          member_id: nameToId[name],
-          name
-        });
-      }
-    }
+    // La asistencia ya fue persistida y sincronizada en memoria por persistAttendanceRecords(date, names).
+    // No volvemos a usar nameToId acá porque esa variable es local de persistAttendanceRecords.
 
     state.firstTimeByDate[date] = [...nombresPrimera];
 
