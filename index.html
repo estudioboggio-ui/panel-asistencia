@@ -222,7 +222,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.10 · recovery + acontecimientos privados</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.11 · seguimiento solo realizadas</span>
     </div>
   </div>
 </div>
@@ -240,7 +240,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.10 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.11 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -648,7 +648,7 @@
             <div class="row-actions" style="justify-content:space-between; align-items:flex-end; margin-bottom:12px; gap:12px; flex-wrap:wrap;">
               <div>
                 <h2 style="margin:0 0 6px 0;">Seguimiento sobre la base</h2>
-                <div class="hint">Se calcula contra todos los miembros registrados y toma como visita efectiva los estados realizada y seguimiento pendiente.</div>
+                <div class="hint">Se calcula contra todos los miembros registrados y toma como visita efectiva únicamente el estado realizada.</div>
               </div>
               <div class="row-actions">
                 <select id="vaeFollowupFilterRange">
@@ -812,6 +812,19 @@
         <button id="vaeDayListNewBtn" class="primary" type="button">Nuevo evento este día</button>
       </div>
       <div id="vaeDayListBody" class="stack"></div>
+    </div>
+  </div>
+
+  <div id="vaeFollowupDatesModal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width:760px;">
+      <div class="row-actions" style="justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div>
+          <h2 id="vaeFollowupDatesTitle" style="margin:0;">Visitas realizadas</h2>
+          <div class="hint" id="vaeFollowupDatesSubtitle">Fechas contabilizadas en el seguimiento.</div>
+        </div>
+        <button id="vaeCloseFollowupDatesBtn" class="secondary" type="button">Cerrar</button>
+      </div>
+      <div id="vaeFollowupDatesBody" class="stack"></div>
     </div>
   </div>
 
@@ -3678,8 +3691,16 @@ async function guardarDia(){
       }
     }
 
-    // La asistencia ya fue persistida y sincronizada en memoria por persistAttendanceRecords(date, names).
-    // No volvemos a usar nameToId acá porque esa variable es local de persistAttendanceRecords.
+    state.attendance = state.attendance.filter(x => x.date !== date);
+    for (const name of names){
+      if (nameToId[name]){
+        state.attendance.push({
+          date,
+          member_id: nameToId[name],
+          name
+        });
+      }
+    }
 
     state.firstTimeByDate[date] = [...nombresPrimera];
 
@@ -4240,7 +4261,7 @@ function renderVaeValidation(){
   `;
 }
 function buildVaeFollowupRows(){
-  const effectiveStatuses = new Set(["realizada","seguimiento"]);
+  const effectiveStatuses = new Set(["realizada"]);
   const rows = getMembersSource().map(member => {
     const memberId = String(member.id);
     const memberActions = (state.vaeActions || [])
@@ -4253,10 +4274,12 @@ function buildVaeFollowupRows(){
       memberId,
       name: member.name || "",
       lastDate,
+      lastTime: lastAction?.time || "",
       days,
       visitsCount: memberActions.length,
       lastStatus: lastAction?.status || "",
-      lastNotes: lastAction?.notes || ""
+      lastNotes: lastAction?.notes || "",
+      actions: memberActions
     };
   }).sort((a,b) => a.name.localeCompare(b.name, "es"));
   return rows;
@@ -4298,10 +4321,14 @@ function renderVaeFollowup(){
       <td>${escapeHtml(row.name)}</td>
       <td>${row.lastDate ? `${escapeHtml(formatDate(row.lastDate))}${row.lastTime ? ` · ${escapeHtml(vaeFormatTime(row.lastTime))}` : ""}` : `<span class="hint">Nunca</span>`}</td>
       <td>${row.days !== null ? row.days : `<span class="hint">—</span>`}</td>
-      <td>${row.visitsCount}</td>
+      <td>${row.visitsCount ? `<button type="button" class="metric-link vae-followup-total-link" data-member-id="${escapeHtml(String(row.memberId))}">${escapeHtml(String(row.visitsCount))}</button>` : `0`}</td>
       <td>${row.lastDate ? escapeHtml(row.lastNotes || row.lastStatus || "Sin observaciones") : `<span class="hint">Sin visitas registradas</span>`}</td>
     </tr>
   `).join("") : `<tr><td colspan="5" class="hint">No hay resultados para el filtro seleccionado.</td></tr>`;
+
+  tableBody.querySelectorAll(".vae-followup-total-link").forEach(btn => {
+    btn.addEventListener("click", () => openVaeFollowupDates(String(btn.dataset.memberId || "")));
+  });
 
   const bucketDefs = [
     { label: "Visitados hace 0 a 30 días", count: rows.filter(r => r.days !== null && r.days <= 30).length },
@@ -4320,7 +4347,7 @@ function renderVaeFollowup(){
   `).join("");
 
   const freeTextMap = new Map();
-  const effectiveStatuses = new Set(["realizada","seguimiento"]);
+  const effectiveStatuses = new Set(["realizada"]);
   (state.vaeActions || []).filter(action => effectiveStatuses.has(String(action.status || ""))).forEach(action => {
     if (action.visitedText){
       const label = String(action.visitedText).trim();
@@ -4347,6 +4374,43 @@ function renderVaeFollowup(){
     </div>
   `).join("") : `<div class="vae-list-item">No hay visitados por texto libre registrados.</div>`;
 }
+function openVaeFollowupDates(memberId){
+  const modal = $("vaeFollowupDatesModal");
+  const title = $("vaeFollowupDatesTitle");
+  const subtitle = $("vaeFollowupDatesSubtitle");
+  const body = $("vaeFollowupDatesBody");
+  if (!modal || !title || !subtitle || !body) return;
+
+  const row = buildVaeFollowupRows().find(item => String(item.memberId) === String(memberId));
+  if (!row) return;
+
+  const actions = (row.actions || []).slice().sort((a,b) => vaeCompareActions(b,a));
+  title.textContent = `Visitas realizadas · ${row.name || "Miembro"}`;
+  subtitle.textContent = `${actions.length} visita${actions.length === 1 ? "" : "s"} con estado realizada. No se incluyen acciones en seguimiento pendiente.`;
+  body.innerHTML = actions.length ? actions.map(action => `
+    <div class="vae-list-item">
+      <div class="row-actions" style="justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:6px;">
+        <div>
+          <div class="vae-list-title">${escapeHtml(formatDate(action.date))}${action.time ? ` · ${escapeHtml(vaeFormatTime(action.time))}` : ""}</div>
+          <div class="vae-list-meta">${escapeHtml(getActionDisplayTitle(action))}<br>Responsables tarea: ${escapeHtml(vaeShortExecutors(action))}</div>
+        </div>
+        <button type="button" class="secondary vae-followup-edit-action" data-id="${escapeHtml(String(action.id))}">Editar</button>
+      </div>
+      <div>${escapeHtml(action.notes || "Sin observaciones")}</div>
+    </div>
+  `).join("") : `<div class="vae-list-item">No hay visitas realizadas para este miembro.</div>`;
+
+  body.querySelectorAll(".vae-followup-edit-action").forEach(btn => btn.addEventListener("click", () => {
+    closeVaeFollowupDates();
+    vaeEditAction(String(btn.dataset.id || ""));
+  }));
+  modal.classList.remove("hidden");
+}
+function closeVaeFollowupDates(){
+  const modal = $("vaeFollowupDatesModal");
+  if (modal) modal.classList.add("hidden");
+}
+
 function renderVae(){
   const visitedBox = $("vaeVisitedList");
   const alertsBox = $("vaeAlertsList");
@@ -4607,6 +4671,7 @@ function wireEvents(){
   if ($("vaeFilterResponsible")) $("vaeFilterResponsible").addEventListener("change", renderVae);
   if ($("vaeModal")) $("vaeModal").addEventListener("click", ev => { if (ev.target === $("vaeModal")) vaeCloseModal(); });
   if ($("vaeCloseDayListBtn")) $("vaeCloseDayListBtn").addEventListener("click", vaeCloseDayList);
+  if ($("vaeCloseFollowupDatesBtn")) $("vaeCloseFollowupDatesBtn").addEventListener("click", closeVaeFollowupDates);
   if ($("vaeDayListModal")) $("vaeDayListModal").addEventListener("click", ev => { if (ev.target === $("vaeDayListModal")) vaeCloseDayList(); });
   window.__vaeSetStatus = async function(id, status){ try { await vaeSetStatus(id, status); } catch(err){ alert(String(err.message || err || "No pude actualizar el estado.")); } };
   window.__vaeEditAction = vaeEditAction;
