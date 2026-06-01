@@ -222,7 +222,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.11 · seguimiento solo realizadas</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.12 · fix guardado asistencia</span>
     </div>
   </div>
 </div>
@@ -240,7 +240,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.11 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.12 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -3691,17 +3691,8 @@ async function guardarDia(){
       }
     }
 
-    state.attendance = state.attendance.filter(x => x.date !== date);
-    for (const name of names){
-      if (nameToId[name]){
-        state.attendance.push({
-          date,
-          member_id: nameToId[name],
-          name
-        });
-      }
-    }
-
+    // La asistencia ya queda persistida y sincronizada en memoria dentro de persistAttendanceRecords().
+    // No se debe volver a usar nameToId acá porque esa variable es local de persistAttendanceRecords().
     state.firstTimeByDate[date] = [...nombresPrimera];
 
     extrasDirty = false;
