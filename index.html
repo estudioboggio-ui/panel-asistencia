@@ -83,14 +83,17 @@
   .member-tab[data-tab="groups"]{border-color:#15803d;background:rgba(21,128,61,.12)}
   .member-tab[data-tab="family"]{border-color:#7c3aed;background:rgba(124,58,237,.14)}
   .member-tab[data-tab="events"]{border-color:#b45309;background:rgba(180,83,9,.14)}
+  .member-tab[data-tab="sector"]{border-color:#0f766e;background:rgba(15,118,110,.14)}
   .member-tab[data-tab="personal"].active{background:#1d4ed8;border-color:#1d4ed8}
   .member-tab[data-tab="groups"].active{background:#15803d;border-color:#15803d}
   .member-tab[data-tab="family"].active{background:#7c3aed;border-color:#7c3aed}
   .member-tab[data-tab="events"].active{background:#b45309;border-color:#b45309}
+  .member-tab[data-tab="sector"].active{background:#0f766e;border-color:#0f766e}
   .member-tabpanel.theme-personal.active .section-card{background:rgba(29,78,216,.08); border-color:rgba(96,165,250,.35)}
   .member-tabpanel.theme-groups.active .section-card{background:rgba(21,128,61,.08); border-color:rgba(74,222,128,.35)}
   .member-tabpanel.theme-family.active .section-card{background:rgba(124,58,237,.08); border-color:rgba(167,139,250,.35)}
   .member-tabpanel.theme-events.active .section-card{background:rgba(180,83,9,.08); border-color:rgba(251,191,36,.35)}
+  .member-tabpanel.theme-sector.active .section-card{background:rgba(15,118,110,.08); border-color:rgba(45,212,191,.35)}
   .event-card{border:1px solid var(--line); border-radius:14px; padding:12px; background:#0b1220}
   .event-card + .event-card{margin-top:10px}
   .event-privacy-box{border:1px solid rgba(51,65,85,.6);border-radius:12px;padding:10px 12px;background:#0b1220}
@@ -222,7 +225,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.12 · fix guardado asistencia</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.13 · sector y reporte por responsable</span>
     </div>
   </div>
 </div>
@@ -240,7 +243,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.12 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.13 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -569,6 +572,48 @@
       </div>
     </div>
 
+    <div id="sectorReportsSection" class="panel" style="margin-top:16px;">
+      <h2>Reporte por responsable de sector</h2>
+      <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Responsable de sector</div>
+          <select id="sectorReportResponsible"></select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Desde</div>
+          <input id="sectorReportDateFrom" type="date">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Hasta</div>
+          <input id="sectorReportDateTo" type="date">
+        </div>
+      </div>
+      <div class="row-actions" style="margin-bottom:12px;">
+        <button id="btnSectorReport" type="button" class="secondary">Ver reporte por responsable</button>
+      </div>
+      <div class="cards" style="grid-template-columns:repeat(4,1fr); margin-bottom:12px;">
+        <div class="card"><div class="label">Miembros asignados</div><div id="sectorKpiMembers" class="value">0</div></div>
+        <div class="card"><div class="label">Asistencias en período</div><div id="sectorKpiAttendances" class="value">0</div></div>
+        <div class="card"><div class="label">Visitados con visita realizada</div><div id="sectorKpiVisited" class="value">0</div></div>
+        <div class="card"><div class="label">Nunca visitados</div><div id="sectorKpiNeverVisited" class="value">0</div></div>
+      </div>
+      <div class="scroll" style="max-height:460px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Miembro</th>
+              <th>Últimas asistencias</th>
+              <th>Última visita efectiva</th>
+              <th>Estado seguimiento</th>
+            </tr>
+          </thead>
+          <tbody id="sectorReportTableBody">
+            <tr><td colspan="4" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -839,6 +884,7 @@
       <div class="member-tabs">
         <button type="button" class="member-tab active" data-tab="personal">Datos personales</button>
         <button type="button" class="member-tab" data-tab="groups">Grupos / áreas</button>
+        <button type="button" class="member-tab" data-tab="sector">Sector</button>
         <button type="button" class="member-tab" data-tab="family">Familia</button>
         <button type="button" class="member-tab" data-tab="events">Acontecimientos</button>
       </div>
@@ -868,6 +914,14 @@
             <div id="categoryCheckboxes" class="checkbox-grid"></div>
           </details>
           <div class="hint" style="margin-top:10px;">Podés asignar varios grupos al mismo miembro. Enseñanza incluye subgrupos PED, ED, ER y AC.</div>
+        </div>
+      </div>
+
+      <div id="tab-sector" class="member-tabpanel theme-sector">
+        <div class="section-card">
+          <div class="hint" style="margin-bottom:8px;">Responsable de sector</div>
+          <select id="editSectorResponsable" style="width:100%"></select>
+          <div class="hint" style="margin-top:10px;">Este campo no modifica Planificación: sirve para asignar el miembro a un responsable y luego generar reportes de seguimiento por sector.</div>
         </div>
       </div>
 
@@ -978,6 +1032,7 @@ let authRecoverySubscription = null;
 let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [] };
 const PASSWORD_RECOVERY_PENDING_KEY = "panel-asistencia-password-recovery-pending";
 const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
+const SECTOR_RESPONSABLE_OPTIONS = ["Adriano Boggio","Demian Kaczmar","Omar Vivas","Marisa Ferrari"];
 
 function activateMemberTab(tab) {
   document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -1072,6 +1127,7 @@ function applyAdminRoleVisibility(){
   const analytics = $("adminAnalyticsSection");
   const groups = $("adminGroupsSection");
   const reports = $("adminReportsSection");
+  const sectorReports = $("sectorReportsSection");
   const reloadBtn = $("btnAdminReload");
   const exportBtn = $("btnExportMembersExcel");
   const weekly = $("weeklyEmailDetails");
@@ -1082,6 +1138,7 @@ function applyAdminRoleVisibility(){
   if (analytics) analytics.classList.toggle("hidden", !isAdmin);
   if (groups) groups.classList.toggle("hidden", !isAdmin);
   if (reports) reports.classList.toggle("hidden", !isAdmin);
+  if (sectorReports) sectorReports.classList.toggle("hidden", !isAdmin);
   if (reloadBtn) reloadBtn.classList.toggle("hidden", !isAdmin);
   if (exportBtn) exportBtn.classList.toggle("hidden", !isAdmin);
   if (weekly) weekly.classList.toggle("hidden", !isAdmin);
@@ -1947,6 +2004,16 @@ function updateCategorySummary(){
   summary.textContent = parts.length ? parts.join(' · ') : 'Seleccionar categorías o grupos';
 }
 
+function populateSectorResponsableOptions(){
+  const selects = [$("editSectorResponsable"), $("sectorReportResponsible")].filter(Boolean);
+  selects.forEach(sel => {
+    const current = sel.value;
+    const emptyLabel = sel.id === "sectorReportResponsible" ? "Seleccionar responsable..." : "Sin responsable asignado";
+    sel.innerHTML = `<option value="">${emptyLabel}</option>` + SECTOR_RESPONSABLE_OPTIONS.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+    if (current && SECTOR_RESPONSABLE_OPTIONS.includes(current)) sel.value = current;
+  });
+}
+
 function renderDuplicateWarning(){
   const box = $("duplicateWarningBox");
   if (!box || !$("newMemberName")) return;
@@ -2402,6 +2469,8 @@ function abrirFicha(id) {
     $("editBirth").value = member.birth_date || "";
     $("editAddress").value = member.address || "";
     setSelectedCategories(member.category);
+    populateSectorResponsableOptions();
+    if ($("editSectorResponsable")) $("editSectorResponsable").value = member.sector_responsable || "";
     selectedRelatedMemberId = null;
     if ($("relatedMemberSearch")) $("relatedMemberSearch").value = "";
     if ($("relationNotes")) $("relationNotes").value = "";
@@ -2428,7 +2497,8 @@ async function guardarCambiosMiembro() {
         phone: $("editPhone").value.trim(),
         birth_date: $("editBirth").value || null,
         address: $("editAddress").value.trim(),
-        category: getSelectedCategories().join(", ")
+        category: getSelectedCategories().join(", "),
+        sector_responsable: $("editSectorResponsable") ? ($("editSectorResponsable").value || null) : null
     };
 
     const { error } = await supabaseClient.from("members").update(payload).eq("id", id);
@@ -2436,6 +2506,8 @@ async function guardarCambiosMiembro() {
       const msg = String(error.message || "");
       if (msg.includes("Could not find the 'category' column")) {
         alert("Error al actualizar: falta la columna category en la tabla members. Ejecutá en Supabase: alter table public.members add column if not exists category text;");
+      } else if (msg.includes("sector_responsable")) {
+        alert("Error al actualizar: falta la columna sector_responsable en la tabla members. Ejecutá en Supabase: alter table public.members add column if not exists sector_responsable text;");
       } else {
         alert("Error al actualizar: " + msg);
       }
@@ -2924,6 +2996,104 @@ function runGroupMembersReport(){
   renderGroupTable(["Miembro", "Teléfono", "Estado"], rows);
 }
 
+
+function getSectorReportRange(){
+  const refDate = getReferenceDate();
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  let from = $("sectorReportDateFrom")?.value || defaultFrom;
+  let to = $("sectorReportDateTo")?.value || refDate;
+  if (from > to) [from, to] = [to, from];
+  return {from, to};
+}
+function initializeSectorReportDefaults(){
+  populateSectorResponsableOptions();
+  const {from, to} = getReportRange();
+  if ($("sectorReportDateFrom") && !$("sectorReportDateFrom").value) $("sectorReportDateFrom").value = from;
+  if ($("sectorReportDateTo") && !$("sectorReportDateTo").value) $("sectorReportDateTo").value = to;
+}
+function getSectorMembers(responsable){
+  return Object.values(state.membersFullData || {})
+    .filter(member => String(member?.sector_responsable || "") === String(responsable || ""))
+    .sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || ""), "es"));
+}
+function getRecentAttendancesForMember(memberId, from, to, limit=5){
+  return (state.attendance || [])
+    .filter(r => String(r.member_id) === String(memberId) && r.date >= from && r.date <= to)
+    .map(r => r.date)
+    .sort((a,b) => b.localeCompare(a))
+    .slice(0, limit);
+}
+function getEffectiveVisitActionsForMember(memberId, to=null){
+  return (state.vaeActions || [])
+    .filter(action => String(action.status || "") === "realizada")
+    .filter(action => !to || String(action.date || "") <= to)
+    .filter(action => (action.visitedMemberIds || []).map(String).includes(String(memberId)))
+    .sort((a,b) => vaeCompareActions(b,a));
+}
+function buildSectorReportRows(responsable, from, to){
+  return getSectorMembers(responsable).map(member => {
+    const attendances = getRecentAttendancesForMember(member.id, from, to, 5);
+    const attendanceCount = (state.attendance || []).filter(r => String(r.member_id) === String(member.id) && r.date >= from && r.date <= to).length;
+    const visits = getEffectiveVisitActionsForMember(member.id, to);
+    const lastVisit = visits[0] || null;
+    const daysSinceVisit = lastVisit?.date ? diffDaysBetween(lastVisit.date, to) : null;
+    let status = "Al día";
+    if (!lastVisit) status = "Nunca visitado";
+    else if (daysSinceVisit > 90) status = "Sin visita hace 90+ días";
+    else if (daysSinceVisit > 60) status = "Sin visita reciente";
+    return {
+      member,
+      attendanceCount,
+      attendances,
+      lastVisit,
+      daysSinceVisit,
+      visitsCount: visits.length,
+      status
+    };
+  });
+}
+function renderSectorReport(){
+  const responsable = $("sectorReportResponsible")?.value || "";
+  const body = $("sectorReportTableBody");
+  if (!body) return;
+  const {from, to} = getSectorReportRange();
+  if (!responsable){
+    body.innerHTML = '<tr><td colspan="4" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>';
+    if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
+    if ($("sectorKpiAttendances")) $("sectorKpiAttendances").textContent = "0";
+    if ($("sectorKpiVisited")) $("sectorKpiVisited").textContent = "0";
+    if ($("sectorKpiNeverVisited")) $("sectorKpiNeverVisited").textContent = "0";
+    return;
+  }
+  const rows = buildSectorReportRows(responsable, from, to);
+  const totalAttendances = rows.reduce((acc,row) => acc + row.attendanceCount, 0);
+  const visitedCount = rows.filter(row => !!row.lastVisit).length;
+  const neverVisited = rows.filter(row => !row.lastVisit).length;
+  if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = rows.length;
+  if ($("sectorKpiAttendances")) $("sectorKpiAttendances").textContent = totalAttendances;
+  if ($("sectorKpiVisited")) $("sectorKpiVisited").textContent = visitedCount;
+  if ($("sectorKpiNeverVisited")) $("sectorKpiNeverVisited").textContent = neverVisited;
+  if (!rows.length){
+    body.innerHTML = '<tr><td colspan="4" class="hint">No hay miembros asignados a ese responsable.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(row => {
+    const attendanceText = row.attendances.length
+      ? `${row.attendances.map(formatDate).join(", ")} <span class="hint">(${row.attendanceCount} en período)</span>`
+      : `<span class="hint">Sin asistencia en el período</span>`;
+    const visitText = row.lastVisit
+      ? `${escapeHtml(formatDate(row.lastVisit.date))}${row.lastVisit.time ? ` · ${escapeHtml(vaeFormatTime(row.lastVisit.time))}` : ""}<br><span class="hint">${escapeHtml(getActionDisplayTitle(row.lastVisit))}${row.daysSinceVisit !== null ? ` · hace ${escapeHtml(String(row.daysSinceVisit))} días` : ""}</span>`
+      : `<span class="hint">Sin visita registrada</span>`;
+    return `<tr>
+      <td><button type="button" class="metric-link sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">${escapeHtml(row.member.name || "")}</button></td>
+      <td>${attendanceText}</td>
+      <td>${visitText}</td>
+      <td>${escapeHtml(row.status)}</td>
+    </tr>`;
+  }).join("");
+  body.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", () => abrirFicha(String(btn.dataset.memberId || ""))));
+}
+
 function renderReport(title1, title2, rows, formatter){
   $("reportCol1").textContent = title1;
   $("reportCol2").textContent = title2;
@@ -3365,6 +3535,7 @@ function exportMembersToExcel(){
     "Fecha de nacimiento",
     "Direccion",
     "Grupos / areas",
+    "Responsable de sector",
     "Vinculos directos",
     "Acontecimientos",
     "Falta telefono",
@@ -3383,6 +3554,7 @@ function exportMembersToExcel(){
       member.birth_date || "",
       member.address || "",
       normalizeCategoryValue(member.category).join(", "),
+      member.sector_responsable || "",
       memberDirectRelationsSummary(member.id),
       memberEventSummary(member.id),
       member.phone ? "No" : "Si",
@@ -4600,6 +4772,10 @@ function wireEvents(){
   $("btnReportFirstMonth").addEventListener("click", () => runReport("firstMonth"));
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
+  if ($("btnSectorReport")) $("btnSectorReport").addEventListener("click", renderSectorReport);
+  if ($("sectorReportResponsible")) $("sectorReportResponsible").addEventListener("change", renderSectorReport);
+  if ($("sectorReportDateFrom")) $("sectorReportDateFrom").addEventListener("change", renderSectorReport);
+  if ($("sectorReportDateTo")) $("sectorReportDateTo").addEventListener("change", renderSectorReport);
   $("reportDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) calcularAdminKPIs(); });
 
   if ($("groupDateFrom")) $("groupDateFrom").addEventListener("change", () => { if (!$("adminView").classList.contains("hidden")) updateGroupKPIs($("groupReportSelect").value || "", getGroupRange().from, getGroupRange().to); });
@@ -4688,7 +4864,7 @@ function initializeDefaults(){
   if ($("groupDateTo")) $("groupDateTo").value = $("fecha").value;
   switchTab("operativa");
 }
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); resumen(); renderVae(); updateSaveStatus(); }
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); initializeSectorReportDefaults(); resumen(); renderVae(); updateSaveStatus(); }
 async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
@@ -4710,6 +4886,7 @@ async function initialize(){
   initializeDefaults();
   startAttendanceAutosave();
   initCategorySelector();
+  populateSectorResponsableOptions();
   populateRelationTypeOptions();
 
   try {
