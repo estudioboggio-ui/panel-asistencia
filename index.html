@@ -112,7 +112,12 @@
   .sector-bucket-sub{font-size:12px;color:var(--muted);margin-top:3px}
   .sector-bucket-count{min-width:34px;text-align:center;border-radius:999px;border:1px solid var(--line);padding:5px 9px;color:#e5e7eb;background:rgba(255,255,255,.04);font-weight:700}
   .sector-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}
-  .sector-person-card{border:1px solid rgba(148,163,184,.22);border-radius:16px;background:#0b1220;padding:12px}
+  .sector-person-card{border:1px solid rgba(148,163,184,.22);border-radius:16px;background:#0b1220;padding:0;overflow:hidden}
+  .sector-person-card summary{list-style:none;cursor:pointer;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .sector-person-card summary::-webkit-details-marker{display:none}
+  .sector-person-card[open] summary{border-bottom:1px solid rgba(51,65,85,.55)}
+  .sector-person-name{color:#fff;font-size:15px;font-weight:800;text-align:left;line-height:1.3;overflow-wrap:anywhere}
+  .sector-person-detail{padding:12px}
   .sector-card-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
   .sector-card-title button{padding:0;border:0;background:none;color:#fff;font-size:15px;font-weight:800;text-align:left;text-decoration:none}
   .sector-card-title button:hover{text-decoration:underline}
@@ -258,7 +263,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.14 · mapa visual por responsable</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.15 · mapa compacto privado</span>
     </div>
   </div>
 </div>
@@ -1082,6 +1087,7 @@ let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, 
 const PASSWORD_RECOVERY_PENDING_KEY = "panel-asistencia-password-recovery-pending";
 const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
 const SECTOR_RESPONSABLE_OPTIONS = ["Adriano Boggio","Demian Kaczmar","Omar Vivas","Marisa Ferrari"];
+const SECTOR_MAP_ALLOWED_EMAILS = ["adriano.boggio@gmail.com"];
 
 function activateMemberTab(tab) {
   document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -1147,6 +1153,10 @@ function userCanViewAdmin(){ return ["admin","oficiante"].includes(currentProfil
 function userCanVae(){ return ["admin","oficiante"].includes(currentProfile?.role); }
 function userCanVaeAdvanced(){ return currentProfile?.role === "admin"; }
 function userCanOperative(){ return ["admin","carga","oficiante"].includes(currentProfile?.role); }
+function userCanViewSectorMap(){
+  const email = String(currentProfile?.email || currentSession?.user?.email || "").trim().toLowerCase();
+  return SECTOR_MAP_ALLOWED_EMAILS.includes(email);
+}
 function applyAdminRoleVisibility(){
   const isAdmin = userCanAdmin();
   const canViewAdmin = userCanViewAdmin();
@@ -1187,7 +1197,7 @@ function applyAdminRoleVisibility(){
   if (analytics) analytics.classList.toggle("hidden", !isAdmin);
   if (groups) groups.classList.toggle("hidden", !isAdmin);
   if (reports) reports.classList.toggle("hidden", !isAdmin);
-  if (sectorReports) sectorReports.classList.toggle("hidden", !isAdmin);
+  if (sectorReports) sectorReports.classList.toggle("hidden", !userCanViewSectorMap());
   if (reloadBtn) reloadBtn.classList.toggle("hidden", !isAdmin);
   if (exportBtn) exportBtn.classList.toggle("hidden", !isAdmin);
   if (weekly) weekly.classList.toggle("hidden", !isAdmin);
@@ -3055,6 +3065,7 @@ function getSectorReportRange(){
   return {from, to};
 }
 function initializeSectorReportDefaults(){
+  if (!userCanViewSectorMap()) return;
   populateSectorResponsableOptions();
   const {from, to} = getReportRange();
   if ($("sectorReportDateFrom") && !$('sectorReportDateFrom').value) $("sectorReportDateFrom").value = from;
@@ -3206,17 +3217,22 @@ function renderSectorPersonCard(row){
     ? `${getActionDisplayTitle(row.lastVisit)} · hace ${row.daysSinceVisit} día${row.daysSinceVisit === 1 ? "" : "s"}`
     : "No hay acción de Planificación realizada con este miembro como visitado";
   const phone = row.member?.phone ? row.member.phone : "Sin teléfono cargado";
-  return `<div class="sector-person-card">
-    <div class="sector-card-title">
-      <button type="button" class="sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">${escapeHtml(row.member.name || "")}</button>
+  return `<details class="sector-person-card">
+    <summary>
+      <span class="sector-person-name">${escapeHtml(row.member.name || "")}</span>
       <span class="sector-status-pill sector-${escapeHtml(row.statusKey)}">${escapeHtml(row.status)}</span>
+    </summary>
+    <div class="sector-person-detail">
+      <div class="sector-card-line"><strong>Últimas asistencias:</strong><br>${escapeHtml(attendanceText)}<br><span class="hint">${escapeHtml(attendanceMeta)} · ${escapeHtml(String(row.attendanceCount))} asistencia${row.attendanceCount === 1 ? "" : "s"} en período</span></div>
+      <div class="sector-card-line"><strong>Última visita efectiva:</strong><br>${escapeHtml(visitText)}<br><span class="hint">${escapeHtml(visitMeta)}</span></div>
+      <div class="sector-card-line"><strong>Datos:</strong> ${escapeHtml(phone)} · ${escapeHtml(getMemberGroupSummary(row.member))}</div>
+      <div class="sector-card-line"><strong>Motivo:</strong> ${escapeHtml(row.reason)}</div>
+      <div class="sector-action"><strong>Acción sugerida:</strong> ${escapeHtml(row.action)}</div>
+      <div class="row-actions" style="margin-top:10px;">
+        <button type="button" class="secondary sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">Abrir ficha</button>
+      </div>
     </div>
-    <div class="sector-card-line"><strong>Últimas asistencias:</strong><br>${escapeHtml(attendanceText)}<br><span class="hint">${escapeHtml(attendanceMeta)} · ${escapeHtml(String(row.attendanceCount))} asistencia${row.attendanceCount === 1 ? "" : "s"} en período</span></div>
-    <div class="sector-card-line"><strong>Última visita efectiva:</strong><br>${escapeHtml(visitText)}<br><span class="hint">${escapeHtml(visitMeta)}</span></div>
-    <div class="sector-card-line"><strong>Datos:</strong> ${escapeHtml(phone)} · ${escapeHtml(getMemberGroupSummary(row.member))}</div>
-    <div class="sector-card-line"><strong>Motivo:</strong> ${escapeHtml(row.reason)}</div>
-    <div class="sector-action"><strong>Acción sugerida:</strong> ${escapeHtml(row.action)}</div>
-  </div>`;
+  </details>`;
 }
 function renderSectorBucket(key, title, subtitle, rows){
   return `<div class="sector-bucket">
@@ -3274,6 +3290,7 @@ function resetSectorReportUI(message='Elegí un responsable para generar el mapa
   if ($("sectorReportTableBody")) $("sectorReportTableBody").innerHTML = `<tr><td colspan="4" class="hint">${escapeHtml(message)}</td></tr>`;
 }
 function renderSectorReport(){
+  if (!userCanViewSectorMap()) return;
   const responsable = $("sectorReportResponsible")?.value || "";
   const {from, to} = getSectorReportRange();
   if (!responsable){
