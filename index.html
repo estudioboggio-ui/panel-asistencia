@@ -94,6 +94,39 @@
   .member-tabpanel.theme-family.active .section-card{background:rgba(124,58,237,.08); border-color:rgba(167,139,250,.35)}
   .member-tabpanel.theme-events.active .section-card{background:rgba(180,83,9,.08); border-color:rgba(251,191,36,.35)}
   .member-tabpanel.theme-sector.active .section-card{background:rgba(15,118,110,.08); border-color:rgba(45,212,191,.35)}
+  .sector-map-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .sector-map-title{font-size:22px;font-weight:800;margin:0 0 4px 0}
+  .sector-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+  .sector-kpi{border:1px solid var(--line);border-radius:16px;padding:12px;background:linear-gradient(180deg,rgba(30,41,59,.9),rgba(15,23,42,.95))}
+  .sector-kpi .label{font-size:12px;color:var(--muted);line-height:1.3}
+  .sector-kpi .value{font-size:26px;font-weight:800;margin-top:6px}
+  .sector-agenda{border:1px solid rgba(56,189,248,.35);background:rgba(14,116,144,.12);border-radius:18px;padding:14px;margin-bottom:14px}
+  .sector-agenda h3{margin:0 0 10px 0;font-size:16px}
+  .sector-agenda-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .sector-agenda-box{border:1px solid rgba(148,163,184,.22);border-radius:14px;background:rgba(2,6,23,.35);padding:10px}
+  .sector-agenda-box strong{display:block;margin-bottom:6px}
+  .sector-buckets{display:grid;gap:14px}
+  .sector-bucket{border:1px solid var(--line);border-radius:18px;background:rgba(15,23,42,.78);overflow:hidden}
+  .sector-bucket-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(51,65,85,.55)}
+  .sector-bucket-head h3{margin:0;font-size:17px}
+  .sector-bucket-sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .sector-bucket-count{min-width:34px;text-align:center;border-radius:999px;border:1px solid var(--line);padding:5px 9px;color:#e5e7eb;background:rgba(255,255,255,.04);font-weight:700}
+  .sector-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}
+  .sector-person-card{border:1px solid rgba(148,163,184,.22);border-radius:16px;background:#0b1220;padding:12px}
+  .sector-card-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+  .sector-card-title button{padding:0;border:0;background:none;color:#fff;font-size:15px;font-weight:800;text-align:left;text-decoration:none}
+  .sector-card-title button:hover{text-decoration:underline}
+  .sector-status-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 8px;border:1px solid var(--line);font-size:11px;font-weight:800;white-space:nowrap}
+  .sector-priority{border-color:#991b1b;background:rgba(153,27,27,.16);color:#fecaca}
+  .sector-contact{border-color:#b45309;background:rgba(180,83,9,.16);color:#fed7aa}
+  .sector-no_visit{border-color:#ca8a04;background:rgba(202,138,4,.15);color:#fef3c7}
+  .sector-observe{border-color:#0369a1;background:rgba(3,105,161,.16);color:#bae6fd}
+  .sector-stable{border-color:#166534;background:rgba(22,101,52,.16);color:#bbf7d0}
+  .sector-card-line{font-size:13px;line-height:1.45;margin-top:6px}
+  .sector-card-line .hint{font-size:12px}
+  .sector-action{margin-top:10px;border-top:1px solid rgba(51,65,85,.55);padding-top:10px;color:#f8fafc;font-size:13px}
+  .sector-empty{padding:14px;color:var(--muted);font-size:13px}
+  @media (max-width:1100px){.sector-kpi-grid{grid-template-columns:repeat(2,1fr)}.sector-agenda-grid,.sector-card-grid{grid-template-columns:1fr}}
   .event-card{border:1px solid var(--line); border-radius:14px; padding:12px; background:#0b1220}
   .event-card + .event-card{margin-top:10px}
   .event-privacy-box{border:1px solid rgba(51,65,85,.6);border-radius:12px;padding:10px 12px;background:#0b1220}
@@ -225,7 +258,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.13 · sector y reporte por responsable</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.14 · mapa visual por responsable</span>
     </div>
   </div>
 </div>
@@ -573,7 +606,12 @@
     </div>
 
     <div id="sectorReportsSection" class="panel" style="margin-top:16px;">
-      <h2>Reporte por responsable de sector</h2>
+      <div class="sector-map-header">
+        <div>
+          <h2 class="sector-map-title">Mapa de seguimiento por responsable</h2>
+          <div class="hint">Vista visual para identificar a quién prestar atención, contactar o visitar. Las visitas efectivas se toman de Planificación solo cuando el estado es <strong>Realizada</strong>.</div>
+        </div>
+      </div>
       <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
         <div>
           <div class="hint" style="margin-bottom:6px;">Responsable de sector</div>
@@ -589,29 +627,40 @@
         </div>
       </div>
       <div class="row-actions" style="margin-bottom:12px;">
-        <button id="btnSectorReport" type="button" class="secondary">Ver reporte por responsable</button>
+        <button id="btnSectorReport" type="button" class="secondary">Generar mapa de seguimiento</button>
       </div>
-      <div class="cards" style="grid-template-columns:repeat(4,1fr); margin-bottom:12px;">
-        <div class="card"><div class="label">Miembros asignados</div><div id="sectorKpiMembers" class="value">0</div></div>
-        <div class="card"><div class="label">Asistencias en período</div><div id="sectorKpiAttendances" class="value">0</div></div>
-        <div class="card"><div class="label">Visitados con visita realizada</div><div id="sectorKpiVisited" class="value">0</div></div>
-        <div class="card"><div class="label">Nunca visitados</div><div id="sectorKpiNeverVisited" class="value">0</div></div>
+
+      <div class="sector-kpi-grid">
+        <div class="sector-kpi"><div class="label">Miembros asignados</div><div id="sectorKpiMembers" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Atención inmediata</div><div id="sectorKpiPriority" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Contactar esta semana</div><div id="sectorKpiContact" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Sin visita registrada</div><div id="sectorKpiNoVisit" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
       </div>
-      <div class="scroll" style="max-height:460px;">
-        <table>
-          <thead>
-            <tr>
-              <th>Miembro</th>
-              <th>Últimas asistencias</th>
-              <th>Última visita efectiva</th>
-              <th>Estado seguimiento</th>
-            </tr>
-          </thead>
-          <tbody id="sectorReportTableBody">
-            <tr><td colspan="4" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>
-          </tbody>
-        </table>
+
+      <div id="sectorAgendaSuggested" class="sector-agenda hidden"></div>
+      <div id="sectorMapBuckets" class="sector-buckets">
+        <div class="sector-empty">Elegí un responsable para generar el mapa de seguimiento.</div>
       </div>
+
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver tabla detallada / auditoría de datos</summary>
+        <div class="scroll" style="max-height:460px; margin-top:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Miembro</th>
+                <th>Últimas asistencias</th>
+                <th>Última visita efectiva</th>
+                <th>Estado seguimiento</th>
+              </tr>
+            </thead>
+            <tbody id="sectorReportTableBody">
+              <tr><td colspan="4" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
 
   </div>
@@ -3008,20 +3057,25 @@ function getSectorReportRange(){
 function initializeSectorReportDefaults(){
   populateSectorResponsableOptions();
   const {from, to} = getReportRange();
-  if ($("sectorReportDateFrom") && !$("sectorReportDateFrom").value) $("sectorReportDateFrom").value = from;
-  if ($("sectorReportDateTo") && !$("sectorReportDateTo").value) $("sectorReportDateTo").value = to;
+  if ($("sectorReportDateFrom") && !$('sectorReportDateFrom').value) $("sectorReportDateFrom").value = from;
+  if ($("sectorReportDateTo") && !$('sectorReportDateTo').value) $("sectorReportDateTo").value = to;
 }
 function getSectorMembers(responsable){
   return Object.values(state.membersFullData || {})
     .filter(member => String(member?.sector_responsable || "") === String(responsable || ""))
     .sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || ""), "es"));
 }
-function getRecentAttendancesForMember(memberId, from, to, limit=5){
+function getRecentAttendancesForMember(memberId, to, limit=5){
   return (state.attendance || [])
-    .filter(r => String(r.member_id) === String(memberId) && r.date >= from && r.date <= to)
+    .filter(r => String(r.member_id) === String(memberId) && r.date <= to)
     .map(r => r.date)
     .sort((a,b) => b.localeCompare(a))
     .slice(0, limit);
+}
+function getAttendanceCountForMember(memberId, from, to){
+  return (state.attendance || [])
+    .filter(r => String(r.member_id) === String(memberId) && r.date >= from && r.date <= to)
+    .length;
 }
 function getEffectiveVisitActionsForMember(memberId, to=null){
   return (state.vaeActions || [])
@@ -3030,49 +3084,165 @@ function getEffectiveVisitActionsForMember(memberId, to=null){
     .filter(action => (action.visitedMemberIds || []).map(String).includes(String(memberId)))
     .sort((a,b) => vaeCompareActions(b,a));
 }
+function getEffectiveVisitCountForMember(memberId, from, to){
+  return getEffectiveVisitActionsForMember(memberId, to)
+    .filter(action => String(action.date || "") >= from)
+    .length;
+}
+function getMemberGroupSummary(member){
+  const categories = normalizeCategoryValue(member?.category);
+  return categories.length ? categories.join(", ") : "Sin grupo cargado";
+}
+function buildSectorMemberReason(row){
+  const reasons = [];
+  if (row.daysSinceAttendance === null) reasons.push("no tiene asistencias registradas");
+  else if (row.daysSinceAttendance > 42) reasons.push(`no asiste hace ${Math.round(row.daysSinceAttendance / 7)} semanas`);
+  else if (row.daysSinceAttendance > 21) reasons.push(`no asiste hace ${Math.round(row.daysSinceAttendance / 7)} semanas`);
+  else if (row.attendanceCount === 0) reasons.push("no registra asistencia en el período");
+  else if (row.attendanceCount <= 1) reasons.push("tiene asistencia baja en el período");
+
+  if (!row.lastVisit) reasons.push("no registra visita efectiva");
+  else if (row.daysSinceVisit > 90) reasons.push("su última visita supera los 90 días");
+  else if (row.daysSinceVisit > 60) reasons.push("su última visita supera los 60 días");
+
+  return reasons.length ? reasons.join(" y ") + "." : "Sin señales críticas en el período.";
+}
+function classifySectorRow(row){
+  const noAttendanceHistory = row.daysSinceAttendance === null;
+  const noRecentAttendance = row.daysSinceAttendance !== null && row.daysSinceAttendance > 42;
+  const coolingAttendance = row.daysSinceAttendance !== null && row.daysSinceAttendance > 21;
+  const lowPeriodAttendance = row.attendanceCount <= 1;
+  const noVisit = !row.lastVisit;
+  const visitVeryOld = row.daysSinceVisit !== null && row.daysSinceVisit > 90;
+  const visitOld = row.daysSinceVisit !== null && row.daysSinceVisit > 60;
+
+  if ((noAttendanceHistory || noRecentAttendance) && (noVisit || visitOld)) {
+    return {key:"priority", label:"Atención inmediata", action:"Visitar o contactar esta semana."};
+  }
+  if (visitVeryOld && lowPeriodAttendance) {
+    return {key:"priority", label:"Atención inmediata", action:"Visitar o contactar esta semana."};
+  }
+  if (coolingAttendance || lowPeriodAttendance || visitOld) {
+    return {key:"contact", label:"Contactar esta semana", action:"Enviar mensaje, llamar o invitar personalmente."};
+  }
+  if (noVisit) {
+    return {key:"no_visit", label:"Sin visita registrada", action:"Programar primera visita efectiva."};
+  }
+  if ((row.daysSinceAttendance !== null && row.daysSinceAttendance > 14) || (row.daysSinceVisit !== null && row.daysSinceVisit > 45)) {
+    return {key:"observe", label:"En observación", action:"Observar evolución y reforzar contacto si baja la asistencia."};
+  }
+  return {key:"stable", label:"Estable", action:"Sin acción urgente."};
+}
 function buildSectorReportRows(responsable, from, to){
   return getSectorMembers(responsable).map(member => {
-    const attendances = getRecentAttendancesForMember(member.id, from, to, 5);
-    const attendanceCount = (state.attendance || []).filter(r => String(r.member_id) === String(member.id) && r.date >= from && r.date <= to).length;
+    const attendances = getRecentAttendancesForMember(member.id, to, 5);
+    const attendanceCount = getAttendanceCountForMember(member.id, from, to);
+    const lastAttendance = attendances[0] || null;
+    const daysSinceAttendance = lastAttendance ? diffDaysBetween(lastAttendance, to) : null;
     const visits = getEffectiveVisitActionsForMember(member.id, to);
     const lastVisit = visits[0] || null;
     const daysSinceVisit = lastVisit?.date ? diffDaysBetween(lastVisit.date, to) : null;
-    let status = "Al día";
-    if (!lastVisit) status = "Nunca visitado";
-    else if (daysSinceVisit > 90) status = "Sin visita hace 90+ días";
-    else if (daysSinceVisit > 60) status = "Sin visita reciente";
-    return {
+    const visitsInPeriod = getEffectiveVisitCountForMember(member.id, from, to);
+    const base = {
       member,
       attendanceCount,
       attendances,
+      lastAttendance,
+      daysSinceAttendance,
       lastVisit,
       daysSinceVisit,
       visitsCount: visits.length,
-      status
+      visitsInPeriod
     };
+    const classification = classifySectorRow(base);
+    return {
+      ...base,
+      statusKey: classification.key,
+      status: classification.label,
+      action: classification.action,
+      reason: buildSectorMemberReason(base)
+    };
+  }).sort((a,b) => {
+    const order = {priority:0, contact:1, no_visit:2, observe:3, stable:4};
+    const byStatus = (order[a.statusKey] ?? 99) - (order[b.statusKey] ?? 99);
+    if (byStatus !== 0) return byStatus;
+    const aDays = a.daysSinceAttendance === null ? 99999 : a.daysSinceAttendance;
+    const bDays = b.daysSinceAttendance === null ? 99999 : b.daysSinceAttendance;
+    if (bDays !== aDays) return bDays - aDays;
+    return String(a.member?.name || "").localeCompare(String(b.member?.name || ""), "es");
   });
 }
-function renderSectorReport(){
-  const responsable = $("sectorReportResponsible")?.value || "";
+function sectorRowsByBucket(rows){
+  const buckets = {priority:[], contact:[], no_visit:[], observe:[], stable:[]};
+  rows.forEach(row => { if (buckets[row.statusKey]) buckets[row.statusKey].push(row); });
+  return buckets;
+}
+function renderSectorAgenda(rows){
+  const box = $("sectorAgendaSuggested");
+  if (!box) return;
+  const buckets = sectorRowsByBucket(rows);
+  if (!rows.length){ box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const listNames = arr => arr.slice(0,5).map(row => `<div>• ${escapeHtml(row.member?.name || "")}</div>`).join("") || '<div class="hint">Sin casos.</div>';
+  box.classList.remove("hidden");
+  box.innerHTML = `
+    <h3>Agenda sugerida</h3>
+    <div class="sector-agenda-grid">
+      <div class="sector-agenda-box"><strong>Visitar / actuar esta semana</strong>${listNames(buckets.priority)}</div>
+      <div class="sector-agenda-box"><strong>Contactar</strong>${listNames(buckets.contact)}</div>
+      <div class="sector-agenda-box"><strong>Programar primera visita</strong>${listNames(buckets.no_visit)}</div>
+    </div>`;
+}
+function renderSectorPersonCard(row){
+  const attendanceText = row.attendances.length
+    ? row.attendances.map(formatDate).join(" · ")
+    : "Sin asistencias registradas";
+  const attendanceMeta = row.lastAttendance
+    ? `Última: ${formatDate(row.lastAttendance)} · hace ${row.daysSinceAttendance} día${row.daysSinceAttendance === 1 ? "" : "s"}`
+    : "Sin última asistencia";
+  const visitText = row.lastVisit
+    ? `${formatDate(row.lastVisit.date)}${row.lastVisit.time ? ` · ${vaeFormatTime(row.lastVisit.time)}` : ""}`
+    : "Sin visita registrada";
+  const visitMeta = row.lastVisit
+    ? `${getActionDisplayTitle(row.lastVisit)} · hace ${row.daysSinceVisit} día${row.daysSinceVisit === 1 ? "" : "s"}`
+    : "No hay acción de Planificación realizada con este miembro como visitado";
+  const phone = row.member?.phone ? row.member.phone : "Sin teléfono cargado";
+  return `<div class="sector-person-card">
+    <div class="sector-card-title">
+      <button type="button" class="sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">${escapeHtml(row.member.name || "")}</button>
+      <span class="sector-status-pill sector-${escapeHtml(row.statusKey)}">${escapeHtml(row.status)}</span>
+    </div>
+    <div class="sector-card-line"><strong>Últimas asistencias:</strong><br>${escapeHtml(attendanceText)}<br><span class="hint">${escapeHtml(attendanceMeta)} · ${escapeHtml(String(row.attendanceCount))} asistencia${row.attendanceCount === 1 ? "" : "s"} en período</span></div>
+    <div class="sector-card-line"><strong>Última visita efectiva:</strong><br>${escapeHtml(visitText)}<br><span class="hint">${escapeHtml(visitMeta)}</span></div>
+    <div class="sector-card-line"><strong>Datos:</strong> ${escapeHtml(phone)} · ${escapeHtml(getMemberGroupSummary(row.member))}</div>
+    <div class="sector-card-line"><strong>Motivo:</strong> ${escapeHtml(row.reason)}</div>
+    <div class="sector-action"><strong>Acción sugerida:</strong> ${escapeHtml(row.action)}</div>
+  </div>`;
+}
+function renderSectorBucket(key, title, subtitle, rows){
+  return `<div class="sector-bucket">
+    <div class="sector-bucket-head">
+      <div><h3>${escapeHtml(title)}</h3><div class="sector-bucket-sub">${escapeHtml(subtitle)}</div></div>
+      <div class="sector-bucket-count">${rows.length}</div>
+    </div>
+    ${rows.length ? `<div class="sector-card-grid">${rows.map(renderSectorPersonCard).join("")}</div>` : `<div class="sector-empty">Sin personas en esta categoría.</div>`}
+  </div>`;
+}
+function renderSectorBuckets(rows){
+  const box = $("sectorMapBuckets");
+  if (!box) return;
+  const buckets = sectorRowsByBucket(rows);
+  box.innerHTML = [
+    renderSectorBucket("priority", "🔴 Atención inmediata", "Baja asistencia combinada con ausencia de visita o visita antigua.", buckets.priority),
+    renderSectorBucket("contact", "🟠 Contactar esta semana", "Señales de enfriamiento, baja asistencia o seguimiento que necesita refuerzo.", buckets.contact),
+    renderSectorBucket("no_visit", "🟡 Sin visita registrada", "Personas asignadas que todavía no registran visita efectiva realizada.", buckets.no_visit),
+    renderSectorBucket("observe", "🔵 En observación", "No son casos críticos, pero conviene mirar su evolución.", buckets.observe),
+    renderSectorBucket("stable", "🟢 Estables", "Sin alertas fuertes de asistencia o seguimiento.", buckets.stable)
+  ].join("");
+  box.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", () => abrirFicha(String(btn.dataset.memberId || ""))));
+}
+function renderSectorReportTable(rows){
   const body = $("sectorReportTableBody");
   if (!body) return;
-  const {from, to} = getSectorReportRange();
-  if (!responsable){
-    body.innerHTML = '<tr><td colspan="4" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>';
-    if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
-    if ($("sectorKpiAttendances")) $("sectorKpiAttendances").textContent = "0";
-    if ($("sectorKpiVisited")) $("sectorKpiVisited").textContent = "0";
-    if ($("sectorKpiNeverVisited")) $("sectorKpiNeverVisited").textContent = "0";
-    return;
-  }
-  const rows = buildSectorReportRows(responsable, from, to);
-  const totalAttendances = rows.reduce((acc,row) => acc + row.attendanceCount, 0);
-  const visitedCount = rows.filter(row => !!row.lastVisit).length;
-  const neverVisited = rows.filter(row => !row.lastVisit).length;
-  if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = rows.length;
-  if ($("sectorKpiAttendances")) $("sectorKpiAttendances").textContent = totalAttendances;
-  if ($("sectorKpiVisited")) $("sectorKpiVisited").textContent = visitedCount;
-  if ($("sectorKpiNeverVisited")) $("sectorKpiNeverVisited").textContent = neverVisited;
   if (!rows.length){
     body.innerHTML = '<tr><td colspan="4" class="hint">No hay miembros asignados a ese responsable.</td></tr>';
     return;
@@ -3080,7 +3250,7 @@ function renderSectorReport(){
   body.innerHTML = rows.map(row => {
     const attendanceText = row.attendances.length
       ? `${row.attendances.map(formatDate).join(", ")} <span class="hint">(${row.attendanceCount} en período)</span>`
-      : `<span class="hint">Sin asistencia en el período</span>`;
+      : `<span class="hint">Sin asistencia registrada hasta la fecha de corte</span>`;
     const visitText = row.lastVisit
       ? `${escapeHtml(formatDate(row.lastVisit.date))}${row.lastVisit.time ? ` · ${escapeHtml(vaeFormatTime(row.lastVisit.time))}` : ""}<br><span class="hint">${escapeHtml(getActionDisplayTitle(row.lastVisit))}${row.daysSinceVisit !== null ? ` · hace ${escapeHtml(String(row.daysSinceVisit))} días` : ""}</span>`
       : `<span class="hint">Sin visita registrada</span>`;
@@ -3092,6 +3262,39 @@ function renderSectorReport(){
     </tr>`;
   }).join("");
   body.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", () => abrirFicha(String(btn.dataset.memberId || ""))));
+}
+function resetSectorReportUI(message='Elegí un responsable para generar el mapa de seguimiento.'){
+  if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
+  if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = "0";
+  if ($("sectorKpiContact")) $("sectorKpiContact").textContent = "0";
+  if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = "0";
+  if ($("sectorKpiStable")) $("sectorKpiStable").textContent = "0";
+  if ($("sectorAgendaSuggested")) { $("sectorAgendaSuggested").classList.add("hidden"); $("sectorAgendaSuggested").innerHTML = ""; }
+  if ($("sectorMapBuckets")) $("sectorMapBuckets").innerHTML = `<div class="sector-empty">${escapeHtml(message)}</div>`;
+  if ($("sectorReportTableBody")) $("sectorReportTableBody").innerHTML = `<tr><td colspan="4" class="hint">${escapeHtml(message)}</td></tr>`;
+}
+function renderSectorReport(){
+  const responsable = $("sectorReportResponsible")?.value || "";
+  const {from, to} = getSectorReportRange();
+  if (!responsable){
+    resetSectorReportUI();
+    return;
+  }
+  const rows = buildSectorReportRows(responsable, from, to);
+  const buckets = sectorRowsByBucket(rows);
+  if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = rows.length;
+  if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = buckets.priority.length;
+  if ($("sectorKpiContact")) $("sectorKpiContact").textContent = buckets.contact.length;
+  if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = buckets.no_visit.length;
+  if ($("sectorKpiStable")) $("sectorKpiStable").textContent = buckets.stable.length;
+
+  if (!rows.length){
+    resetSectorReportUI("No hay miembros asignados a ese responsable.");
+    return;
+  }
+  renderSectorAgenda(rows);
+  renderSectorBuckets(rows);
+  renderSectorReportTable(rows);
 }
 
 function renderReport(title1, title2, rows, formatter){
