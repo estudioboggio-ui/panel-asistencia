@@ -96,7 +96,7 @@
   .member-tabpanel.theme-sector.active .section-card{background:rgba(15,118,110,.08); border-color:rgba(45,212,191,.35)}
   .sector-map-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
   .sector-map-title{font-size:22px;font-weight:800;margin:0 0 4px 0}
-  .sector-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+  .sector-kpi-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-bottom:14px}
   .sector-kpi{border:1px solid var(--line);border-radius:16px;padding:12px;background:linear-gradient(180deg,rgba(30,41,59,.9),rgba(15,23,42,.95))}
   .sector-kpi .label{font-size:12px;color:var(--muted);line-height:1.3}
   .sector-kpi .value{font-size:26px;font-weight:800;margin-top:6px}
@@ -127,6 +127,20 @@
   .sector-no_visit{border-color:#ca8a04;background:rgba(202,138,4,.15);color:#fef3c7}
   .sector-observe{border-color:#0369a1;background:rgba(3,105,161,.16);color:#bae6fd}
   .sector-stable{border-color:#166534;background:rgba(22,101,52,.16);color:#bbf7d0}
+
+  .sector-following{border-color:#7c3aed;background:rgba(124,58,237,.16);color:#ddd6fe}
+  .sector-paused{border-color:#64748b;background:rgba(100,116,139,.16);color:#e2e8f0}
+  .sector-person-main{padding:12px;border-bottom:1px solid rgba(51,65,85,.45)}
+  .sector-person-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer}
+  .sector-person-motive{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.35}
+  .sector-quick-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .sector-quick-btn{font-size:11px;padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.28);color:#e5e7eb}
+  .sector-quick-btn:hover{background:rgba(255,255,255,.09);border-color:rgba(148,163,184,.55)}
+  .sector-quick-btn[data-action="contacted"]{border-color:rgba(34,197,94,.55)}
+  .sector-quick-btn[data-action="contact_attempted"]{border-color:rgba(245,158,11,.55)}
+  .sector-quick-btn[data-action="visit_scheduled"]{border-color:rgba(59,130,246,.55)}
+  .sector-quick-btn[data-action="paused"]{border-color:rgba(148,163,184,.55)}
+  .sector-followup-last{font-size:12px;color:#cbd5e1;margin-top:8px;border-top:1px dashed rgba(148,163,184,.25);padding-top:8px}
   .sector-card-line{font-size:13px;line-height:1.45;margin-top:6px}
   .sector-card-line .hint{font-size:12px}
   .sector-action{margin-top:10px;border-top:1px solid rgba(51,65,85,.55);padding-top:10px;color:#f8fafc;font-size:13px}
@@ -263,7 +277,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.15 · mapa compacto privado</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.16 · seguimiento operativo</span>
     </div>
   </div>
 </div>
@@ -640,6 +654,8 @@
         <div class="sector-kpi"><div class="label">Atención inmediata</div><div id="sectorKpiPriority" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Contactar esta semana</div><div id="sectorKpiContact" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Sin visita registrada</div><div id="sectorKpiNoVisit" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">En seguimiento</div><div id="sectorKpiFollowing" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Pausados</div><div id="sectorKpiPaused" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
       </div>
 
@@ -658,10 +674,11 @@
                 <th>Últimas asistencias</th>
                 <th>Última visita efectiva</th>
                 <th>Estado seguimiento</th>
+                <th>Última gestión</th>
               </tr>
             </thead>
             <tbody id="sectorReportTableBody">
-              <tr><td colspan="4" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>
+              <tr><td colspan="5" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1083,11 +1100,17 @@ let currentSession = null;
 let currentProfile = null;
 let passwordRecoveryMode = false;
 let authRecoverySubscription = null;
-let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [] };
+let state = { people: [], attendance: [], membersById: {}, memberIdsByName: {}, activeFrom: {}, inactiveFrom: {}, dayExtras: {}, firstTimeByDate: {}, alertSettings: null, relationships: [], events: [], vaeActions: [], sectorFollowups: [] };
 const PASSWORD_RECOVERY_PENDING_KEY = "panel-asistencia-password-recovery-pending";
 const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
 const SECTOR_RESPONSABLE_OPTIONS = ["Adriano Boggio","Demian Kaczmar","Omar Vivas","Marisa Ferrari"];
 const SECTOR_MAP_ALLOWED_EMAILS = ["adriano.boggio@gmail.com"];
+const SECTOR_FOLLOWUP_ACTIONS = {
+  contacted: { label: "Contacté", reviewDays: 15, bucket: "following", description: "Contacto efectivo" },
+  contact_attempted: { label: "Intenté", reviewDays: 7, bucket: "following", description: "Intento de contacto" },
+  visit_scheduled: { label: "Programé visita", reviewDays: 7, bucket: "following", description: "Visita programada" },
+  paused: { label: "Pausar", reviewDays: 30, bucket: "paused", description: "Pausado / revisar luego" }
+};
 
 function activateMemberTab(tab) {
   document.querySelectorAll('.member-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
@@ -1583,12 +1606,13 @@ async function cargarTodoDesdeServidor(){
     fetchAllRows("first_time_tracking", "member_id,guest_name,guest_name_normalized,first_date,returned,return_date", 1000, "first_date"),
     fetchOptionalAllRows("member_relationships", "id,member_id,related_member_id,relationship_type,notes,created_at", 1000, "id"),
     fetchOptionalAllRows("member_events", "*", 1000, "event_date"),
-    fetchOptionalAllRows("vae_actions", "*", 1000, "action_date")
+    fetchOptionalAllRows("vae_actions", "*", 1000, "action_date"),
+    fetchOptionalAllRows("sector_followups", "*", 1000, "created_at")
   ];
   if (userCanAdmin()) promises.push(supabaseClient.from("alert_settings").select("*").limit(1).maybeSingle());
   else promises.push(Promise.resolve({data:null,error:null}));
 
-  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, eventRows, vaeRows, alertSettings] = await Promise.all(promises);
+  const [members, attendanceRows, extras, firstTimeRows, relationshipRows, eventRows, vaeRows, sectorFollowupRows, alertSettings] = await Promise.all(promises);
   if (alertSettings.error) throw alertSettings.error;
 
   state.people = [];
@@ -1649,6 +1673,17 @@ async function cargarTodoDesdeServidor(){
     visitedText: r.visited_text || "",
     notes: r.notes || ""
   }));
+  state.sectorFollowups = (sectorFollowupRows || []).map(r => ({
+    id: r.id,
+    memberId: String(r.member_id || ""),
+    sectorResponsable: r.sector_responsable || "",
+    alertType: r.alert_type || "",
+    actionType: r.action_type || "",
+    reviewDate: r.review_date || "",
+    notes: r.notes || "",
+    createdByEmail: r.created_by_email || "",
+    createdAt: r.created_at || ""
+  })).filter(r => r.memberId && r.actionType);
 }
 
 function parseVisitasPayload(count, rawText){
@@ -2740,6 +2775,11 @@ function isoDaysAgo(baseIso, days){
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0,10);
 }
+function isoDaysFrom(baseIso, days){
+  const d = new Date(baseIso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
 function isoMonthsAgo(baseIso, months){
   const d = new Date(baseIso + "T00:00:00");
   d.setMonth(d.getMonth() - months);
@@ -3144,6 +3184,26 @@ function classifySectorRow(row){
   }
   return {key:"stable", label:"Estable", action:"Sin acción urgente."};
 }
+function getSectorFollowupsForMember(memberId, to=null){
+  return (state.sectorFollowups || [])
+    .filter(f => String(f.memberId) === String(memberId))
+    .filter(f => !to || !f.createdAt || String(f.createdAt).slice(0,10) <= to)
+    .sort((a,b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+function getLatestSectorFollowup(memberId, to=null){
+  return getSectorFollowupsForMember(memberId, to)[0] || null;
+}
+function getActiveSectorFollowup(memberId, to){
+  const latest = getLatestSectorFollowup(memberId, to);
+  if (!latest || !latest.reviewDate) return null;
+  return latest.reviewDate >= to ? latest : null;
+}
+function getFollowupActionLabel(actionType){
+  return SECTOR_FOLLOWUP_ACTIONS[actionType]?.description || actionType || "Seguimiento";
+}
+function getFollowupReviewDays(actionType){
+  return Number(SECTOR_FOLLOWUP_ACTIONS[actionType]?.reviewDays || 15);
+}
 function buildSectorReportRows(responsable, from, to){
   return getSectorMembers(responsable).map(member => {
     const attendances = getRecentAttendancesForMember(member.id, to, 5);
@@ -3154,6 +3214,8 @@ function buildSectorReportRows(responsable, from, to){
     const lastVisit = visits[0] || null;
     const daysSinceVisit = lastVisit?.date ? diffDaysBetween(lastVisit.date, to) : null;
     const visitsInPeriod = getEffectiveVisitCountForMember(member.id, from, to);
+    const latestFollowup = getLatestSectorFollowup(member.id, to);
+    const activeFollowup = getActiveSectorFollowup(member.id, to);
     const base = {
       member,
       attendanceCount,
@@ -3163,18 +3225,30 @@ function buildSectorReportRows(responsable, from, to){
       lastVisit,
       daysSinceVisit,
       visitsCount: visits.length,
-      visitsInPeriod
+      visitsInPeriod,
+      latestFollowup,
+      activeFollowup
     };
     const classification = classifySectorRow(base);
+    let finalClassification = classification;
+    if (activeFollowup) {
+      if (activeFollowup.actionType === "paused") {
+        finalClassification = {key:"paused", label:"Pausado / revisar luego", action:`Revisar nuevamente el ${formatDate(activeFollowup.reviewDate)}.`};
+      } else {
+        finalClassification = {key:"following", label:"En seguimiento", action:`Esperar evolución hasta el ${formatDate(activeFollowup.reviewDate)}.`};
+      }
+    }
     return {
       ...base,
-      statusKey: classification.key,
-      status: classification.label,
-      action: classification.action,
+      baseStatusKey: classification.key,
+      baseStatus: classification.label,
+      statusKey: finalClassification.key,
+      status: finalClassification.label,
+      action: finalClassification.action,
       reason: buildSectorMemberReason(base)
     };
   }).sort((a,b) => {
-    const order = {priority:0, contact:1, no_visit:2, observe:3, stable:4};
+    const order = {priority:0, contact:1, no_visit:2, following:3, paused:4, observe:5, stable:6};
     const byStatus = (order[a.statusKey] ?? 99) - (order[b.statusKey] ?? 99);
     if (byStatus !== 0) return byStatus;
     const aDays = a.daysSinceAttendance === null ? 99999 : a.daysSinceAttendance;
@@ -3184,7 +3258,7 @@ function buildSectorReportRows(responsable, from, to){
   });
 }
 function sectorRowsByBucket(rows){
-  const buckets = {priority:[], contact:[], no_visit:[], observe:[], stable:[]};
+  const buckets = {priority:[], contact:[], no_visit:[], following:[], paused:[], observe:[], stable:[]};
   rows.forEach(row => { if (buckets[row.statusKey]) buckets[row.statusKey].push(row); });
   return buckets;
 }
@@ -3198,10 +3272,27 @@ function renderSectorAgenda(rows){
   box.innerHTML = `
     <h3>Agenda sugerida</h3>
     <div class="sector-agenda-grid">
-      <div class="sector-agenda-box"><strong>Visitar / actuar esta semana</strong>${listNames(buckets.priority)}</div>
+      <div class="sector-agenda-box"><strong>Acción urgente</strong>${listNames(buckets.priority)}</div>
       <div class="sector-agenda-box"><strong>Contactar</strong>${listNames(buckets.contact)}</div>
       <div class="sector-agenda-box"><strong>Programar primera visita</strong>${listNames(buckets.no_visit)}</div>
     </div>`;
+}
+function renderSectorQuickActions(row){
+  if (!["priority","contact","no_visit"].includes(row.statusKey)) return "";
+  return `<div class="sector-quick-actions">
+    <button type="button" class="sector-quick-btn" data-action="contacted" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Contacté</button>
+    <button type="button" class="sector-quick-btn" data-action="contact_attempted" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Intenté</button>
+    <button type="button" class="sector-quick-btn" data-action="visit_scheduled" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Programé visita</button>
+    <button type="button" class="sector-quick-btn" data-action="paused" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Pausar</button>
+  </div>`;
+}
+function renderSectorFollowupLine(row){
+  const f = row.latestFollowup;
+  if (!f) return "";
+  const created = f.createdAt ? formatDate(String(f.createdAt).slice(0,10)) : "sin fecha";
+  const review = f.reviewDate ? formatDate(f.reviewDate) : "sin revisión";
+  const who = f.createdByEmail ? ` por ${escapeHtml(f.createdByEmail)}` : "";
+  return `<div class="sector-followup-last">Última gestión: ${escapeHtml(getFollowupActionLabel(f.actionType))} el ${escapeHtml(created)}${who}. Revisar: ${escapeHtml(review)}.</div>`;
 }
 function renderSectorPersonCard(row){
   const attendanceText = row.attendances.length
@@ -3219,14 +3310,21 @@ function renderSectorPersonCard(row){
   const phone = row.member?.phone ? row.member.phone : "Sin teléfono cargado";
   return `<details class="sector-person-card">
     <summary>
-      <span class="sector-person-name">${escapeHtml(row.member.name || "")}</span>
-      <span class="sector-status-pill sector-${escapeHtml(row.statusKey)}">${escapeHtml(row.status)}</span>
+      <div class="sector-person-main">
+        <div class="sector-person-top">
+          <span class="sector-person-name">${escapeHtml(row.member.name || "")}</span>
+          <span class="sector-status-pill sector-${escapeHtml(row.statusKey)}">${escapeHtml(row.status)}</span>
+        </div>
+        <div class="sector-person-motive">${escapeHtml(row.reason)}</div>
+        ${renderSectorFollowupLine(row)}
+        ${renderSectorQuickActions(row)}
+      </div>
     </summary>
     <div class="sector-person-detail">
       <div class="sector-card-line"><strong>Últimas asistencias:</strong><br>${escapeHtml(attendanceText)}<br><span class="hint">${escapeHtml(attendanceMeta)} · ${escapeHtml(String(row.attendanceCount))} asistencia${row.attendanceCount === 1 ? "" : "s"} en período</span></div>
       <div class="sector-card-line"><strong>Última visita efectiva:</strong><br>${escapeHtml(visitText)}<br><span class="hint">${escapeHtml(visitMeta)}</span></div>
       <div class="sector-card-line"><strong>Datos:</strong> ${escapeHtml(phone)} · ${escapeHtml(getMemberGroupSummary(row.member))}</div>
-      <div class="sector-card-line"><strong>Motivo:</strong> ${escapeHtml(row.reason)}</div>
+      <div class="sector-card-line"><strong>Estado base:</strong> ${escapeHtml(row.baseStatus || row.status)}</div>
       <div class="sector-action"><strong>Acción sugerida:</strong> ${escapeHtml(row.action)}</div>
       <div class="row-actions" style="margin-top:10px;">
         <button type="button" class="secondary sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">Abrir ficha</button>
@@ -3243,6 +3341,19 @@ function renderSectorBucket(key, title, subtitle, rows){
     ${rows.length ? `<div class="sector-card-grid">${rows.map(renderSectorPersonCard).join("")}</div>` : `<div class="sector-empty">Sin personas en esta categoría.</div>`}
   </div>`;
 }
+function wireSectorMapButtons(container){
+  if (!container) return;
+  container.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    abrirFicha(String(btn.dataset.memberId || ""));
+  }));
+  container.querySelectorAll(".sector-quick-btn").forEach(btn => btn.addEventListener("click", async ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    await registerSectorFollowupFromButton(btn);
+  }));
+}
 function renderSectorBuckets(rows){
   const box = $("sectorMapBuckets");
   if (!box) return;
@@ -3251,16 +3362,18 @@ function renderSectorBuckets(rows){
     renderSectorBucket("priority", "🔴 Atención inmediata", "Baja asistencia combinada con ausencia de visita o visita antigua.", buckets.priority),
     renderSectorBucket("contact", "🟠 Contactar esta semana", "Señales de enfriamiento, baja asistencia o seguimiento que necesita refuerzo.", buckets.contact),
     renderSectorBucket("no_visit", "🟡 Sin visita registrada", "Personas asignadas que todavía no registran visita efectiva realizada.", buckets.no_visit),
+    renderSectorBucket("following", "🟣 En seguimiento", "Ya hubo una acción rápida y todavía no venció la fecha de revisión.", buckets.following),
+    renderSectorBucket("paused", "⚪ Pausados / revisar luego", "Casos pausados temporalmente para no insistir hasta la fecha de revisión.", buckets.paused),
     renderSectorBucket("observe", "🔵 En observación", "No son casos críticos, pero conviene mirar su evolución.", buckets.observe),
     renderSectorBucket("stable", "🟢 Estables", "Sin alertas fuertes de asistencia o seguimiento.", buckets.stable)
   ].join("");
-  box.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", () => abrirFicha(String(btn.dataset.memberId || ""))));
+  wireSectorMapButtons(box);
 }
 function renderSectorReportTable(rows){
   const body = $("sectorReportTableBody");
   if (!body) return;
   if (!rows.length){
-    body.innerHTML = '<tr><td colspan="4" class="hint">No hay miembros asignados a ese responsable.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="hint">No hay miembros asignados a ese responsable.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(row => {
@@ -3270,24 +3383,30 @@ function renderSectorReportTable(rows){
     const visitText = row.lastVisit
       ? `${escapeHtml(formatDate(row.lastVisit.date))}${row.lastVisit.time ? ` · ${escapeHtml(vaeFormatTime(row.lastVisit.time))}` : ""}<br><span class="hint">${escapeHtml(getActionDisplayTitle(row.lastVisit))}${row.daysSinceVisit !== null ? ` · hace ${escapeHtml(String(row.daysSinceVisit))} días` : ""}</span>`
       : `<span class="hint">Sin visita registrada</span>`;
+    const followText = row.latestFollowup
+      ? `${escapeHtml(getFollowupActionLabel(row.latestFollowup.actionType))}<br><span class="hint">Revisar ${escapeHtml(formatDate(row.latestFollowup.reviewDate))}</span>`
+      : `<span class="hint">Sin gestión registrada</span>`;
     return `<tr>
       <td><button type="button" class="metric-link sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">${escapeHtml(row.member.name || "")}</button></td>
       <td>${attendanceText}</td>
       <td>${visitText}</td>
       <td>${escapeHtml(row.status)}</td>
+      <td>${followText}</td>
     </tr>`;
   }).join("");
-  body.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", () => abrirFicha(String(btn.dataset.memberId || ""))));
+  wireSectorMapButtons(body);
 }
 function resetSectorReportUI(message='Elegí un responsable para generar el mapa de seguimiento.'){
   if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = "0";
   if ($("sectorKpiContact")) $("sectorKpiContact").textContent = "0";
   if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = "0";
+  if ($("sectorKpiFollowing")) $("sectorKpiFollowing").textContent = "0";
+  if ($("sectorKpiPaused")) $("sectorKpiPaused").textContent = "0";
   if ($("sectorKpiStable")) $("sectorKpiStable").textContent = "0";
   if ($("sectorAgendaSuggested")) { $("sectorAgendaSuggested").classList.add("hidden"); $("sectorAgendaSuggested").innerHTML = ""; }
   if ($("sectorMapBuckets")) $("sectorMapBuckets").innerHTML = `<div class="sector-empty">${escapeHtml(message)}</div>`;
-  if ($("sectorReportTableBody")) $("sectorReportTableBody").innerHTML = `<tr><td colspan="4" class="hint">${escapeHtml(message)}</td></tr>`;
+  if ($("sectorReportTableBody")) $("sectorReportTableBody").innerHTML = `<tr><td colspan="5" class="hint">${escapeHtml(message)}</td></tr>`;
 }
 function renderSectorReport(){
   if (!userCanViewSectorMap()) return;
@@ -3303,6 +3422,8 @@ function renderSectorReport(){
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = buckets.priority.length;
   if ($("sectorKpiContact")) $("sectorKpiContact").textContent = buckets.contact.length;
   if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = buckets.no_visit.length;
+  if ($("sectorKpiFollowing")) $("sectorKpiFollowing").textContent = buckets.following.length;
+  if ($("sectorKpiPaused")) $("sectorKpiPaused").textContent = buckets.paused.length;
   if ($("sectorKpiStable")) $("sectorKpiStable").textContent = buckets.stable.length;
 
   if (!rows.length){
@@ -3312,6 +3433,51 @@ function renderSectorReport(){
   renderSectorAgenda(rows);
   renderSectorBuckets(rows);
   renderSectorReportTable(rows);
+}
+async function registerSectorFollowupFromButton(btn){
+  if (!userCanViewSectorMap()) return;
+  const memberId = String(btn.dataset.memberId || "");
+  const actionType = String(btn.dataset.action || "");
+  const alertType = String(btn.dataset.alertType || "");
+  const responsable = $("sectorReportResponsible")?.value || "";
+  if (!memberId || !actionType || !responsable) return;
+  const action = SECTOR_FOLLOWUP_ACTIONS[actionType];
+  if (!action) return;
+  const today = selectedDate() || new Date().toISOString().slice(0,10);
+  const reviewDate = isoDaysFrom(today, action.reviewDays);
+  const originalText = btn.textContent;
+  try {
+    btn.disabled = true;
+    btn.textContent = "Guardando...";
+    const res = await supabaseClient.from("sector_followups").insert({
+      member_id: memberId,
+      sector_responsable: responsable,
+      alert_type: alertType,
+      action_type: actionType,
+      review_date: reviewDate,
+      created_by_email: currentProfile?.email || currentSession?.user?.email || ""
+    });
+    if (res.error) throw res.error;
+    const rows = await fetchOptionalAllRows("sector_followups", "*", 1000, "created_at");
+    state.sectorFollowups = (rows || []).map(r => ({
+      id: r.id,
+      memberId: String(r.member_id || ""),
+      sectorResponsable: r.sector_responsable || "",
+      alertType: r.alert_type || "",
+      actionType: r.action_type || "",
+      reviewDate: r.review_date || "",
+      notes: r.notes || "",
+      createdByEmail: r.created_by_email || "",
+      createdAt: r.created_at || ""
+    })).filter(r => r.memberId && r.actionType);
+    renderSectorReport();
+  } catch (err) {
+    console.error("registerSectorFollowupFromButton error:", err);
+    alert("No pude registrar el seguimiento: " + (err?.message || err || "error desconocido"));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 function renderReport(title1, title2, rows, formatter){
