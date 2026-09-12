@@ -312,7 +312,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.21 · exclusiones operativas + visita 180 días</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.22 · exportación mensual planificación</span>
     </div>
   </div>
 </div>
@@ -824,6 +824,7 @@
               <select id="vaeFilterResponsible">
                 <option value="">Todos los responsables tarea tarea</option>
               </select>
+              <button id="vaeExportMonthBtn" type="button" class="secondary">Exportar mes Excel</button>
             </div>
           </div>
 
@@ -5016,6 +5017,96 @@ function vaeGetFilteredActions(){
     return okGroup && okResponsible;
   });
 }
+
+function getVaeCurrentMonthFilteredActions(){
+  return vaeGetFilteredActions()
+    .filter(action => {
+      const d = new Date(`${action.date}T00:00:00`);
+      return d.getFullYear() === vaeCurrentYear && d.getMonth() === vaeCurrentMonth;
+    })
+    .sort(vaeCompareActions);
+}
+function excelHtmlEscape(value){
+  return escapeHtml(value == null ? "" : String(value));
+}
+function downloadTextFile(filename, content, mimeType){
+  const blob = new Blob([content], { type: mimeType || "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportVaeMonthExcel(){
+  const actions = getVaeCurrentMonthFilteredActions();
+  const monthName = VAE_MONTH_NAMES[vaeCurrentMonth];
+  const filterGroup = $("vaeFilterGroup")?.value || "";
+  const filterResponsibleLabel = $("vaeFilterResponsible")?.selectedOptions?.[0]?.textContent || "Todos los responsables tarea";
+  const filterResponsible = $("vaeFilterResponsible")?.value ? filterResponsibleLabel : "Todos los responsables tarea";
+  const filterGroupLabel = filterGroup || "Todos los grupos";
+  const generatedAt = new Date().toLocaleString("es-AR");
+  const rows = actions.map(action => {
+    const dayName = new Date(`${action.date}T00:00:00`).toLocaleDateString("es-AR", { weekday: "long" });
+    return `<tr>
+      <td style="mso-number-format:'\\@'">${excelHtmlEscape(formatDate(action.date))}</td>
+      <td>${excelHtmlEscape(dayName)}</td>
+      <td style="mso-number-format:'\\@'">${excelHtmlEscape(vaeFormatTime(action.time || ""))}</td>
+      <td>${excelHtmlEscape(action.status || "")}</td>
+      <td>${excelHtmlEscape(action.group || "")}</td>
+      <td>${excelHtmlEscape(getActionDisplayTitle(action))}</td>
+      <td>${excelHtmlEscape(vaeShortExecutors(action))}</td>
+      <td>${excelHtmlEscape(vaeShortVisited(action))}</td>
+      <td>${excelHtmlEscape(action.notes || "")}</td>
+    </tr>`;
+  }).join("");
+  const emptyRow = `<tr><td colspan="9">No hay actividades cargadas para este mes con los filtros actuales.</td></tr>`;
+  const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body{font-family:Arial, sans-serif;}
+  h1{font-size:20px;margin:0 0 8px 0;}
+  .meta{font-size:12px;margin-bottom:12px;color:#333;}
+  table{border-collapse:collapse;width:100%;}
+  th{background:#e5e7eb;font-weight:bold;}
+  th,td{border:1px solid #999;padding:6px;font-size:12px;vertical-align:top;}
+</style>
+</head>
+<body>
+  <h1>Calendario de actividades - ${excelHtmlEscape(monthName)} ${excelHtmlEscape(vaeCurrentYear)}</h1>
+  <div class="meta">
+    Generado: ${excelHtmlEscape(generatedAt)}<br>
+    Grupo: ${excelHtmlEscape(filterGroupLabel)}<br>
+    Responsable tarea: ${excelHtmlEscape(filterResponsible)}<br>
+    Total actividades: ${excelHtmlEscape(actions.length)}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Día</th>
+        <th>Hora</th>
+        <th>Estado</th>
+        <th>Grupo</th>
+        <th>Título</th>
+        <th>Responsables</th>
+        <th>Visitados</th>
+        <th>Observaciones</th>
+      </tr>
+    </thead>
+    <tbody>${rows || emptyRow}</tbody>
+  </table>
+</body>
+</html>`;
+  const safeMonth = String(vaeCurrentMonth + 1).padStart(2,"0");
+  const suffix = [filterGroup, filterResponsibleLabel && $("vaeFilterResponsible")?.value ? filterResponsibleLabel : ""].filter(Boolean).join("_").replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]+/g,"_");
+  const filename = `calendario_planificacion_${vaeCurrentYear}_${safeMonth}${suffix ? "_" + suffix : ""}.xls`;
+  downloadTextFile(filename, "\ufeff" + html, "application/vnd.ms-excel;charset=utf-8");
+}
 function renderVaeCalendar(){
   const grid = $("vaeCalendarGrid");
   const label = $("vaeMonthLabel");
@@ -5589,6 +5680,7 @@ function wireEvents(){
   });
   if ($("vaeFilterGroup")) $("vaeFilterGroup").addEventListener("change", renderVae);
   if ($("vaeFilterResponsible")) $("vaeFilterResponsible").addEventListener("change", renderVae);
+  if ($("vaeExportMonthBtn")) $("vaeExportMonthBtn").addEventListener("click", exportVaeMonthExcel);
   if ($("vaeModal")) $("vaeModal").addEventListener("click", ev => { if (ev.target === $("vaeModal")) vaeCloseModal(); });
   if ($("vaeCloseDayListBtn")) $("vaeCloseDayListBtn").addEventListener("click", vaeCloseDayList);
   if ($("vaeCloseFollowupDatesBtn")) $("vaeCloseFollowupDatesBtn").addEventListener("click", closeVaeFollowupDates);
