@@ -315,6 +315,17 @@
   .vae-calendar-wrap{overflow-x:auto}
 }
 
+
+  .admin-collapsible{margin-top:16px;}
+  .admin-collapsible:first-of-type{margin-top:0;}
+  .admin-collapsible > summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .admin-collapsible > summary::-webkit-details-marker{display:none;}
+  .admin-collapsible-title{font-size:20px;font-weight:800;margin:0;}
+  .admin-collapsible-hint{font-size:12px;color:var(--muted);margin-top:3px;}
+  .admin-collapsible-toggle{font-size:12px;color:var(--muted);white-space:nowrap;}
+  .admin-collapsible > summary .admin-collapsible-toggle::after{content:"Abrir";}
+  .admin-collapsible[open] > summary .admin-collapsible-toggle::after{content:"Cerrar";}
+  .admin-collapsible-body{margin-top:14px;}
 </style>
 </head>
 <body>
@@ -331,7 +342,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.25 · impacto ajustado + administración limpia</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.26 · impacto unificado + administración desplegable</span>
     </div>
   </div>
 </div>
@@ -517,8 +528,9 @@
       <button id="btnExportMembersExcel" class="secondary" type="button">Exportar miembros a Excel</button>
     </div>
 
-    <div id="adminAgendaPanel" class="panel">
-      <h2>Agenda / Alertas</h2>
+    <details id="adminAgendaPanel" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Agenda / Alertas</div><div class="admin-collapsible-hint">Próximos acontecimientos, cumpleaños y reporte semanal.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
       <div class="split" style="grid-template-columns:repeat(2,1fr);">
         <div class="section-card">
           <div class="hint" style="margin-bottom:10px;">Próximos 14 días</div>
@@ -563,13 +575,16 @@
           </div>
         </div>
       </details>
-    </div>
+      </div>
+    </details>
 
     <!-- Recuadros KPI superiores removidos para simplificar Administración. -->
 
-    <div id="adminAnalyticsSection" class="split">
+    <details id="adminAnalyticsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Seguimiento de miembros</div><div class="admin-collapsible-hint">Métricas, alertas y parámetros generales de seguimiento.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body split">
       <div class="panel">
-        <h2>Seguimiento de miembros</h2>
+        <h2>Resumen</h2>
         <div class="scroll"><table><thead><tr><th>Métrica</th><th>Cantidad</th></tr></thead><tbody id="adminSummaryTable"></tbody></table></div>
       </div>
 
@@ -589,10 +604,12 @@
           <button id="btnSaveAlerts" class="warn" type="button">Guardar parámetros</button>
         </div>
       </div>
-    </div>
+      </div>
+    </details>
 
-    <div id="adminGroupsSection" class="panel" style="margin-top:16px;">
-      <h2>Reportes por grupo</h2>
+    <details id="adminGroupsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reportes por grupo</div><div class="admin-collapsible-hint">Asistencia y listados por grupo/categoría.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
       <div class="filters" style="margin-bottom:12px;">
         <div>
           <div class="hint" style="margin-bottom:6px;">Grupo / categoría</div>
@@ -632,12 +649,14 @@
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </details>
 
 
 
-    <div id="adminReportsSection" class="panel" style="margin-top:16px;">
-      <h2>Reportes de miembros</h2>
+    <details id="adminReportsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reportes de miembros</div><div class="admin-collapsible-hint">Recurrentes, inactividad, primeras veces y top asistentes.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
       <div class="filters" style="margin-bottom:12px;">
         <div>
           <div class="hint" style="margin-bottom:6px;">Período de análisis</div>
@@ -674,9 +693,12 @@
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </details>
 
-    <div id="sectorReportsSection" class="panel" style="margin-top:16px;">
+    <details id="sectorReportsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Diagnóstico por responsable</div><div class="admin-collapsible-hint">Resumen general, diagnóstico por responsable, diagnóstico exportable e impacto de acciones.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
       <div class="sector-map-header">
         <div>
           <h2 class="sector-map-title">Diagnóstico por responsable</h2>
@@ -773,16 +795,16 @@
         <div class="impact-kpi-grid">
           <div class="impact-kpi"><div class="label">Acciones realizadas</div><div id="impactKpiActions" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Personas alcanzadas</div><div id="impactKpiPeople" class="value">0</div></div>
-          <div class="impact-kpi"><div class="label">Retorno consolidado</div><div id="impactKpiConsolidated" class="value">0</div></div>
-          <div class="impact-kpi"><div class="label">Retorno inicial</div><div id="impactKpiInitial" class="value">0</div></div>
-          <div class="impact-kpi"><div class="label">Sin retorno vencido</div><div id="impactKpiNoReturn" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Acción positiva</div><div id="impactKpiPositive" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Sin retorno</div><div id="impactKpiNoReturn" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Aún no evaluable</div><div id="impactKpiPending" class="value">0</div></div>
         </div>
         <div id="impactSummaryText" class="hint" style="margin-bottom:10px;">Elegí un período para generar el reporte.</div>
         <div id="impactBuckets" class="impact-buckets"></div>
         <details style="margin-top:12px;">
           <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver comparación por responsable</summary>
           <div class="scroll" style="max-height:300px; margin-top:10px;">
-            <table><thead><tr><th>Responsable</th><th>Personas</th><th>Consolidado</th><th>Inicial</th><th>Tardío</th><th>Sin retorno</th><th>No evaluable</th><th>Acompañamiento</th></tr></thead><tbody id="impactByResponsible"><tr><td colspan="8" class="hint">Sin datos.</td></tr></tbody></table>
+            <table><thead><tr><th>Responsable</th><th>Personas</th><th>Acción positiva</th><th>Sin retorno</th><th>No evaluable</th><th>Acompañamiento</th></tr></thead><tbody id="impactByResponsible"><tr><td colspan="6" class="hint">Sin datos.</td></tr></tbody></table>
           </div>
         </details>
       </div>
@@ -820,7 +842,8 @@
           </table>
         </div>
       </details>
-    </div>
+      </div>
+    </details>
 
   </div>
 </div>
@@ -3709,28 +3732,29 @@ function classifyImpactRow(row, to){
   const firstAfter = firstAttendanceAfter(row.member.id, actionDate, to);
   const lastBefore = lastAttendanceBefore(row.member.id, actionDate, 30);
 
-  // El impacto positivo se reconoce apenas exista asistencia posterior, aunque la acción sea reciente.
-  if (before30 >= 2 && after30 >= 1) return {key:"active", label:"Acompañamiento activo", reason:"La persona ya registraba asistencia antes de la acción y continuó asistiendo después.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  if (after30 >= 2) return {key:"consolidated", label:"Retorno consolidado", reason:"Registró dos o más asistencias dentro de los 30 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  if (after30 >= 1) return {key:"initial", label:"Retorno inicial", reason:"Registró una asistencia dentro de los 30 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  if (firstAfter) return {key:"late", label:"Retorno tardío", reason:"Registró asistencia posterior, pero fuera de la ventana principal de 30 días.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  // Acción positiva: no había asistencia reciente antes de la acción y luego se registra al menos una asistencia.
+  if (before30 === 0 && firstAfter) return {key:"positive", label:"Acción positiva", reason:"No registraba asistencia en los 30 días previos y luego de la acción volvió a registrar asistencia.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
 
-  // Solo queda como no evaluable si todavía pasó poco tiempo y no hubo ninguna asistencia posterior.
-  if (daysSinceAction < 15) return {key:"pending", label:"Aún no evaluable", reason:"La acción es muy reciente y todavía no registra asistencia posterior.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  // Acompañamiento activo: ya venía asistiendo antes y continuó asistiendo después. No se computa como recuperación.
+  if (before30 > 0 && firstAfter) return {key:"active", label:"Acompañamiento activo", reason:"La persona ya registraba asistencia antes de la acción y continuó asistiendo después.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
 
-  return {key:"no_return", label:"Sin retorno vencido", reason:"No registra asistencia posterior y ya venció la primera ventana de evaluación de 15 días.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  // Aún no evaluable: acción reciente sin asistencia posterior. Todavía no corresponde concluir que no hubo retorno.
+  if (daysSinceAction < 15) return {key:"pending", label:"Aún no evaluable", reason:"La acción es reciente y todavía no registra asistencia posterior.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+
+  // Sin retorno: no hay asistencia posterior. La lectura principal es que la acción aún no generó retorno visible.
+  return {key:"no_return", label:"Sin retorno", reason: before30 === 0 ? "No registraba asistencia en los 30 días previos ni registra asistencia posterior a la acción." : "Registraba asistencia previa, pero no registra asistencia posterior a la acción.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
 }
 function buildImpactRows(){
   const {from, to} = getImpactRange();
   const responsible = $("impactResponsible")?.value || "";
   return getImpactSourceRows(from, to, responsible).map(row => ({...row, ...classifyImpactRow(row, to)})).sort((a,b) => {
-    const order = {no_return:0, late:1, initial:2, consolidated:3, pending:4, active:5};
+    const order = {no_return:0, pending:1, positive:2, active:3};
     const by = (order[a.key] ?? 99) - (order[b.key] ?? 99);
     return by || String(a.member.name || "").localeCompare(String(b.member.name || ""), "es");
   });
 }
 function groupImpactRows(rows){
-  const groups = {consolidated:[], initial:[], late:[], no_return:[], pending:[], active:[]};
+  const groups = {positive:[], no_return:[], pending:[], active:[]};
   rows.forEach(row => { if (groups[row.key]) groups[row.key].push(row); });
   return groups;
 }
@@ -3752,11 +3776,11 @@ function renderImpactByResponsible(rows){
   const map = new Map();
   rows.forEach(row => {
     const key = row.responsable || "Sin responsable";
-    if (!map.has(key)) map.set(key, {total:0, consolidated:0, initial:0, late:0, no_return:0, pending:0, active:0});
+    if (!map.has(key)) map.set(key, {total:0, positive:0, no_return:0, pending:0, active:0});
     const item = map.get(key); item.total += 1; if (item[row.key] != null) item[row.key] += 1;
   });
   const list = [...map.entries()].sort((a,b) => a[0].localeCompare(b[0], "es"));
-  body.innerHTML = list.length ? list.map(([responsable,r]) => `<tr><td>${escapeHtml(responsable)}</td><td>${r.total}</td><td>${r.consolidated}</td><td>${r.initial}</td><td>${r.late}</td><td>${r.no_return}</td><td>${r.pending}</td><td>${r.active}</td></tr>`).join("") : '<tr><td colspan="8" class="hint">No hay acciones realizadas con visitados en el período.</td></tr>';
+  body.innerHTML = list.length ? list.map(([responsable,r]) => `<tr><td>${escapeHtml(responsable)}</td><td>${r.total}</td><td>${r.positive}</td><td>${r.no_return}</td><td>${r.pending}</td><td>${r.active}</td></tr>`).join("") : '<tr><td colspan="6" class="hint">No hay acciones realizadas con visitados en el período.</td></tr>';
 }
 function renderImpactReport(){
   if (!userCanViewSectorMap()) return;
@@ -3765,18 +3789,18 @@ function renderImpactReport(){
   const groups = groupImpactRows(rows);
   if ($("impactKpiActions")) $("impactKpiActions").textContent = getImpactActionCount();
   if ($("impactKpiPeople")) $("impactKpiPeople").textContent = rows.length;
-  if ($("impactKpiConsolidated")) $("impactKpiConsolidated").textContent = groups.consolidated.length;
-  if ($("impactKpiInitial")) $("impactKpiInitial").textContent = groups.initial.length;
+  if ($("impactKpiPositive")) $("impactKpiPositive").textContent = groups.positive.length;
+  if ($("impactKpiConsolidated")) $("impactKpiConsolidated").textContent = groups.positive.length;
+  if ($("impactKpiInitial")) $("impactKpiInitial").textContent = groups.positive.length;
   if ($("impactKpiNoReturn")) $("impactKpiNoReturn").textContent = groups.no_return.length;
+  if ($("impactKpiPending")) $("impactKpiPending").textContent = groups.pending.length;
   const {from, to} = getImpactRange();
-  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Acciones realizadas entre ${formatDate(from)} y ${formatDate(to)}. Se evalúa retorno principal dentro de 30 días. Si la acción es muy reciente y aún no hubo asistencia posterior, queda como no evaluable; si vuelve después de 30 días, se muestra como retorno tardío.`;
+  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Acciones realizadas entre ${formatDate(from)} y ${formatDate(to)}. Acción positiva significa: sin asistencia en los 30 días previos y con asistencia posterior registrada. Si ya asistía antes y siguió asistiendo, se muestra como acompañamiento activo.`;
   const box = $("impactBuckets");
   if (box) box.innerHTML = [
-    renderImpactBucket("🟢 Retorno consolidado", "Dos o más asistencias dentro de los 30 días posteriores.", groups.consolidated),
-    renderImpactBucket("🟡 Retorno inicial", "Una asistencia dentro de los 30 días posteriores.", groups.initial),
-    renderImpactBucket("🟠 Retorno tardío", "Hubo asistencia posterior, pero fuera de la ventana principal de 30 días.", groups.late),
-    renderImpactBucket("🔴 Sin retorno vencido", "No registra asistencia posterior y ya venció la primera ventana de 15 días.", groups.no_return),
-    renderImpactBucket("⚪ Aún no evaluable", "Acciones muy recientes sin asistencia posterior registrada.", groups.pending),
+    renderImpactBucket("🟢 Acción positiva", "No tenía asistencia reciente antes de la acción y luego registró asistencia.", groups.positive),
+    renderImpactBucket("🔴 Sin retorno", "No registra asistencia posterior a la acción.", groups.no_return),
+    renderImpactBucket("⚪ Aún no evaluable", "Acciones recientes sin asistencia posterior registrada.", groups.pending),
     renderImpactBucket("🔵 Acompañamiento activo", "Ya venía asistiendo antes y continuó asistiendo después.", groups.active)
   ].join("");
   renderImpactByResponsible(rows);
