@@ -103,6 +103,25 @@
   .sector-global-summary{border:1px solid rgba(45,212,191,.32);background:linear-gradient(180deg,rgba(15,118,110,.10),rgba(15,23,42,.70));border-radius:20px;padding:14px;margin:14px 0}
   .diagnostic-panel{border:1px solid rgba(99,102,241,.34);background:linear-gradient(180deg,rgba(67,56,202,.12),rgba(15,23,42,.68));border-radius:20px;padding:14px;margin:14px 0}
   .diagnostic-panel h3{margin:0 0 4px 0;font-size:18px}
+  .impact-panel{border:1px solid rgba(34,197,94,.34);background:linear-gradient(180deg,rgba(21,128,61,.11),rgba(15,23,42,.68));border-radius:20px;padding:14px;margin:14px 0}
+  .impact-panel h3{margin:0 0 4px 0;font-size:18px}
+  .impact-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0}
+  .impact-kpi{border:1px solid rgba(148,163,184,.22);border-radius:15px;background:rgba(2,6,23,.34);padding:10px}
+  .impact-kpi .label{font-size:12px;color:var(--muted);line-height:1.25}
+  .impact-kpi .value{font-size:24px;font-weight:800;margin-top:5px}
+  .impact-buckets{display:grid;gap:10px;margin-top:10px}
+  .impact-bucket{border:1px solid rgba(148,163,184,.22);border-radius:16px;background:rgba(15,23,42,.72);overflow:hidden}
+  .impact-bucket > summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 13px}
+  .impact-bucket > summary::-webkit-details-marker{display:none}
+  .impact-bucket h4{margin:0;font-size:15px}
+  .impact-bucket-sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .impact-bucket-count{min-width:34px;text-align:center;border-radius:999px;border:1px solid var(--line);padding:4px 8px;color:#e5e7eb;background:rgba(255,255,255,.04);font-weight:800}
+  .impact-card-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:11px;border-top:1px solid rgba(51,65,85,.55)}
+  .impact-person{border:1px solid rgba(148,163,184,.20);border-radius:14px;background:#0b1220;padding:10px}
+  .impact-person-title{font-weight:800;margin-bottom:5px}
+  .impact-person-line{font-size:12.5px;line-height:1.45;color:#cbd5e1;margin-top:4px}
+  .impact-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  @media (max-width:1100px){.impact-kpi-grid{grid-template-columns:repeat(2,1fr)}.impact-card-list{grid-template-columns:1fr}}
   .diagnostic-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   .diagnostic-actions button{font-size:12px;padding:8px 10px}
   .diagnostic-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
@@ -312,7 +331,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.22 · exportación mensual planificación</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.24 · impacto de acciones realizadas</span>
     </div>
   </div>
 </div>
@@ -750,6 +769,40 @@
           <button id="btnRenderQuickDiagnostic" type="button">Ver diagnóstico rápido</button>
         </div>
         <div id="diagnosticQuickSummary" class="diagnostic-quick hidden"></div>
+      </div>
+
+      <div id="impactActionsSection" class="impact-panel">
+        <div class="sector-global-head">
+          <div>
+            <h3>Impacto de acciones realizadas</h3>
+            <div class="hint">Cruza automáticamente tareas de Planificación en estado <strong>Realizada</strong> con asistencia posterior. Sirve para ver si las visitas/contactos generaron retorno visible.</div>
+          </div>
+          <div class="hint">No requiere carga adicional.</div>
+        </div>
+        <div class="filters" style="margin-top:12px; grid-template-columns:1fr 1fr 1fr;">
+          <div><div class="hint" style="margin-bottom:6px;">Desde</div><input id="impactDateFrom" type="date"></div>
+          <div><div class="hint" style="margin-bottom:6px;">Hasta</div><input id="impactDateTo" type="date"></div>
+          <div><div class="hint" style="margin-bottom:6px;">Responsable de sector</div><select id="impactResponsible"><option value="">Todos</option></select></div>
+        </div>
+        <div class="impact-actions">
+          <button id="btnImpactReport" type="button" class="secondary">Generar impacto</button>
+          <button id="btnExportImpactExcel" type="button" class="secondary">Exportar impacto Excel</button>
+        </div>
+        <div class="impact-kpi-grid">
+          <div class="impact-kpi"><div class="label">Acciones realizadas</div><div id="impactKpiActions" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Personas alcanzadas</div><div id="impactKpiPeople" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Retorno consolidado</div><div id="impactKpiConsolidated" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Retorno inicial</div><div id="impactKpiInitial" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Sin retorno</div><div id="impactKpiNoReturn" class="value">0</div></div>
+        </div>
+        <div id="impactSummaryText" class="hint" style="margin-bottom:10px;">Elegí un período para generar el reporte.</div>
+        <div id="impactBuckets" class="impact-buckets"></div>
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver comparación por responsable</summary>
+          <div class="scroll" style="max-height:300px; margin-top:10px;">
+            <table><thead><tr><th>Responsable</th><th>Personas</th><th>Consolidado</th><th>Inicial</th><th>Sin retorno</th><th>No evaluable</th><th>Acompañamiento</th></tr></thead><tbody id="impactByResponsible"><tr><td colspan="7" class="hint">Sin datos.</td></tr></tbody></table>
+          </div>
+        </details>
       </div>
 
       <div class="sector-kpi-grid">
@@ -3597,6 +3650,157 @@ function renderSectorGlobalSummary(){
   renderSectorGlobalByResponsible(from, to);
 }
 
+function isoAddDays(iso, days){
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + Number(days || 0));
+  return d.toISOString().slice(0,10);
+}
+function clampIsoDate(iso, maxIso){
+  if (!iso) return maxIso;
+  if (!maxIso) return iso;
+  return iso > maxIso ? maxIso : iso;
+}
+function initializeImpactReportDefaults(){
+  if (!userCanViewSectorMap()) return;
+  if ($("impactResponsible")) {
+    const current = $("impactResponsible").value || "";
+    $("impactResponsible").innerHTML = '<option value="">Todos</option>' + SECTOR_RESPONSABLE_OPTIONS.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+    if (current && SECTOR_RESPONSABLE_OPTIONS.includes(current)) $("impactResponsible").value = current;
+  }
+  const refDate = getReferenceDate();
+  if ($("impactDateFrom") && !$("impactDateFrom").value) $("impactDateFrom").value = isoMonthsAgo(refDate, 3);
+  if ($("impactDateTo") && !$("impactDateTo").value) $("impactDateTo").value = refDate;
+}
+function getImpactRange(){
+  const refDate = getReferenceDate();
+  let from = $("impactDateFrom")?.value || isoMonthsAgo(refDate, 3);
+  let to = $("impactDateTo")?.value || refDate;
+  if (from > to) [from, to] = [to, from];
+  return {from, to};
+}
+function getMemberAttendanceDates(memberId){
+  return (state.attendance || []).filter(r => String(r.member_id) === String(memberId)).map(r => r.date).filter(Boolean).sort((a,b) => a.localeCompare(b));
+}
+function countAttendanceBetweenDates(memberId, fromDate, toInclusive, opts={}){
+  const exclusiveStart = !!opts.exclusiveStart;
+  return getMemberAttendanceDates(memberId).filter(date => {
+    const okStart = exclusiveStart ? date > fromDate : date >= fromDate;
+    return okStart && date <= toInclusive;
+  }).length;
+}
+function firstAttendanceAfter(memberId, actionDate, toInclusive){
+  return getMemberAttendanceDates(memberId).find(date => date > actionDate && date <= toInclusive) || null;
+}
+function lastAttendanceBefore(memberId, actionDate, daysBack=30){
+  const from = isoAddDays(actionDate, -Number(daysBack || 30));
+  const dates = getMemberAttendanceDates(memberId).filter(date => date >= from && date < actionDate);
+  return dates.length ? dates[dates.length - 1] : null;
+}
+function getImpactSourceRows(from, to, responsibleFilter=""){
+  const byMember = new Map();
+  (state.vaeActions || [])
+    .filter(action => String(action.status || "") === "realizada")
+    .filter(action => action.date >= from && action.date <= to)
+    .forEach(action => {
+      (action.visitedMemberIds || []).map(String).forEach(memberId => {
+        const member = state.membersFullData?.[memberId];
+        if (!member || !isIncludedInCurrentReports(member)) return;
+        const responsable = member.sector_responsable || "Sin responsable";
+        if (responsibleFilter && responsable !== responsibleFilter) return;
+        const current = byMember.get(memberId);
+        if (!current || vaeCompareActions(action, current.action) < 0) byMember.set(memberId, { member, responsable, action });
+      });
+    });
+  return [...byMember.values()];
+}
+function classifyImpactRow(row, to){
+  const actionDate = row.action.date;
+  const daysSinceAction = diffDaysBetween(actionDate, to);
+  const beforeFrom = isoAddDays(actionDate, -30);
+  const before30 = countAttendanceBetweenDates(row.member.id, beforeFrom, isoAddDays(actionDate, -1));
+  const after30End = clampIsoDate(isoAddDays(actionDate, 30), to);
+  const after60End = clampIsoDate(isoAddDays(actionDate, 60), to);
+  const after90End = clampIsoDate(isoAddDays(actionDate, 90), to);
+  const after30 = countAttendanceBetweenDates(row.member.id, actionDate, after30End, {exclusiveStart:true});
+  const after60 = countAttendanceBetweenDates(row.member.id, actionDate, after60End, {exclusiveStart:true});
+  const after90 = countAttendanceBetweenDates(row.member.id, actionDate, after90End, {exclusiveStart:true});
+  const firstAfter = firstAttendanceAfter(row.member.id, actionDate, after90End);
+  const lastBefore = lastAttendanceBefore(row.member.id, actionDate, 30);
+  if (daysSinceAction < 30) return {key:"pending", label:"Aún no evaluable", reason:"La acción fue realizada hace menos de 30 días.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  if (before30 >= 2 && after60 >= 1) return {key:"active", label:"Acompañamiento activo", reason:"La persona ya registraba asistencia antes de la acción y continuó asistiendo después.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  if (after60 >= 2) return {key:"consolidated", label:"Retorno consolidado", reason:"Registró dos o más asistencias dentro de los 60 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  if (after60 >= 1) return {key:"initial", label:"Retorno inicial", reason:"Registró una asistencia dentro de los 60 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  return {key:"no_return", label:"Sin retorno registrado", reason:"No registra asistencia posterior dentro del período evaluado.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+}
+function buildImpactRows(){
+  const {from, to} = getImpactRange();
+  const responsible = $("impactResponsible")?.value || "";
+  return getImpactSourceRows(from, to, responsible).map(row => ({...row, ...classifyImpactRow(row, to)})).sort((a,b) => {
+    const order = {no_return:0, initial:1, consolidated:2, pending:3, active:4};
+    const by = (order[a.key] ?? 99) - (order[b.key] ?? 99);
+    return by || String(a.member.name || "").localeCompare(String(b.member.name || ""), "es");
+  });
+}
+function groupImpactRows(rows){
+  const groups = {consolidated:[], initial:[], no_return:[], pending:[], active:[]};
+  rows.forEach(row => { if (groups[row.key]) groups[row.key].push(row); });
+  return groups;
+}
+function getImpactActionCount(){
+  const {from, to} = getImpactRange();
+  return (state.vaeActions || []).filter(action => String(action.status || "") === "realizada" && action.date >= from && action.date <= to).length;
+}
+function renderImpactPerson(row){
+  const firstAfter = row.firstAfter ? formatDate(row.firstAfter) : "Sin asistencia posterior";
+  const lastBefore = row.lastBefore ? formatDate(row.lastBefore) : "Sin asistencia previa en 30 días";
+  return `<div class="impact-person"><div class="impact-person-title">${escapeHtml(row.member.name || "")}</div><div class="impact-person-line"><strong>Responsable sector:</strong> ${escapeHtml(row.responsable || "Sin responsable")}</div><div class="impact-person-line"><strong>Acción realizada:</strong> ${escapeHtml(formatDate(row.action.date))}${row.action.time ? ` · ${escapeHtml(vaeFormatTime(row.action.time))}` : ""} · ${escapeHtml(getActionDisplayTitle(row.action))}</div><div class="impact-person-line"><strong>Antes:</strong> ${escapeHtml(String(row.before30))} asistencia${row.before30 === 1 ? "" : "s"} en 30 días · ${escapeHtml(lastBefore)}</div><div class="impact-person-line"><strong>Después:</strong> ${escapeHtml(String(row.after60))} asistencia${row.after60 === 1 ? "" : "s"} en 60 días · ${escapeHtml(firstAfter)}</div><div class="impact-person-line"><strong>Lectura:</strong> ${escapeHtml(row.reason)}</div></div>`;
+}
+function renderImpactBucket(title, subtitle, rows){
+  return `<details class="impact-bucket"><summary><div><h4>${escapeHtml(title)}</h4><div class="impact-bucket-sub">${escapeHtml(subtitle)}</div></div><div class="impact-bucket-count">${rows.length}</div></summary>${rows.length ? `<div class="impact-card-list">${rows.map(renderImpactPerson).join("")}</div>` : `<div class="sector-empty">Sin casos en esta categoría.</div>`}</details>`;
+}
+function renderImpactByResponsible(rows){
+  const body = $("impactByResponsible");
+  if (!body) return;
+  const map = new Map();
+  rows.forEach(row => {
+    const key = row.responsable || "Sin responsable";
+    if (!map.has(key)) map.set(key, {total:0, consolidated:0, initial:0, no_return:0, pending:0, active:0});
+    const item = map.get(key); item.total += 1; if (item[row.key] != null) item[row.key] += 1;
+  });
+  const list = [...map.entries()].sort((a,b) => a[0].localeCompare(b[0], "es"));
+  body.innerHTML = list.length ? list.map(([responsable,r]) => `<tr><td>${escapeHtml(responsable)}</td><td>${r.total}</td><td>${r.consolidated}</td><td>${r.initial}</td><td>${r.no_return}</td><td>${r.pending}</td><td>${r.active}</td></tr>`).join("") : '<tr><td colspan="7" class="hint">No hay acciones realizadas con visitados en el período.</td></tr>';
+}
+function renderImpactReport(){
+  if (!userCanViewSectorMap()) return;
+  initializeImpactReportDefaults();
+  const rows = buildImpactRows();
+  const groups = groupImpactRows(rows);
+  if ($("impactKpiActions")) $("impactKpiActions").textContent = getImpactActionCount();
+  if ($("impactKpiPeople")) $("impactKpiPeople").textContent = rows.length;
+  if ($("impactKpiConsolidated")) $("impactKpiConsolidated").textContent = groups.consolidated.length;
+  if ($("impactKpiInitial")) $("impactKpiInitial").textContent = groups.initial.length;
+  if ($("impactKpiNoReturn")) $("impactKpiNoReturn").textContent = groups.no_return.length;
+  const {from, to} = getImpactRange();
+  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Acciones realizadas entre ${formatDate(from)} y ${formatDate(to)}. Se evalúa asistencia posterior a 30, 60 y 90 días; las acciones de menos de 30 días quedan como no evaluables.`;
+  const box = $("impactBuckets");
+  if (box) box.innerHTML = [
+    renderImpactBucket("🟢 Retorno consolidado", "Dos o más asistencias dentro de los 60 días posteriores.", groups.consolidated),
+    renderImpactBucket("🟡 Retorno inicial", "Una asistencia dentro de los 60 días posteriores.", groups.initial),
+    renderImpactBucket("🔴 Sin retorno registrado", "Sin asistencia posterior visible luego de la acción.", groups.no_return),
+    renderImpactBucket("⚪ Aún no evaluable", "Acciones realizadas hace menos de 30 días.", groups.pending),
+    renderImpactBucket("🔵 Acompañamiento activo", "Ya venía asistiendo antes y continuó asistiendo después.", groups.active)
+  ].join("");
+  renderImpactByResponsible(rows);
+}
+function exportImpactExcel(){
+  if (!userCanViewSectorMap()) return;
+  const {from, to} = getImpactRange();
+  const rows = buildImpactRows();
+  const generatedAt = new Date().toLocaleString("es-AR");
+  const bodyRows = rows.map(row => `<tr><td>${excelHtmlEscape(row.member.name || "")}</td><td>${excelHtmlEscape(row.responsable || "Sin responsable")}</td><td>${excelHtmlEscape(row.label || "")}</td><td style="mso-number-format:'\\@'">${excelHtmlEscape(formatDate(row.action.date))}</td><td>${excelHtmlEscape(getActionDisplayTitle(row.action))}</td><td>${excelHtmlEscape(String(row.before30))}</td><td>${excelHtmlEscape(row.lastBefore ? formatDate(row.lastBefore) : "")}</td><td>${excelHtmlEscape(String(row.after30))}</td><td>${excelHtmlEscape(String(row.after60))}</td><td>${excelHtmlEscape(row.firstAfter ? formatDate(row.firstAfter) : "")}</td><td>${excelHtmlEscape(row.reason || "")}</td></tr>`).join("");
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif} h1{font-size:18px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px;font-size:12px;vertical-align:top} th{background:#e5e7eb}</style></head><body><h1>Impacto de acciones realizadas</h1><p>Período: ${excelHtmlEscape(formatDate(from))} a ${excelHtmlEscape(formatDate(to))}<br>Generado: ${excelHtmlEscape(generatedAt)}</p><table><thead><tr><th>Miembro</th><th>Responsable sector</th><th>Resultado</th><th>Fecha acción</th><th>Acción</th><th>Asistencias 30 días antes</th><th>Última asistencia antes</th><th>Asistencias 30 días después</th><th>Asistencias 60 días después</th><th>Primera asistencia después</th><th>Lectura</th></tr></thead><tbody>${bodyRows || '<tr><td colspan="11">Sin datos.</td></tr>'}</tbody></table></body></html>`;
+  downloadTextFile(`impacto_acciones_${from}_a_${to}.xls`, html, "application/vnd.ms-excel;charset=utf-8");
+}
 function buildDiagnosticRows(from, to){
   const sectorRowsByMemberId = new Map();
   getAllSectorReportRows(from, to).forEach(row => sectorRowsByMemberId.set(String(row.member.id), row));
@@ -5621,6 +5825,11 @@ function wireEvents(){
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
   if ($("btnSectorReport")) $("btnSectorReport").addEventListener("click", renderSectorReport);
+  if ($("btnImpactReport")) $("btnImpactReport").addEventListener("click", renderImpactReport);
+  if ($("btnExportImpactExcel")) $("btnExportImpactExcel").addEventListener("click", exportImpactExcel);
+  if ($("impactDateFrom")) $("impactDateFrom").addEventListener("change", renderImpactReport);
+  if ($("impactDateTo")) $("impactDateTo").addEventListener("change", renderImpactReport);
+  if ($("impactResponsible")) $("impactResponsible").addEventListener("change", renderImpactReport);
   if ($("btnExportDiagnosticJson")) $("btnExportDiagnosticJson").addEventListener("click", exportSystemDiagnosticJson);
   if ($("btnExportDiagnosticCsv")) $("btnExportDiagnosticCsv").addEventListener("click", exportSystemDiagnosticCsv);
   if ($("btnRenderQuickDiagnostic")) $("btnRenderQuickDiagnostic").addEventListener("click", renderQuickDiagnostic);
@@ -5716,7 +5925,7 @@ function initializeDefaults(){
   if ($("groupDateTo")) $("groupDateTo").value = $("fecha").value;
   switchTab("operativa");
 }
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); initializeSectorReportDefaults(); resumen(); renderVae(); updateSaveStatus(); }
+function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); initializeSectorReportDefaults(); initializeImpactReportDefaults(); resumen(); renderVae(); updateSaveStatus(); }
 async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
