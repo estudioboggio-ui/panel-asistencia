@@ -312,7 +312,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.20 · diagnóstico desplegable</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.21 · exclusiones operativas + visita 180 días</span>
     </div>
   </div>
 </div>
@@ -454,6 +454,22 @@
                 <input id="removeMemberSearch" type="text" placeholder="Buscar miembro a ocultar..." autocomplete="off">
                 <div id="memberSuggestionsBox" class="scroll suggestions"></div>
               </div>
+              <div class="filters" style="margin-bottom:0;">
+                <div>
+                  <div class="hint" style="margin-bottom:6px;">Motivo de ocultamiento</div>
+                  <select id="inactiveReasonSelect" style="width:100%">
+                    <option value="inactivo_radar">Inactivo en radar</option>
+                    <option value="mudado_trasladado">Se mudó / trasladó</option>
+                    <option value="fallecido">Fallecido</option>
+                    <option value="otro">Otro / fuera de seguimiento</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="hint" style="margin-bottom:6px;">Observación opcional</div>
+                  <input id="inactiveNotesInput" type="text" placeholder="Ej.: se mudó a otra ciudad, falleció, etc." style="width:100%">
+                </div>
+              </div>
+              <div class="hint">Los motivos “Se mudó / trasladó”, “Fallecido” y “Otro” conservan el miembro en la base histórica, pero lo excluyen de reportes actuales.</div>
               <button id="btnDeactivateMember" class="danger" type="button">Ocultar miembro desde esta fecha</button>
 
               <div class="section-card" style="margin-top:8px;">
@@ -1191,6 +1207,15 @@ const PASSWORD_RECOVERY_PENDING_KEY = "panel-asistencia-password-recovery-pendin
 const VAE_GROUP_OPTIONS = ["VAE","Juventud","Oficiantes","Enseñanza","Administración","Mantenimiento","Limpieza","Coro","Novedades"];
 const SECTOR_RESPONSABLE_OPTIONS = ["Adriano Boggio","Demian Kaczmar","Omar Vivas","Marisa Ferrari"];
 const SECTOR_MAP_ALLOWED_EMAILS = ["adriano.boggio@gmail.com"];
+const CURRENT_REPORT_EXCLUDED_INACTIVE_REASONS = ["mudado_trasladado", "fallecido", "otro"];
+const INACTIVE_REASON_OPTIONS = [
+  { value: "inactivo_radar", label: "Inactivo en radar" },
+  { value: "mudado_trasladado", label: "Se mudó / trasladó" },
+  { value: "fallecido", label: "Fallecido" },
+  { value: "otro", label: "Otro / fuera de seguimiento" }
+];
+const SECTOR_VISIT_OLD_DAYS = 180;
+const SECTOR_VISIT_OBSERVATION_DAYS = 120;
 const SECTOR_FOLLOWUP_ACTIONS = {
   contacted: { label: "Contacté", reviewDays: 15, bucket: "following", description: "Contacto efectivo" },
   contact_attempted: { label: "Intenté", reviewDays: 7, bucket: "following", description: "Intento de contacto" },
@@ -1265,6 +1290,29 @@ function userCanOperative(){ return ["admin","carga","oficiante"].includes(curre
 function userCanViewSectorMap(){
   const email = String(currentProfile?.email || currentSession?.user?.email || "").trim().toLowerCase();
   return SECTOR_MAP_ALLOWED_EMAILS.includes(email);
+}
+function normalizeInactiveReason(value){
+  return String(value || "").trim();
+}
+function getInactiveReasonLabel(value){
+  const normalized = normalizeInactiveReason(value);
+  const found = INACTIVE_REASON_OPTIONS.find(opt => opt.value === normalized);
+  if (found) return found.label;
+  return normalized ? normalized : "Inactivo en radar";
+}
+function isExcludedFromCurrentReports(member){
+  return CURRENT_REPORT_EXCLUDED_INACTIVE_REASONS.includes(normalizeInactiveReason(member?.inactive_reason));
+}
+function isIncludedInCurrentReports(member){
+  return !!member && !isExcludedFromCurrentReports(member);
+}
+function getMemberByName(name){
+  const target = String(name || "").toLowerCase();
+  return Object.values(state.membersFullData || {}).find(m => String(m.name || "").toLowerCase() === target) || null;
+}
+function isNameIncludedInCurrentReports(name){
+  const member = getMemberByName(name);
+  return member ? isIncludedInCurrentReports(member) : true;
 }
 function applyAdminRoleVisibility(){
   const isAdmin = userCanAdmin();
@@ -2897,6 +2945,7 @@ function getAttendanceByMemberNormalized(){
 function getAnalyticsMembersUniverse(refDate){
   return Object.values(state.membersFullData || {})
     .filter(member => {
+      if (!isIncludedInCurrentReports(member)) return false;
       const activeFrom = member?.active_from || "1900-01-01";
       return activeFrom <= refDate;
     })
@@ -2958,7 +3007,7 @@ function getNucleusHardcoreRows(refDate){
     if (meetingSet.has(r.date)) counts[r.name] = (counts[r.name] || 0) + 1;
   });
   return Object.entries(counts)
-    .filter(([,count]) => count >= required)
+    .filter(([name, count]) => count >= required && isNameIncludedInCurrentReports(name))
     .map(([name, count]) => ({
       name,
       detail: `${count} de ${totalMeetings} reuniones (${safePct(count, totalMeetings).toFixed(0)}%)`
@@ -2969,6 +3018,7 @@ function getExpandedCommunityRows(from, to){
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
+    if (!isNameIncludedInCurrentReports(name)) return;
     const count = dates.filter(d => d >= from && d <= to).length;
     if (count >= 6){
       rows.push({name, detail: `${count} asistencias en los últimos 3 meses`});
@@ -3200,6 +3250,7 @@ function initializeSectorReportDefaults(){
 }
 function getSectorMembers(responsable){
   return Object.values(state.membersFullData || {})
+    .filter(member => isIncludedInCurrentReports(member))
     .filter(member => String(member?.sector_responsable || "") === String(responsable || ""))
     .sort((a,b) => String(a?.name || "").localeCompare(String(b?.name || ""), "es"));
 }
@@ -3240,8 +3291,7 @@ function buildSectorMemberReason(row){
   else if (row.attendanceCount <= 1) reasons.push("tiene asistencia baja en el período");
 
   if (!row.lastVisit) reasons.push("no registra visita efectiva");
-  else if (row.daysSinceVisit > 90) reasons.push("su última visita supera los 90 días");
-  else if (row.daysSinceVisit > 60) reasons.push("su última visita supera los 60 días");
+  else if (row.daysSinceVisit > SECTOR_VISIT_OLD_DAYS) reasons.push(`su última visita supera los ${SECTOR_VISIT_OLD_DAYS} días`);
 
   return reasons.length ? reasons.join(" y ") + "." : "Sin señales críticas en el período.";
 }
@@ -3251,8 +3301,8 @@ function classifySectorRow(row){
   const coolingAttendance = row.daysSinceAttendance !== null && row.daysSinceAttendance > 21;
   const lowPeriodAttendance = row.attendanceCount <= 1;
   const noVisit = !row.lastVisit;
-  const visitOld = row.daysSinceVisit !== null && row.daysSinceVisit > 60;
-  const visitModeratelyOld = row.daysSinceVisit !== null && row.daysSinceVisit > 45;
+  const visitOld = row.daysSinceVisit !== null && row.daysSinceVisit > SECTOR_VISIT_OLD_DAYS;
+  const visitModeratelyOld = row.daysSinceVisit !== null && row.daysSinceVisit > SECTOR_VISIT_OBSERVATION_DAYS;
 
   // Rojo: solo cuando se combinan dos señales fuertes: ausencia prolongada + falta de seguimiento efectivo reciente.
   if (noRecentAttendance && (noVisit || visitOld)) {
@@ -3563,6 +3613,9 @@ function buildDiagnosticRows(from, to){
         visible_status: member.inactive_from ? "Oculto" : "Visible",
         active_from: member.active_from || "",
         inactive_from: member.inactive_from || "",
+        inactive_reason: normalizeInactiveReason(member.inactive_reason),
+        inactive_reason_label: getInactiveReasonLabel(member.inactive_reason),
+        included_in_current_reports: isIncludedInCurrentReports(member),
         phone: member.phone || "",
         birth_date: member.birth_date || "",
         address: member.address || "",
@@ -3691,7 +3744,7 @@ function exportSystemDiagnosticCsv(){
   if (!userCanViewSectorMap()) return;
   const snapshot = buildSystemDiagnosticSnapshot();
   const headers = [
-    "Nombre","Estado visible","Responsable sector","Estado mapa","Estado base","Motivo","Accion sugerida",
+    "Nombre","Estado visible","Motivo ocultamiento","Computa reportes actuales","Responsable sector","Estado mapa","Estado base","Motivo","Accion sugerida",
     "Asistencias periodo","Ultima asistencia","Dias desde ultima asistencia","Ultimas asistencias",
     "Ultima visita efectiva","Dias desde ultima visita","Visitas efectivas periodo",
     "Ultimo seguimiento","Revision seguimiento","Telefono","Grupos / areas","Posibles duplicados"
@@ -4213,6 +4266,9 @@ function exportMembersToExcel(){
     "Nombre",
     "Estado",
     "Oculto desde",
+    "Motivo de ocultamiento",
+    "Observacion ocultamiento",
+    "Computa reportes actuales",
     "Telefono",
     "Fecha de nacimiento",
     "Direccion",
@@ -4232,6 +4288,9 @@ function exportMembersToExcel(){
       member.name || "",
       active,
       member.inactive_from || "",
+      getInactiveReasonLabel(member.inactive_reason),
+      member.inactive_notes || "",
+      isIncludedInCurrentReports(member) ? "Si" : "No",
       member.phone || "",
       member.birth_date || "",
       member.address || "",
@@ -4360,7 +4419,7 @@ function renderInactiveMembersQuickList(){
     return;
   }
   const extra = getInactiveMembersOn(date).length > 10 ? ` y ${getInactiveMembersOn(date).length - 10} más` : "";
-  box.innerHTML = `<strong>Ocultos:</strong> ${items.map(m => escapeHtml(m.name || "")).join(", ")}${extra}`;
+  box.innerHTML = `<strong>Ocultos:</strong> ${items.map(m => `${escapeHtml(m.name || "")} <span class="hint">(${escapeHtml(getInactiveReasonLabel(m.inactive_reason))})</span>`).join(", ")}${extra}`;
 }
 function actualizarSugerenciasReactivar(){
   const input = $("reactivateMemberSearch");
@@ -4389,7 +4448,7 @@ async function reactivarMiembro(){
   const memberName = normalizeName(input.value);
   const member = memberId ? state.membersFullData?.[memberId] : getInactiveMembersOn(selectedDate()).find(m => String(m.name || "").toLowerCase() === memberName.toLowerCase());
   if (!member){ alert("Seleccioná un miembro oculto para reactivar."); return; }
-  const res = await supabaseClient.from("members").update({ inactive_from: null }).eq("id", member.id);
+  const res = await supabaseClient.from("members").update({ inactive_from: null, inactive_reason: null, inactive_notes: null }).eq("id", member.id);
   if (res.error){ alert("No pude reactivar el miembro: " + res.error.message); return; }
   input.value = "";
   input.dataset.memberId = "";
@@ -4436,7 +4495,7 @@ ${duplicateLines}
   }
 
   const res = existingMember
-    ? await supabaseClient.from("members").update({ active_from: existingMember.active_from || date, inactive_from: null }).eq("id", existingMember.id)
+    ? await supabaseClient.from("members").update({ active_from: existingMember.active_from || date, inactive_from: null, inactive_reason: null, inactive_notes: null }).eq("id", existingMember.id)
     : await supabaseClient.from("members").insert({ name, active_from: date });
 
   if (res.error){ alert("No pude guardar el miembro: " + res.error.message); return; }
@@ -4453,9 +4512,18 @@ async function inactivarMiembro(){
   const name = normalizeName($("removeMemberSearch").value);
   const existing = state.people.find(p => p.toLowerCase() === name.toLowerCase());
   if (!existing){ alert("No encontré ese miembro."); return; }
-  const res = await supabaseClient.from("members").update({ inactive_from: selectedDate() }).eq("name", existing);
+  const inactiveReason = $("inactiveReasonSelect")?.value || "inactivo_radar";
+  const inactiveNotes = $("inactiveNotesInput")?.value?.trim() || null;
+  const confirmMsg = CURRENT_REPORT_EXCLUDED_INACTIVE_REASONS.includes(inactiveReason)
+    ? `Vas a ocultar a "${existing}" y excluirlo de reportes actuales por motivo: ${getInactiveReasonLabel(inactiveReason)}. Seguirá en la base histórica. ¿Confirmás?`
+    : `Vas a ocultar a "${existing}" del listado diario, pero seguirá computando en reportes actuales como inactivo en radar. ¿Confirmás?`;
+  if (!confirm(confirmMsg)) return;
+  const payload = { inactive_from: selectedDate(), inactive_reason: inactiveReason, inactive_notes: inactiveNotes };
+  const res = await supabaseClient.from("members").update(payload).eq("name", existing);
   if (res.error){ alert("No pude ocultar el miembro: " + res.error.message); return; }
   $("removeMemberSearch").value = "";
+  if ($("inactiveReasonSelect")) $("inactiveReasonSelect").value = "inactivo_radar";
+  if ($("inactiveNotesInput")) $("inactiveNotesInput").value = "";
   await cargarTodoDesdeServidor(); cargarBorradorDelDia(); renderAll(); calcularAdminKPIs();
 }
 async function guardarDia(){
