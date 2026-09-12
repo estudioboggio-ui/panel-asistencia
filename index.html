@@ -331,7 +331,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.24 · impacto de acciones realizadas</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.25 · impacto ajustado + administración limpia</span>
     </div>
   </div>
 </div>
@@ -565,25 +565,7 @@
       </details>
     </div>
 
-    <div id="adminCardsSection" class="cards" style="margin-top:16px;">
-      <div class="card"><div class="label">Promedio últimas 8 reuniones</div><div id="adminKpiAvg4w" class="value">0</div></div>
-      <div class="card">
-        <div class="label">Comunidad activa</div>
-        <div class="community-value">
-          <div class="community-block">
-            <div class="community-title"><strong>Núcleo duro</strong><span class="community-number" id="adminKpiNucleusHardcore">0</span></div>
-            <div class="community-note">Asistieron al menos al 50% de las últimas 8 reuniones.</div>
-          </div>
-          <div class="community-block">
-            <div class="community-title"><strong>Base ampliada</strong><span class="community-number" id="adminKpiExpandedCommunity">0</span></div>
-            <div class="community-note">Asistieron 6 veces en los últimos 3 meses.</div>
-          </div>
-        </div>
-      </div>
-      <div class="card"><div class="label">Primeras veces del mes</div><div id="adminKpiFirstMonth" class="value">0</div></div>
-      <div class="card"><div class="label">Tasa retorno primeras veces</div><div id="adminKpiReturnRate" class="value">0%</div></div>
-      <div class="card"><div class="label">Visitas sobre total</div><div id="adminKpiVisitsWeight" class="value">0%</div></div>
-    </div>
+    <!-- Recuadros KPI superiores removidos para simplificar Administración. -->
 
     <div id="adminAnalyticsSection" class="split">
       <div class="panel">
@@ -793,14 +775,14 @@
           <div class="impact-kpi"><div class="label">Personas alcanzadas</div><div id="impactKpiPeople" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Retorno consolidado</div><div id="impactKpiConsolidated" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Retorno inicial</div><div id="impactKpiInitial" class="value">0</div></div>
-          <div class="impact-kpi"><div class="label">Sin retorno</div><div id="impactKpiNoReturn" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Sin retorno vencido</div><div id="impactKpiNoReturn" class="value">0</div></div>
         </div>
         <div id="impactSummaryText" class="hint" style="margin-bottom:10px;">Elegí un período para generar el reporte.</div>
         <div id="impactBuckets" class="impact-buckets"></div>
         <details style="margin-top:12px;">
           <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver comparación por responsable</summary>
           <div class="scroll" style="max-height:300px; margin-top:10px;">
-            <table><thead><tr><th>Responsable</th><th>Personas</th><th>Consolidado</th><th>Inicial</th><th>Sin retorno</th><th>No evaluable</th><th>Acompañamiento</th></tr></thead><tbody id="impactByResponsible"><tr><td colspan="7" class="hint">Sin datos.</td></tr></tbody></table>
+            <table><thead><tr><th>Responsable</th><th>Personas</th><th>Consolidado</th><th>Inicial</th><th>Tardío</th><th>Sin retorno</th><th>No evaluable</th><th>Acompañamiento</th></tr></thead><tbody id="impactByResponsible"><tr><td colspan="8" class="hint">Sin datos.</td></tr></tbody></table>
           </div>
         </details>
       </div>
@@ -3724,25 +3706,31 @@ function classifyImpactRow(row, to){
   const after30 = countAttendanceBetweenDates(row.member.id, actionDate, after30End, {exclusiveStart:true});
   const after60 = countAttendanceBetweenDates(row.member.id, actionDate, after60End, {exclusiveStart:true});
   const after90 = countAttendanceBetweenDates(row.member.id, actionDate, after90End, {exclusiveStart:true});
-  const firstAfter = firstAttendanceAfter(row.member.id, actionDate, after90End);
+  const firstAfter = firstAttendanceAfter(row.member.id, actionDate, to);
   const lastBefore = lastAttendanceBefore(row.member.id, actionDate, 30);
-  if (daysSinceAction < 30) return {key:"pending", label:"Aún no evaluable", reason:"La acción fue realizada hace menos de 30 días.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  if (before30 >= 2 && after60 >= 1) return {key:"active", label:"Acompañamiento activo", reason:"La persona ya registraba asistencia antes de la acción y continuó asistiendo después.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  if (after60 >= 2) return {key:"consolidated", label:"Retorno consolidado", reason:"Registró dos o más asistencias dentro de los 60 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  if (after60 >= 1) return {key:"initial", label:"Retorno inicial", reason:"Registró una asistencia dentro de los 60 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
-  return {key:"no_return", label:"Sin retorno registrado", reason:"No registra asistencia posterior dentro del período evaluado.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+
+  // El impacto positivo se reconoce apenas exista asistencia posterior, aunque la acción sea reciente.
+  if (before30 >= 2 && after30 >= 1) return {key:"active", label:"Acompañamiento activo", reason:"La persona ya registraba asistencia antes de la acción y continuó asistiendo después.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  if (after30 >= 2) return {key:"consolidated", label:"Retorno consolidado", reason:"Registró dos o más asistencias dentro de los 30 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  if (after30 >= 1) return {key:"initial", label:"Retorno inicial", reason:"Registró una asistencia dentro de los 30 días posteriores.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+  if (firstAfter) return {key:"late", label:"Retorno tardío", reason:"Registró asistencia posterior, pero fuera de la ventana principal de 30 días.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+
+  // Solo queda como no evaluable si todavía pasó poco tiempo y no hubo ninguna asistencia posterior.
+  if (daysSinceAction < 15) return {key:"pending", label:"Aún no evaluable", reason:"La acción es muy reciente y todavía no registra asistencia posterior.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
+
+  return {key:"no_return", label:"Sin retorno vencido", reason:"No registra asistencia posterior y ya venció la primera ventana de evaluación de 15 días.", before30, after30, after60, after90, firstAfter, lastBefore, daysSinceAction};
 }
 function buildImpactRows(){
   const {from, to} = getImpactRange();
   const responsible = $("impactResponsible")?.value || "";
   return getImpactSourceRows(from, to, responsible).map(row => ({...row, ...classifyImpactRow(row, to)})).sort((a,b) => {
-    const order = {no_return:0, initial:1, consolidated:2, pending:3, active:4};
+    const order = {no_return:0, late:1, initial:2, consolidated:3, pending:4, active:5};
     const by = (order[a.key] ?? 99) - (order[b.key] ?? 99);
     return by || String(a.member.name || "").localeCompare(String(b.member.name || ""), "es");
   });
 }
 function groupImpactRows(rows){
-  const groups = {consolidated:[], initial:[], no_return:[], pending:[], active:[]};
+  const groups = {consolidated:[], initial:[], late:[], no_return:[], pending:[], active:[]};
   rows.forEach(row => { if (groups[row.key]) groups[row.key].push(row); });
   return groups;
 }
@@ -3753,7 +3741,7 @@ function getImpactActionCount(){
 function renderImpactPerson(row){
   const firstAfter = row.firstAfter ? formatDate(row.firstAfter) : "Sin asistencia posterior";
   const lastBefore = row.lastBefore ? formatDate(row.lastBefore) : "Sin asistencia previa en 30 días";
-  return `<div class="impact-person"><div class="impact-person-title">${escapeHtml(row.member.name || "")}</div><div class="impact-person-line"><strong>Responsable sector:</strong> ${escapeHtml(row.responsable || "Sin responsable")}</div><div class="impact-person-line"><strong>Acción realizada:</strong> ${escapeHtml(formatDate(row.action.date))}${row.action.time ? ` · ${escapeHtml(vaeFormatTime(row.action.time))}` : ""} · ${escapeHtml(getActionDisplayTitle(row.action))}</div><div class="impact-person-line"><strong>Antes:</strong> ${escapeHtml(String(row.before30))} asistencia${row.before30 === 1 ? "" : "s"} en 30 días · ${escapeHtml(lastBefore)}</div><div class="impact-person-line"><strong>Después:</strong> ${escapeHtml(String(row.after60))} asistencia${row.after60 === 1 ? "" : "s"} en 60 días · ${escapeHtml(firstAfter)}</div><div class="impact-person-line"><strong>Lectura:</strong> ${escapeHtml(row.reason)}</div></div>`;
+  return `<div class="impact-person"><div class="impact-person-title">${escapeHtml(row.member.name || "")}</div><div class="impact-person-line"><strong>Responsable sector:</strong> ${escapeHtml(row.responsable || "Sin responsable")}</div><div class="impact-person-line"><strong>Acción realizada:</strong> ${escapeHtml(formatDate(row.action.date))}${row.action.time ? ` · ${escapeHtml(vaeFormatTime(row.action.time))}` : ""} · ${escapeHtml(getActionDisplayTitle(row.action))}</div><div class="impact-person-line"><strong>Antes:</strong> ${escapeHtml(String(row.before30))} asistencia${row.before30 === 1 ? "" : "s"} en 30 días · ${escapeHtml(lastBefore)}</div><div class="impact-person-line"><strong>Después:</strong> ${escapeHtml(String(row.after30))} asistencia${row.after30 === 1 ? "" : "s"} en 30 días · ${escapeHtml(firstAfter)}</div><div class="impact-person-line"><strong>Lectura:</strong> ${escapeHtml(row.reason)}</div></div>`;
 }
 function renderImpactBucket(title, subtitle, rows){
   return `<details class="impact-bucket"><summary><div><h4>${escapeHtml(title)}</h4><div class="impact-bucket-sub">${escapeHtml(subtitle)}</div></div><div class="impact-bucket-count">${rows.length}</div></summary>${rows.length ? `<div class="impact-card-list">${rows.map(renderImpactPerson).join("")}</div>` : `<div class="sector-empty">Sin casos en esta categoría.</div>`}</details>`;
@@ -3764,11 +3752,11 @@ function renderImpactByResponsible(rows){
   const map = new Map();
   rows.forEach(row => {
     const key = row.responsable || "Sin responsable";
-    if (!map.has(key)) map.set(key, {total:0, consolidated:0, initial:0, no_return:0, pending:0, active:0});
+    if (!map.has(key)) map.set(key, {total:0, consolidated:0, initial:0, late:0, no_return:0, pending:0, active:0});
     const item = map.get(key); item.total += 1; if (item[row.key] != null) item[row.key] += 1;
   });
   const list = [...map.entries()].sort((a,b) => a[0].localeCompare(b[0], "es"));
-  body.innerHTML = list.length ? list.map(([responsable,r]) => `<tr><td>${escapeHtml(responsable)}</td><td>${r.total}</td><td>${r.consolidated}</td><td>${r.initial}</td><td>${r.no_return}</td><td>${r.pending}</td><td>${r.active}</td></tr>`).join("") : '<tr><td colspan="7" class="hint">No hay acciones realizadas con visitados en el período.</td></tr>';
+  body.innerHTML = list.length ? list.map(([responsable,r]) => `<tr><td>${escapeHtml(responsable)}</td><td>${r.total}</td><td>${r.consolidated}</td><td>${r.initial}</td><td>${r.late}</td><td>${r.no_return}</td><td>${r.pending}</td><td>${r.active}</td></tr>`).join("") : '<tr><td colspan="8" class="hint">No hay acciones realizadas con visitados en el período.</td></tr>';
 }
 function renderImpactReport(){
   if (!userCanViewSectorMap()) return;
@@ -3781,13 +3769,14 @@ function renderImpactReport(){
   if ($("impactKpiInitial")) $("impactKpiInitial").textContent = groups.initial.length;
   if ($("impactKpiNoReturn")) $("impactKpiNoReturn").textContent = groups.no_return.length;
   const {from, to} = getImpactRange();
-  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Acciones realizadas entre ${formatDate(from)} y ${formatDate(to)}. Se evalúa asistencia posterior a 30, 60 y 90 días; las acciones de menos de 30 días quedan como no evaluables.`;
+  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Acciones realizadas entre ${formatDate(from)} y ${formatDate(to)}. Se evalúa retorno principal dentro de 30 días. Si la acción es muy reciente y aún no hubo asistencia posterior, queda como no evaluable; si vuelve después de 30 días, se muestra como retorno tardío.`;
   const box = $("impactBuckets");
   if (box) box.innerHTML = [
-    renderImpactBucket("🟢 Retorno consolidado", "Dos o más asistencias dentro de los 60 días posteriores.", groups.consolidated),
-    renderImpactBucket("🟡 Retorno inicial", "Una asistencia dentro de los 60 días posteriores.", groups.initial),
-    renderImpactBucket("🔴 Sin retorno registrado", "Sin asistencia posterior visible luego de la acción.", groups.no_return),
-    renderImpactBucket("⚪ Aún no evaluable", "Acciones realizadas hace menos de 30 días.", groups.pending),
+    renderImpactBucket("🟢 Retorno consolidado", "Dos o más asistencias dentro de los 30 días posteriores.", groups.consolidated),
+    renderImpactBucket("🟡 Retorno inicial", "Una asistencia dentro de los 30 días posteriores.", groups.initial),
+    renderImpactBucket("🟠 Retorno tardío", "Hubo asistencia posterior, pero fuera de la ventana principal de 30 días.", groups.late),
+    renderImpactBucket("🔴 Sin retorno vencido", "No registra asistencia posterior y ya venció la primera ventana de 15 días.", groups.no_return),
+    renderImpactBucket("⚪ Aún no evaluable", "Acciones muy recientes sin asistencia posterior registrada.", groups.pending),
     renderImpactBucket("🔵 Acompañamiento activo", "Ya venía asistiendo antes y continuó asistiendo después.", groups.active)
   ].join("");
   renderImpactByResponsible(rows);
@@ -4535,7 +4524,7 @@ function renderAdminAnalytics(){
   const meetings = getMeetingTotalsSorted().filter(([d]) => d <= refDate);
   const last8 = meetings.slice(-8);
   const avg4w = last8.length ? last8.reduce((a, [,v]) => a+v, 0) / last8.length : 0;
-  $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
+  if ($("adminKpiAvg4w")) $("adminKpiAvg4w").textContent = avg4w.toFixed(1);
 
   const defaultFrom = isoMonthsAgo(refDate, 3);
   const nucleusHardcoreRows = getNucleusHardcoreRows(refDate);
@@ -4549,14 +4538,14 @@ function renderAdminAnalytics(){
 
   if ($("adminKpiNucleusHardcore")) $("adminKpiNucleusHardcore").textContent = nucleusHardcoreRows.length;
   if ($("adminKpiExpandedCommunity")) $("adminKpiExpandedCommunity").textContent = expandedCommunityRows.length;
-  $("adminKpiFirstMonth").textContent = firstMonthCount;
+  if ($("adminKpiFirstMonth")) $("adminKpiFirstMonth").textContent = firstMonthCount;
 
   const returnRate = firstMonthCount ? ((firstMonthCount - noReturnRows.length) / firstMonthCount) * 100 : 0;
-  $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
+  if ($("adminKpiReturnRate")) $("adminKpiReturnRate").textContent = `${returnRate.toFixed(0)}%`;
 
   const thisMonthTotal = Object.entries(Object.fromEntries(meetings)).filter(([d]) => d >= monthBounds.start && d <= monthBounds.end).reduce((a,[,v])=>a+v,0);
   const visitsThisMonth = Object.keys(state.dayExtras).filter(d => d >= monthBounds.start && d <= monthBounds.end).reduce((a,d)=>a+Number(state.dayExtras[d]?.visitas?.count||0),0);
-  $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
+  if ($("adminKpiVisitsWeight")) $("adminKpiVisitsWeight").textContent = `${safePct(visitsThisMonth, thisMonthTotal).toFixed(0)}%`;
 
   const inactiveRows = getInactiveRecentNames(refDate);
   const droppedRows = getDroppedNames(refDate);
@@ -5971,14 +5960,14 @@ function calcularAdminKPIs(){
     const total4w = last4w.length;
     const fechas4w = [...new Set(last4w.map(x=>x.date))].length;
     const avg4w = fechas4w ? Math.round(total4w/fechas4w) : 0;
-    $("adminKpiAvg4w").textContent = avg4w;
+    if ($("adminKpiAvg4w")) $("adminKpiAvg4w").textContent = avg4w;
 
     const month = now.slice(0,7);
     let firstMonth = 0;
     Object.keys(state.firstTimeByDate).forEach(d=>{
       if (d.startsWith(month)) firstMonth += state.firstTimeByDate[d].length;
     });
-    $("adminKpiFirstMonth").textContent = firstMonth;
+    if ($("adminKpiFirstMonth")) $("adminKpiFirstMonth").textContent = firstMonth;
 
     const names = [...new Set(state.attendance.map(x=>x.name))];
     if ($("adminKpiNucleusHardcore")) $("adminKpiNucleusHardcore").textContent = getNucleusHardcoreRows(now).length;
@@ -6001,7 +5990,7 @@ function calcularAdminKPIs(){
       });
     });
     const rate = totalFirst ? Math.round((returned/totalFirst)*100) : 0;
-    $("adminKpiReturnRate").textContent = rate+"%";
+    if ($("adminKpiReturnRate")) $("adminKpiReturnRate").textContent = rate+"%";
   }catch(e){
     console.error("KPIs error", e);
   }
