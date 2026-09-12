@@ -3108,6 +3108,7 @@ function getFirstTimeNoReturnInRange(from, to){
   Object.entries(state.firstTimeByDate).forEach(([date, names]) => {
     if (date >= from && date <= to){
       names.forEach(name => {
+        if (!isNameIncludedInCurrentReports(name)) return;
         const laterReturns = (byMember[name] || []).filter(d => d > date && d <= to);
         if (!laterReturns.length){
           rows.push({name, detail: `Primera vez: ${formatDate(date)}`});
@@ -3122,6 +3123,7 @@ function getTopAttendees(from, to){
   const byMember = getAttendanceByMember();
   const rows = [];
   Object.entries(byMember).forEach(([name, dates]) => {
+    if (!isNameIncludedInCurrentReports(name)) return;
     const count = dates.filter(d => d >= from && d <= to).length;
     if (count > 0){
       rows.push({name, count});
@@ -3141,7 +3143,9 @@ function memberBelongsToGroup(member, group){
   return categories.includes(group);
 }
 function getMembersInGroup(group){
-  return Object.values(state.membersFullData || {}).filter(member => memberBelongsToGroup(member, group))
+  return Object.values(state.membersFullData || {})
+    .filter(isIncludedInCurrentReports)
+    .filter(member => memberBelongsToGroup(member, group))
     .sort((a,b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
 }
 function getGroupRange(){
@@ -4190,7 +4194,7 @@ async function loadAgendaAlertas(){
 
 
 function buildFirstMonthRowsForSummary(from, to){
-  const namedRows = getFirstTimersInRange(from, to);
+  const namedRows = getFirstTimersInRange(from, to).filter(row => isNameIncludedInCurrentReports(row.name));
   const totalCount = Object.entries(state.dayExtras)
     .filter(([d]) => d >= from && d <= to)
     .reduce((acc, [,extra]) => acc + Number(extra?.primeraVez?.count || 0), 0);
@@ -4704,6 +4708,9 @@ const VAE_FREQUENT_EXECUTOR_NAMES = ["Adriano Boggio","Demian Kaczmar","Omar Viv
 
 function getMembersSource(){
   return Object.values(state.membersFullData || {}).sort((a,b)=> String(a.name || "").localeCompare(String(b.name || ""), "es"));
+}
+function getCurrentReportMembersSource(){
+  return getMembersSource().filter(isIncludedInCurrentReports);
 }
 function vaeIsoDate(dateObj){
   const y = dateObj.getFullYear();
@@ -5266,7 +5273,7 @@ function renderVaeValidation(){
 }
 function buildVaeFollowupRows(){
   const effectiveStatuses = new Set(["realizada"]);
-  const rows = getMembersSource().map(member => {
+  const rows = getCurrentReportMembersSource().map(member => {
     const memberId = String(member.id);
     const memberActions = (state.vaeActions || [])
       .filter(action => effectiveStatuses.has(String(action.status || "")) && (action.visitedMemberIds || []).map(String).includes(memberId))
