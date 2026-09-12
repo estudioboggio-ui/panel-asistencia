@@ -345,7 +345,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.28 · detalle tareas realizadas</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.29 · reporte general auditable</span>
     </div>
   </div>
 </div>
@@ -363,7 +363,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.20 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.29 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -583,130 +583,16 @@
 
     <!-- Recuadros KPI superiores removidos para simplificar Administración. -->
 
-    <details id="adminAnalyticsSection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Seguimiento de miembros</div><div class="admin-collapsible-hint">Métricas, alertas y parámetros generales de seguimiento.</div></div><span class="admin-collapsible-toggle"></span></summary>
-      <div class="admin-collapsible-body split">
-      <div class="panel">
-        <h2>Resumen</h2>
-        <div class="scroll"><table><thead><tr><th>Métrica</th><th>Cantidad</th></tr></thead><tbody id="adminSummaryTable"></tbody></table></div>
-      </div>
+    
 
-      <div class="panel">
-        <h2>Alertas</h2>
-        <div id="alertsContainer"></div>
-      </div>
-
-      <div class="panel">
-        <h2>Parámetros de alertas</h2>
-        <div class="stack">
-          <div><div class="hint">Asistencia baja</div><input id="alertLowAttendance" type="number"></div>
-          <div><div class="hint">Caída de tendencia (%)</div><input id="alertTrendDrop" type="number" step="0.01"></div>
-          <div><div class="hint">Retorno primera vez (semanas)</div><input id="alertFirstReturnWeeks" type="number"></div>
-          <div><div class="hint">Miembro inactivo (semanas)</div><input id="alertInactiveWeeks" type="number"></div>
-          <div><div class="hint">Pico de visitas</div><input id="alertVisitsSpike" type="number"></div>
-          <button id="btnSaveAlerts" class="warn" type="button">Guardar parámetros</button>
-        </div>
-      </div>
-      </div>
-    </details>
-
-    <details id="adminGroupsSection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Reportes por grupo</div><div class="admin-collapsible-hint">Asistencia y listados por grupo/categoría.</div></div><span class="admin-collapsible-toggle"></span></summary>
-      <div class="admin-collapsible-body">
-      <div class="filters" style="margin-bottom:12px;">
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Grupo / categoría</div>
-          <select id="groupReportSelect">
-            <option value="">Seleccionar grupo...</option>
-          </select>
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Período para asistencia</div>
-          <div class="filters" style="margin-bottom:0;">
-            <input id="groupDateFrom" type="date">
-            <input id="groupDateTo" type="date">
-          </div>
-        </div>
-      </div>
-      <div class="row-actions" style="margin-bottom:12px;">
-        <button id="btnGroupAttendanceReport" type="button">Ver asistencia por grupo</button>
-        <button id="btnGroupMembersReport" type="button">Ver miembros del grupo</button>
-      </div>
-      <div class="cards" style="grid-template-columns:repeat(4,1fr); margin-bottom:12px;">
-        <div class="card"><div class="label">Miembros del grupo</div><div id="groupKpiMembers" class="value">0</div></div>
-        <div class="card"><div class="label">Asistencia del grupo</div><div id="groupKpiAttendances" class="value">0%</div></div>
-        <div class="card"><div class="label">Fechas con asistencia</div><div id="groupKpiDates" class="value">0</div></div>
-        <div class="card"><div class="label">Promedio por reunión</div><div id="groupKpiAverage" class="value">0</div></div>
-      </div>
-      <div class="scroll" style="max-height:420px;">
-        <table>
-          <thead>
-            <tr>
-              <th id="groupReportCol1">Nombre</th>
-              <th id="groupReportCol2">Detalle</th>
-              <th id="groupReportCol3">Dato adicional</th>
-            </tr>
-          </thead>
-          <tbody id="groupReportTableBody">
-            <tr><td colspan="3" class="hint">Elegí un grupo y el tipo de reporte.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      </div>
-    </details>
-
-
-
-    <details id="adminReportsSection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Reportes de miembros</div><div class="admin-collapsible-hint">Recurrentes, inactividad, primeras veces y top asistentes.</div></div><span class="admin-collapsible-toggle"></span></summary>
-      <div class="admin-collapsible-body">
-      <div class="filters" style="margin-bottom:12px;">
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Período de análisis</div>
-          <div class="filters" style="margin-bottom:0;">
-            <input id="reportDateFrom" type="date">
-            <input id="reportDateTo" type="date">
-          </div>
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Acción</div>
-          <div class="row-actions">
-            <button id="btnReportRecurring" type="button">Ver recurrentes activos</button>
-            <button id="btnReportInactive" type="button">Ver inactividad reciente</button>
-            <button id="btnReportDropped" type="button">Ver inactividad prolongada</button>
-            <button id="btnReportNoAttendance" type="button">Ver sin registro de asistencia</button>
-          </div>
-          <div class="row-actions" style="margin-top:10px;">
-            <button id="btnReportFirstMonth" type="button">Ver primeras veces del mes</button>
-            <button id="btnReportNoReturn" type="button">Ver primeras veces sin retorno</button>
-            <button id="btnReportTop" type="button">Ver top asistentes</button>
-          </div>
-        </div>
-      </div>
-      <div class="scroll" style="max-height:420px;">
-        <table>
-          <thead>
-            <tr>
-              <th id="reportCol1">Nombre</th>
-              <th id="reportCol2">Detalle</th>
-            </tr>
-          </thead>
-          <tbody id="reportTableBody">
-            <tr><td colspan="2" class="hint">Elegí un reporte para ver el listado.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      </div>
-    </details>
-
-    <details id="sectorGlobalSummarySection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Resumen General de Diagnóstico</div><div class="admin-collapsible-hint">Foto global de estados, comparación por responsable y diagnóstico exportable.</div></div><span class="admin-collapsible-toggle"></span></summary>
+<details id="sectorGlobalSummarySection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reporte General</div><div class="admin-collapsible-hint">Foto global auditable: cada número puede desplegarse para ver quiénes lo integran.</div></div><span class="admin-collapsible-toggle"></span></summary>
       <div class="admin-collapsible-body">
       <div id="sectorGlobalSummary" class="sector-global-summary">
         <div class="sector-global-head">
           <div>
-            <h3>Resumen general de diagnóstico</h3>
-            <div class="hint">Foto global de todos los miembros asignados a responsables de sector, separando alertas reales de monitoreo.</div>
+            <h3>Reporte General</h3>
+            <div class="hint">Foto global de todos los miembros asignados a responsables de sector. Cada estado y cada métrica por responsable se puede desplegar para ver los nombres incluidos.</div>
           </div>
           <div class="hint" id="sectorGlobalRangeLabel"></div>
         </div>
@@ -760,7 +646,76 @@
       </div>
     </details>
 
-    <details id="impactActionsSection" class="panel admin-collapsible">
+    
+
+<details id="sectorReportsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reporte por Responsable</div><div class="admin-collapsible-hint">Diagnóstico operativo por responsable de sector, con secciones desplegables.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
+      <div class="sector-map-header">
+        <div>
+          <h2 class="sector-map-title">Reporte por Responsable</h2>
+          <div class="hint">Vista de orientación para detectar personas o sectores que conviene revisar. La ejecución de contactos, visitas y tareas queda concentrada en Planificación.</div>
+        </div>
+      </div>
+      <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Responsable de sector</div>
+          <select id="sectorReportResponsible"></select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Desde</div>
+          <input id="sectorReportDateFrom" type="date">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Hasta</div>
+          <input id="sectorReportDateTo" type="date">
+        </div>
+      </div>
+      <div class="row-actions" style="margin-bottom:12px;">
+        <button id="btnSectorReport" type="button" class="secondary">Generar reporte</button>
+      </div>
+
+      <div class="sector-kpi-grid">
+        <div class="sector-kpi"><div class="label">Miembros asignados</div><div id="sectorKpiMembers" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Atención inmediata</div><div id="sectorKpiPriority" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Contactar esta semana</div><div id="sectorKpiContact" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Sin visita registrada</div><div id="sectorKpiNoVisit" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">En observación</div><div id="sectorKpiObserve" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
+      </div>
+
+      <div id="sectorAgendaSuggested" class="sector-agenda hidden"></div>
+      <div id="sectorMapBuckets" class="sector-buckets">
+        <div class="sector-empty">Elegí un responsable para generar el mapa de seguimiento.</div>
+      </div>
+
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver tabla detallada / auditoría de datos</summary>
+        <div class="scroll" style="max-height:460px; margin-top:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Miembro</th>
+                <th>Últimas asistencias</th>
+                <th>Última visita efectiva</th>
+                <th>Estado seguimiento</th>
+                <th>Última gestión</th>
+              </tr>
+            </thead>
+            <tbody id="sectorReportTableBody">
+              <tr><td colspan="5" class="hint">Elegí un responsable para ver el diagnóstico por miembro.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<details id="impactActionsSection" class="panel admin-collapsible">
       <summary><div><div class="admin-collapsible-title">Reporte de Acciones</div><div class="admin-collapsible-hint">Cruce entre tareas realizadas, personas alcanzadas y asistencia posterior.</div></div><span class="admin-collapsible-toggle"></span></summary>
       <div class="admin-collapsible-body">
       <div class="impact-panel">
@@ -827,72 +782,129 @@
       </div>
     </details>
 
-    <details id="sectorReportsSection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Reporte por Responsable</div><div class="admin-collapsible-hint">Diagnóstico operativo por responsable de sector, con secciones desplegables.</div></div><span class="admin-collapsible-toggle"></span></summary>
+    
+
+<details id="adminGroupsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reportes por grupo</div><div class="admin-collapsible-hint">Asistencia y listados por grupo/categoría.</div></div><span class="admin-collapsible-toggle"></span></summary>
       <div class="admin-collapsible-body">
-      <div class="sector-map-header">
+      <div class="filters" style="margin-bottom:12px;">
         <div>
-          <h2 class="sector-map-title">Reporte por Responsable</h2>
-          <div class="hint">Vista de orientación para detectar personas o sectores que conviene revisar. La ejecución de contactos, visitas y tareas queda concentrada en Planificación.</div>
-        </div>
-      </div>
-      <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Responsable de sector</div>
-          <select id="sectorReportResponsible"></select>
+          <div class="hint" style="margin-bottom:6px;">Grupo / categoría</div>
+          <select id="groupReportSelect">
+            <option value="">Seleccionar grupo...</option>
+          </select>
         </div>
         <div>
-          <div class="hint" style="margin-bottom:6px;">Desde</div>
-          <input id="sectorReportDateFrom" type="date">
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Hasta</div>
-          <input id="sectorReportDateTo" type="date">
+          <div class="hint" style="margin-bottom:6px;">Período para asistencia</div>
+          <div class="filters" style="margin-bottom:0;">
+            <input id="groupDateFrom" type="date">
+            <input id="groupDateTo" type="date">
+          </div>
         </div>
       </div>
       <div class="row-actions" style="margin-bottom:12px;">
-        <button id="btnSectorReport" type="button" class="secondary">Generar reporte</button>
+        <button id="btnGroupAttendanceReport" type="button">Ver asistencia por grupo</button>
+        <button id="btnGroupMembersReport" type="button">Ver miembros del grupo</button>
       </div>
-
-      <div class="sector-kpi-grid">
-        <div class="sector-kpi"><div class="label">Miembros asignados</div><div id="sectorKpiMembers" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Atención inmediata</div><div id="sectorKpiPriority" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Contactar esta semana</div><div id="sectorKpiContact" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Sin visita registrada</div><div id="sectorKpiNoVisit" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">En observación</div><div id="sectorKpiObserve" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
+      <div class="cards" style="grid-template-columns:repeat(4,1fr); margin-bottom:12px;">
+        <div class="card"><div class="label">Miembros del grupo</div><div id="groupKpiMembers" class="value">0</div></div>
+        <div class="card"><div class="label">Asistencia del grupo</div><div id="groupKpiAttendances" class="value">0%</div></div>
+        <div class="card"><div class="label">Fechas con asistencia</div><div id="groupKpiDates" class="value">0</div></div>
+        <div class="card"><div class="label">Promedio por reunión</div><div id="groupKpiAverage" class="value">0</div></div>
       </div>
-
-      <div id="sectorAgendaSuggested" class="sector-agenda hidden"></div>
-      <div id="sectorMapBuckets" class="sector-buckets">
-        <div class="sector-empty">Elegí un responsable para generar el mapa de seguimiento.</div>
+      <div class="scroll" style="max-height:420px;">
+        <table>
+          <thead>
+            <tr>
+              <th id="groupReportCol1">Nombre</th>
+              <th id="groupReportCol2">Detalle</th>
+              <th id="groupReportCol3">Dato adicional</th>
+            </tr>
+          </thead>
+          <tbody id="groupReportTableBody">
+            <tr><td colspan="3" class="hint">Elegí un grupo y el tipo de reporte.</td></tr>
+          </tbody>
+        </table>
       </div>
-
-      <details style="margin-top:14px;">
-        <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver tabla detallada / auditoría de datos</summary>
-        <div class="scroll" style="max-height:460px; margin-top:10px;">
-          <table>
-            <thead>
-              <tr>
-                <th>Miembro</th>
-                <th>Últimas asistencias</th>
-                <th>Última visita efectiva</th>
-                <th>Estado seguimiento</th>
-                <th>Última gestión</th>
-              </tr>
-            </thead>
-            <tbody id="sectorReportTableBody">
-              <tr><td colspan="5" class="hint">Elegí un responsable para ver el diagnóstico por miembro.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </details>
-
       </div>
     </details>
 
-  </div>
-</div>
+
+
+    
+
+<details id="adminReportsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reporte por Miembro</div><div class="admin-collapsible-hint">Recurrentes, inactividad, primeras veces y top asistentes.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
+      <div class="filters" style="margin-bottom:12px;">
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Período de análisis</div>
+          <div class="filters" style="margin-bottom:0;">
+            <input id="reportDateFrom" type="date">
+            <input id="reportDateTo" type="date">
+          </div>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Acción</div>
+          <div class="row-actions">
+            <button id="btnReportRecurring" type="button">Ver recurrentes activos</button>
+            <button id="btnReportInactive" type="button">Ver inactividad reciente</button>
+            <button id="btnReportDropped" type="button">Ver inactividad prolongada</button>
+            <button id="btnReportNoAttendance" type="button">Ver sin registro de asistencia</button>
+          </div>
+          <div class="row-actions" style="margin-top:10px;">
+            <button id="btnReportFirstMonth" type="button">Ver primeras veces del mes</button>
+            <button id="btnReportNoReturn" type="button">Ver primeras veces sin retorno</button>
+            <button id="btnReportTop" type="button">Ver top asistentes</button>
+          </div>
+        </div>
+      </div>
+      <div class="scroll" style="max-height:420px;">
+        <table>
+          <thead>
+            <tr>
+              <th id="reportCol1">Nombre</th>
+              <th id="reportCol2">Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="reportTableBody">
+            <tr><td colspan="2" class="hint">Elegí un reporte para ver el listado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      </div>
+    </details>
+
+    
+
+<details id="adminAnalyticsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Seguimiento de miembros</div><div class="admin-collapsible-hint">Métricas, alertas y parámetros generales de seguimiento.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body split">
+      <div class="panel">
+        <h2>Resumen</h2>
+        <div class="scroll"><table><thead><tr><th>Métrica</th><th>Cantidad</th></tr></thead><tbody id="adminSummaryTable"></tbody></table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Alertas</h2>
+        <div id="alertsContainer"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Parámetros de alertas</h2>
+        <div class="stack">
+          <div><div class="hint">Asistencia baja</div><input id="alertLowAttendance" type="number"></div>
+          <div><div class="hint">Caída de tendencia (%)</div><input id="alertTrendDrop" type="number" step="0.01"></div>
+          <div><div class="hint">Retorno primera vez (semanas)</div><input id="alertFirstReturnWeeks" type="number"></div>
+          <div><div class="hint">Miembro inactivo (semanas)</div><input id="alertInactiveWeeks" type="number"></div>
+          <div><div class="hint">Pico de visitas</div><input id="alertVisitsSpike" type="number"></div>
+          <button id="btnSaveAlerts" class="warn" type="button">Guardar parámetros</button>
+        </div>
+      </div>
+      </div>
+    </details>
+
+    
 
   <div id="vaeView" class="hidden">
     <div class="vae-shell">
@@ -3634,6 +3646,19 @@ function pctLabel(count, total){
   return `${((count / total) * 100).toFixed(1).replace(".", ",")}%`;
 }
 
+function renderSectorGlobalMemberList(rows){
+  if (!rows || !rows.length) return '<div class="metric-drill-empty">Sin miembros.</div>';
+  return rows
+    .slice()
+    .sort((a,b) => String(a?.member?.name || "").localeCompare(String(b?.member?.name || ""), "es"))
+    .map(row => `<div class="sector-dist-member">• ${escapeHtml(row.member?.name || "")} <span class="hint">${row.responsable ? `— ${escapeHtml(row.responsable)}` : ""}</span></div>`)
+    .join("");
+}
+function renderMetricDrill(count, rows){
+  const safeCount = Number(count || 0);
+  const list = renderSectorGlobalMemberList(rows || []);
+  return `<details class="metric-drill"><summary>${safeCount}</summary><div class="metric-drill-list">${list}</div></details>`;
+}
 function renderSectorGlobalDistribution(buckets, total){
   const box = $("sectorGlobalDistribution");
   if (!box) return;
@@ -3645,22 +3670,28 @@ function renderSectorGlobalDistribution(buckets, total){
     ["stable", "🟢 Sin alerta operativa"]
   ];
   box.innerHTML = defs.map(([key,label]) => {
-    const count = buckets[key]?.length || 0;
+    const rows = buckets[key] || [];
+    const count = rows.length;
     const pct = total ? (count / total) * 100 : 0;
-    return `<div class="sector-dist-row">
-      <div class="sector-dist-label">${escapeHtml(label)}</div>
-      <div class="sector-dist-bar"><div class="sector-dist-fill ${escapeHtml(key)}" style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></div></div>
-      <div class="sector-dist-value">${count} · ${escapeHtml(pctLabel(count,total))}</div>
-    </div>`;
+    return `<details class="sector-dist-details">
+      <summary>
+        <div class="sector-dist-row">
+          <div class="sector-dist-label">${escapeHtml(label)}</div>
+          <div class="sector-dist-bar"><div class="sector-dist-fill ${escapeHtml(key)}" style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></div></div>
+          <div class="sector-dist-value">${count} · ${escapeHtml(pctLabel(count,total))}</div>
+        </div>
+      </summary>
+      <div class="sector-dist-members">${renderSectorGlobalMemberList(rows)}</div>
+    </details>`;
   }).join("");
 }
 function renderSectorGlobalByResponsible(from, to){
   const body = $("sectorGlobalByResponsible");
   if (!body) return;
   const rows = SECTOR_RESPONSABLE_OPTIONS.map(responsable => {
-    const reportRows = buildSectorReportRows(responsable, from, to);
+    const reportRows = buildSectorReportRows(responsable, from, to).map(row => ({...row, responsable}));
     const buckets = sectorRowsByBucket(reportRows);
-    return {responsable, total: reportRows.length, buckets};
+    return {responsable, total: reportRows.length, rows: reportRows, buckets};
   });
   if (!rows.some(r => r.total)){
     body.innerHTML = '<tr><td colspan="7" class="hint">No hay miembros asignados a responsables de sector.</td></tr>';
@@ -3668,12 +3699,12 @@ function renderSectorGlobalByResponsible(from, to){
   }
   body.innerHTML = rows.map(r => `<tr>
     <td>${escapeHtml(r.responsable)}</td>
-    <td>${r.total}</td>
-    <td>${r.buckets.priority.length}</td>
-    <td>${r.buckets.contact.length}</td>
-    <td>${r.buckets.no_visit.length}</td>
-    <td>${r.buckets.observe.length}</td>
-    <td>${r.buckets.stable.length}</td>
+    <td>${renderMetricDrill(r.total, r.rows)}</td>
+    <td>${renderMetricDrill(r.buckets.priority.length, r.buckets.priority)}</td>
+    <td>${renderMetricDrill(r.buckets.contact.length, r.buckets.contact)}</td>
+    <td>${renderMetricDrill(r.buckets.no_visit.length, r.buckets.no_visit)}</td>
+    <td>${renderMetricDrill(r.buckets.observe.length, r.buckets.observe)}</td>
+    <td>${renderMetricDrill(r.buckets.stable.length, r.buckets.stable)}</td>
   </tr>`).join("");
 }
 function resetSectorGlobalSummary(message="Sin datos para mostrar."){
