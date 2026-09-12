@@ -101,6 +101,15 @@
   .sector-kpi .label{font-size:12px;color:var(--muted);line-height:1.3}
   .sector-kpi .value{font-size:26px;font-weight:800;margin-top:6px}
   .sector-global-summary{border:1px solid rgba(45,212,191,.32);background:linear-gradient(180deg,rgba(15,118,110,.10),rgba(15,23,42,.70));border-radius:20px;padding:14px;margin:14px 0}
+  .diagnostic-panel{border:1px solid rgba(99,102,241,.34);background:linear-gradient(180deg,rgba(67,56,202,.12),rgba(15,23,42,.68));border-radius:20px;padding:14px;margin:14px 0}
+  .diagnostic-panel h3{margin:0 0 4px 0;font-size:18px}
+  .diagnostic-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .diagnostic-actions button{font-size:12px;padding:8px 10px}
+  .diagnostic-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+  .diagnostic-quick .mini-card{border:1px solid rgba(148,163,184,.22);border-radius:14px;background:rgba(2,6,23,.32);padding:10px}
+  .diagnostic-quick .mini-label{font-size:12px;color:var(--muted);line-height:1.25}
+  .diagnostic-quick .mini-value{font-size:22px;font-weight:800;margin-top:5px}
+  @media (max-width:1100px){.diagnostic-quick{grid-template-columns:repeat(2,1fr)}}
   .sector-global-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
   .sector-global-head h3{margin:0;font-size:18px}
   .sector-global-mini{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
@@ -300,7 +309,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.17 · resumen general de seguimiento</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.18 · diagnóstico exportable</span>
     </div>
   </div>
 </div>
@@ -318,7 +327,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.13 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.18 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -708,6 +717,22 @@
             </table>
           </div>
         </details>
+      </div>
+
+      <div id="diagnosticExportSection" class="diagnostic-panel">
+        <div class="sector-global-head">
+          <div>
+            <h3>Diagnóstico del sistema</h3>
+            <div class="hint">Exporta una foto completa para analizar consistencia, cruces útiles, reportes redundantes y oportunidades de mejora. Visible solo para el usuario autorizado.</div>
+          </div>
+          <div class="hint">Incluye miembros, asistencia, planificación, seguimientos, vínculos y alertas calculadas.</div>
+        </div>
+        <div class="diagnostic-actions">
+          <button id="btnExportDiagnosticJson" type="button" class="secondary">Exportar diagnóstico JSON</button>
+          <button id="btnExportDiagnosticCsv" type="button" class="secondary">Exportar diagnóstico CSV</button>
+          <button id="btnRenderQuickDiagnostic" type="button">Ver diagnóstico rápido</button>
+        </div>
+        <div id="diagnosticQuickSummary" class="diagnostic-quick hidden"></div>
       </div>
 
       <div class="sector-kpi-grid">
@@ -3540,6 +3565,202 @@ function renderSectorGlobalSummary(){
   renderSectorGlobalDistribution(buckets, total);
   renderSectorGlobalByResponsible(from, to);
 }
+function buildDiagnosticRows(from, to){
+  const sectorRowsByMemberId = new Map();
+  getAllSectorReportRows(from, to).forEach(row => sectorRowsByMemberId.set(String(row.member.id), row));
+  return Object.values(state.membersFullData || {})
+    .sort((a,b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
+    .map(member => {
+      const memberId = String(member.id || "");
+      const sectorRow = sectorRowsByMemberId.get(memberId) || null;
+      const attendancesAll = getRecentAttendancesForMember(memberId, to, 10);
+      const attendanceInPeriod = getAttendanceCountForMember(memberId, from, to);
+      const lastAttendance = attendancesAll[0] || null;
+      const visits = getEffectiveVisitActionsForMember(memberId, to);
+      const lastVisit = visits[0] || null;
+      const followups = getSectorFollowupsForMember(memberId, to);
+      const latestFollowup = followups[0] || null;
+      return {
+        member_id: memberId,
+        name: member.name || "",
+        visible_status: member.inactive_from ? "Oculto" : "Visible",
+        active_from: member.active_from || "",
+        inactive_from: member.inactive_from || "",
+        phone: member.phone || "",
+        birth_date: member.birth_date || "",
+        address: member.address || "",
+        categories: normalizeCategoryValue(member.category),
+        sector_responsable: member.sector_responsable || "",
+        has_sector_responsable: !!member.sector_responsable,
+        attendance_count_period: attendanceInPeriod,
+        last_attendances: attendancesAll,
+        last_attendance: lastAttendance,
+        days_since_last_attendance: lastAttendance ? diffDaysBetween(lastAttendance, to) : null,
+        effective_visits_count_until_to: visits.length,
+        effective_visits_count_period: getEffectiveVisitCountForMember(memberId, from, to),
+        last_effective_visit_date: lastVisit?.date || "",
+        last_effective_visit_title: lastVisit ? getActionDisplayTitle(lastVisit) : "",
+        days_since_last_effective_visit: lastVisit?.date ? diffDaysBetween(lastVisit.date, to) : null,
+        latest_followup_action: latestFollowup?.actionType || "",
+        latest_followup_label: latestFollowup ? getFollowupActionLabel(latestFollowup.actionType) : "",
+        latest_followup_review_date: latestFollowup?.reviewDate || "",
+        latest_followup_created_at: latestFollowup?.createdAt || "",
+        latest_followup_created_by: latestFollowup?.createdByEmail || "",
+        sector_status: sectorRow?.status || "Sin sector / no clasificado",
+        sector_status_key: sectorRow?.statusKey || "unassigned",
+        sector_base_status: sectorRow?.baseStatus || "",
+        sector_reason: sectorRow?.reason || "",
+        sector_action_suggested: sectorRow?.action || "",
+        relationships_count: getDirectRelations(memberId).length,
+        events_count: (state.events || []).filter(ev => String(ev.member_id) === memberId).length,
+        possible_duplicates: findPotentialDuplicateMembers(member.name || "").filter(d => d.name !== member.name).slice(0,5).map(d => ({name:d.name, reasons:d.reasons}))
+      };
+    });
+}
+function summarizeDiagnosticRows(rows, from, to){
+  const assigned = rows.filter(r => r.has_sector_responsable);
+  const unassigned = rows.filter(r => !r.has_sector_responsable);
+  const hiddenWithRecentAttendance = rows.filter(r => r.visible_status === "Oculto" && r.last_attendance && r.days_since_last_attendance <= 45);
+  const activeWithoutRecentAttendance = rows.filter(r => r.visible_status === "Visible" && (r.days_since_last_attendance === null || r.days_since_last_attendance > 45));
+  const withoutPhone = rows.filter(r => !r.phone);
+  const withoutGroups = rows.filter(r => !r.categories.length);
+  const duplicates = rows.filter(r => r.possible_duplicates && r.possible_duplicates.length);
+  const statusCounts = rows.reduce((acc,r) => {
+    const key = r.sector_status_key || "unassigned";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const byResponsible = SECTOR_RESPONSABLE_OPTIONS.map(responsable => {
+    const list = rows.filter(r => r.sector_responsable === responsable);
+    const counts = list.reduce((acc,r) => { acc[r.sector_status_key] = (acc[r.sector_status_key] || 0) + 1; return acc; }, {});
+    return { responsable, total:list.length, status_counts: counts };
+  });
+  const firstTimers = getFirstTimersInRange(from, to).map(x => ({name:x.name, date:x.date}));
+  const firstTimersNoReturn = getFirstTimeNoReturnInRange(from, to).map(x => ({name:x.name, detail:x.detail}));
+  return {
+    totals: {
+      members: rows.length,
+      assigned_to_sector: assigned.length,
+      unassigned_to_sector: unassigned.length,
+      visible: rows.filter(r => r.visible_status === "Visible").length,
+      hidden: rows.filter(r => r.visible_status === "Oculto").length,
+      without_phone: withoutPhone.length,
+      without_groups: withoutGroups.length,
+      possible_duplicate_rows: duplicates.length,
+      hidden_with_recent_attendance: hiddenWithRecentAttendance.length,
+      visible_without_recent_attendance: activeWithoutRecentAttendance.length,
+      first_timers_period: firstTimers.length,
+      first_timers_without_return_period: firstTimersNoReturn.length
+    },
+    status_counts: statusCounts,
+    by_responsible: byResponsible,
+    attention_lists: {
+      unassigned_to_sector: unassigned.map(r => r.name),
+      hidden_with_recent_attendance: hiddenWithRecentAttendance.map(r => ({name:r.name, last_attendance:r.last_attendance})),
+      visible_without_recent_attendance: activeWithoutRecentAttendance.map(r => ({name:r.name, last_attendance:r.last_attendance, days_since_last_attendance:r.days_since_last_attendance})),
+      possible_duplicates: duplicates.map(r => ({name:r.name, candidates:r.possible_duplicates})),
+      first_timers_period: firstTimers,
+      first_timers_without_return_period: firstTimersNoReturn
+    }
+  };
+}
+function buildSystemDiagnosticSnapshot(){
+  const {from, to} = getSectorReportRange();
+  const rows = buildDiagnosticRows(from, to);
+  const summary = summarizeDiagnosticRows(rows, from, to);
+  return {
+    generated_at: new Date().toISOString(),
+    generated_by_email: currentProfile?.email || currentSession?.user?.email || "",
+    app_version: "v6.4.18",
+    date_range: { from, to },
+    summary,
+    member_diagnostics: rows,
+    raw_counts: {
+      members: Object.values(state.membersFullData || {}).length,
+      attendance_records_loaded: (state.attendance || []).length,
+      day_extras_loaded: Object.keys(state.dayExtras || {}).length,
+      first_time_dates_loaded: Object.keys(state.firstTimeByDate || {}).length,
+      relationships_loaded: (state.relationships || []).length,
+      member_events_loaded: (state.events || []).length,
+      vae_actions_loaded: (state.vaeActions || []).length,
+      sector_followups_loaded: (state.sectorFollowups || []).length
+    },
+    tables_sample_schema: {
+      members_fields_used: ["id","name","active_from","inactive_from","phone","birth_date","address","category","sector_responsable"],
+      attendance_fields_used: ["attendance_date","member_id"],
+      vae_actions_fields_used: ["action_date","action_time","status","group_name","action_type","executors_member_ids","visited_member_ids","notes"],
+      sector_followups_fields_used: ["member_id","sector_responsable","alert_type","action_type","review_date","notes","created_by_email","created_at"]
+    }
+  };
+}
+function downloadTextFile(filename, content, mime="text/plain;charset=utf-8"){
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportSystemDiagnosticJson(){
+  if (!userCanViewSectorMap()) return;
+  const snapshot = buildSystemDiagnosticSnapshot();
+  const stamp = new Date().toISOString().slice(0,10);
+  downloadTextFile(`diagnostico_sistema_${stamp}.json`, JSON.stringify(snapshot, null, 2), "application/json;charset=utf-8");
+}
+function exportSystemDiagnosticCsv(){
+  if (!userCanViewSectorMap()) return;
+  const snapshot = buildSystemDiagnosticSnapshot();
+  const headers = [
+    "Nombre","Estado visible","Responsable sector","Estado mapa","Estado base","Motivo","Accion sugerida",
+    "Asistencias periodo","Ultima asistencia","Dias desde ultima asistencia","Ultimas asistencias",
+    "Ultima visita efectiva","Dias desde ultima visita","Visitas efectivas periodo",
+    "Ultimo seguimiento","Revision seguimiento","Telefono","Grupos / areas","Posibles duplicados"
+  ];
+  const lines = [headers.map(csvEscape).join(";")];
+  snapshot.member_diagnostics.forEach(r => {
+    lines.push([
+      r.name,
+      r.visible_status,
+      r.sector_responsable,
+      r.sector_status,
+      r.sector_base_status,
+      r.sector_reason,
+      r.sector_action_suggested,
+      r.attendance_count_period,
+      r.last_attendance,
+      r.days_since_last_attendance ?? "",
+      (r.last_attendances || []).join(", "),
+      r.last_effective_visit_date,
+      r.days_since_last_effective_visit ?? "",
+      r.effective_visits_count_period,
+      r.latest_followup_label,
+      r.latest_followup_review_date,
+      r.phone,
+      (r.categories || []).join(", "),
+      (r.possible_duplicates || []).map(d => `${d.name} (${(d.reasons || []).join("/")})`).join(" | ")
+    ].map(csvEscape).join(";"));
+  });
+  const stamp = new Date().toISOString().slice(0,10);
+  downloadTextFile(`diagnostico_sistema_${stamp}.csv`, "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
+}
+function renderQuickDiagnostic(){
+  if (!userCanViewSectorMap()) return;
+  const box = $("diagnosticQuickSummary");
+  if (!box) return;
+  const snapshot = buildSystemDiagnosticSnapshot();
+  const t = snapshot.summary.totals;
+  box.classList.remove("hidden");
+  box.innerHTML = `
+    <div class="mini-card"><div class="mini-label">Sin responsable de sector</div><div class="mini-value">${escapeHtml(String(t.unassigned_to_sector))}</div></div>
+    <div class="mini-card"><div class="mini-label">Posibles duplicados</div><div class="mini-value">${escapeHtml(String(t.possible_duplicate_rows))}</div></div>
+    <div class="mini-card"><div class="mini-label">Ocultos con asistencia reciente</div><div class="mini-value">${escapeHtml(String(t.hidden_with_recent_attendance))}</div></div>
+    <div class="mini-card"><div class="mini-label">Visibles sin asistencia reciente</div><div class="mini-value">${escapeHtml(String(t.visible_without_recent_attendance))}</div></div>
+  `;
+}
+
 function resetSectorReportUI(message='Elegí un responsable para generar el mapa de seguimiento.'){
   if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = "0";
@@ -5304,6 +5525,9 @@ function wireEvents(){
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
   if ($("btnSectorReport")) $("btnSectorReport").addEventListener("click", renderSectorReport);
+  if ($("btnExportDiagnosticJson")) $("btnExportDiagnosticJson").addEventListener("click", exportSystemDiagnosticJson);
+  if ($("btnExportDiagnosticCsv")) $("btnExportDiagnosticCsv").addEventListener("click", exportSystemDiagnosticCsv);
+  if ($("btnRenderQuickDiagnostic")) $("btnRenderQuickDiagnostic").addEventListener("click", renderQuickDiagnostic);
   if ($("sectorReportResponsible")) $("sectorReportResponsible").addEventListener("change", renderSectorReport);
   if ($("sectorReportDateFrom")) $("sectorReportDateFrom").addEventListener("change", renderSectorReport);
   if ($("sectorReportDateTo")) $("sectorReportDateTo").addEventListener("change", renderSectorReport);
