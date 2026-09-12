@@ -139,6 +139,9 @@
   .sector-agenda-box strong{display:block;margin-bottom:6px}
   .sector-buckets{display:grid;gap:14px}
   .sector-bucket{border:1px solid var(--line);border-radius:18px;background:rgba(15,23,42,.78);overflow:hidden}
+  .sector-bucket > summary{list-style:none;cursor:pointer}
+  .sector-bucket > summary::-webkit-details-marker{display:none}
+  .sector-bucket:not([open]) .sector-bucket-head{border-bottom:0}
   .sector-bucket-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(51,65,85,.55)}
   .sector-bucket-head h3{margin:0;font-size:17px}
   .sector-bucket-sub{font-size:12px;color:var(--muted);margin-top:3px}
@@ -309,7 +312,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.19 · seguimiento simplificado</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.20 · diagnóstico desplegable</span>
     </div>
   </div>
 </div>
@@ -327,7 +330,7 @@
         <button id="btnCancelRecovery" class="secondary" type="button">Volver al ingreso</button>
       </div>
       <span id="recoveryStatus" class="hint">El link de recuperación fue detectado correctamente.</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.18 · pantalla de nueva contraseña</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.20 · pantalla de nueva contraseña</span>
     </div>
   </div>
 </div>
@@ -3244,30 +3247,35 @@ function buildSectorMemberReason(row){
 }
 function classifySectorRow(row){
   const noAttendanceHistory = row.daysSinceAttendance === null;
-  const noRecentAttendance = row.daysSinceAttendance !== null && row.daysSinceAttendance > 42;
+  const noRecentAttendance = noAttendanceHistory || row.daysSinceAttendance > 42;
   const coolingAttendance = row.daysSinceAttendance !== null && row.daysSinceAttendance > 21;
   const lowPeriodAttendance = row.attendanceCount <= 1;
   const noVisit = !row.lastVisit;
-  const visitVeryOld = row.daysSinceVisit !== null && row.daysSinceVisit > 90;
   const visitOld = row.daysSinceVisit !== null && row.daysSinceVisit > 60;
+  const visitModeratelyOld = row.daysSinceVisit !== null && row.daysSinceVisit > 45;
 
-  if ((noAttendanceHistory || noRecentAttendance) && (noVisit || visitOld)) {
-    return {key:"priority", label:"Atención inmediata", action:"Visitar o contactar esta semana."};
+  // Rojo: solo cuando se combinan dos señales fuertes: ausencia prolongada + falta de seguimiento efectivo reciente.
+  if (noRecentAttendance && (noVisit || visitOld)) {
+    return {key:"priority", label:"Revisar prioritariamente", action:"Revisar el caso y convertirlo en tarea de Planificación si corresponde."};
   }
-  if (visitVeryOld && lowPeriodAttendance) {
-    return {key:"priority", label:"Atención inmediata", action:"Visitar o contactar esta semana."};
-  }
+
+  // Naranja: hay señal de enfriamiento/asistencia baja o seguimiento antiguo, pero no reúne el doble criterio de prioridad.
   if (coolingAttendance || lowPeriodAttendance || visitOld) {
-    return {key:"contact", label:"Contactar esta semana", action:"Enviar mensaje, llamar o invitar personalmente."};
+    return {key:"contact", label:"Revisar asistencia / contacto", action:"Evaluar contacto o carga de tarea en Planificación."};
   }
+
+  // Amarillo: asiste razonablemente o no tiene señal fuerte de ausencia, pero no registra visita efectiva.
   if (noVisit) {
-    return {key:"no_visit", label:"Sin visita registrada", action:"Programar primera visita efectiva."};
+    return {key:"no_visit", label:"Sin visita efectiva registrada", action:"Considerar programación de primera visita efectiva."};
   }
-  if ((row.daysSinceAttendance !== null && row.daysSinceAttendance > 14) || (row.daysSinceVisit !== null && row.daysSinceVisit > 45)) {
-    return {key:"observe", label:"En observación", action:"Observar evolución y reforzar contacto si baja la asistencia."};
+
+  if ((row.daysSinceAttendance !== null && row.daysSinceAttendance > 14) || visitModeratelyOld) {
+    return {key:"observe", label:"En observación", action:"Observar evolución."};
   }
-  return {key:"stable", label:"Estable", action:"Sin acción urgente."};
+
+  return {key:"stable", label:"Sin alerta operativa", action:"Sin acción urgente."};
 }
+
 function getSectorFollowupsForMember(memberId, to=null){
   return (state.sectorFollowups || [])
     .filter(f => String(f.memberId) === String(memberId))
@@ -3346,14 +3354,17 @@ function renderSectorAgenda(rows){
   const listNames = arr => arr.slice(0,6).map(row => `<div>• ${escapeHtml(row.member?.name || "")}</div>`).join("") || '<div class="hint">Sin casos.</div>';
   box.classList.remove("hidden");
   box.innerHTML = `
-    <h3>Foco sugerido para revisión</h3>
-    <div class="hint" style="margin-bottom:10px;">Este bloque no reemplaza Planificación. Sirve para decidir qué casos revisar o convertir en tarea.</div>
-    <div class="sector-agenda-grid">
-      <div class="sector-agenda-box"><strong>Revisión prioritaria</strong>${listNames(buckets.priority)}</div>
-      <div class="sector-agenda-box"><strong>Revisar asistencia/contacto</strong>${listNames(buckets.contact)}</div>
-      <div class="sector-agenda-box"><strong>Sin visita efectiva</strong>${listNames(buckets.no_visit)}</div>
-    </div>`;
+    <details>
+      <summary style="cursor:pointer;font-weight:800;">Foco sugerido para revisión</summary>
+      <div class="hint" style="margin:8px 0 10px;">Este bloque no reemplaza Planificación. Sirve para decidir qué casos revisar o convertir en tarea.</div>
+      <div class="sector-agenda-grid">
+        <div class="sector-agenda-box"><strong>Revisión prioritaria</strong>${listNames(buckets.priority)}</div>
+        <div class="sector-agenda-box"><strong>Revisar asistencia/contacto</strong>${listNames(buckets.contact)}</div>
+        <div class="sector-agenda-box"><strong>Sin visita efectiva</strong>${listNames(buckets.no_visit)}</div>
+      </div>
+    </details>`;
 }
+
 function renderSectorFollowupLine(row){
   const f = row.latestFollowup;
   if (!f) return "";
@@ -3399,14 +3410,15 @@ function renderSectorPersonCard(row){
   </details>`;
 }
 function renderSectorBucket(key, title, subtitle, rows){
-  return `<div class="sector-bucket">
-    <div class="sector-bucket-head">
+  return `<details class="sector-bucket">
+    <summary class="sector-bucket-head">
       <div><h3>${escapeHtml(title)}</h3><div class="sector-bucket-sub">${escapeHtml(subtitle)}</div></div>
       <div class="sector-bucket-count">${rows.length}</div>
-    </div>
+    </summary>
     ${rows.length ? `<div class="sector-card-grid">${rows.map(renderSectorPersonCard).join("")}</div>` : `<div class="sector-empty">Sin personas en esta categoría.</div>`}
-  </div>`;
+  </details>`;
 }
+
 function wireSectorMapButtons(container){
   if (!container) return;
   container.querySelectorAll(".sector-member-open").forEach(btn => btn.addEventListener("click", ev => {
