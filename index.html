@@ -309,7 +309,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.18 · diagnóstico exportable</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.19 · seguimiento simplificado</span>
     </div>
   </div>
 </div>
@@ -659,8 +659,8 @@
     <div id="sectorReportsSection" class="panel" style="margin-top:16px;">
       <div class="sector-map-header">
         <div>
-          <h2 class="sector-map-title">Mapa de seguimiento por responsable</h2>
-          <div class="hint">Vista visual para identificar a quién prestar atención, contactar o visitar. Las visitas efectivas se toman de Planificación solo cuando el estado es <strong>Realizada</strong>.</div>
+          <h2 class="sector-map-title">Diagnóstico por responsable</h2>
+          <div class="hint">Vista de orientación para detectar personas o sectores que conviene revisar. La ejecución de contactos, visitas y tareas queda concentrada en Planificación.</div>
         </div>
       </div>
       <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
@@ -678,21 +678,21 @@
         </div>
       </div>
       <div class="row-actions" style="margin-bottom:12px;">
-        <button id="btnSectorReport" type="button" class="secondary">Generar mapa de seguimiento</button>
+        <button id="btnSectorReport" type="button" class="secondary">Generar diagnóstico</button>
       </div>
 
       <div id="sectorGlobalSummary" class="sector-global-summary">
         <div class="sector-global-head">
           <div>
-            <h3>Resumen general de seguimiento</h3>
-            <div class="hint">Foto global de todos los miembros asignados a responsables de sector, usando el mismo criterio del mapa.</div>
+            <h3>Resumen general de diagnóstico</h3>
+            <div class="hint">Foto global de todos los miembros asignados a responsables de sector, separando alertas reales de monitoreo.</div>
           </div>
           <div class="hint" id="sectorGlobalRangeLabel"></div>
         </div>
         <div class="sector-global-mini">
           <div class="mini-card"><div class="mini-label">Total asignados</div><div id="sectorGlobalTotal" class="mini-value">0</div></div>
-          <div class="mini-card"><div class="mini-label">Acción pendiente</div><div id="sectorGlobalPending" class="mini-value">0%</div></div>
-          <div class="mini-card"><div class="mini-label">En seguimiento / pausados</div><div id="sectorGlobalManaged" class="mini-value">0%</div></div>
+          <div class="mini-card"><div class="mini-label">Alertas a revisar</div><div id="sectorGlobalPending" class="mini-value">0%</div></div>
+          <div class="mini-card"><div class="mini-label">Sin visita registrada</div><div id="sectorGlobalManaged" class="mini-value">0%</div></div>
           <div class="mini-card"><div class="mini-label">Estables</div><div id="sectorGlobalStable" class="mini-value">0%</div></div>
         </div>
         <div id="sectorGlobalDistribution" class="sector-distribution"></div>
@@ -704,16 +704,14 @@
                 <tr>
                   <th>Responsable</th>
                   <th>Total</th>
-                  <th>Rojo</th>
-                  <th>Naranja</th>
-                  <th>Amarillo</th>
-                  <th>Seguim.</th>
-                  <th>Pausa</th>
+                  <th>Prioridad</th>
+                  <th>Contactar</th>
+                  <th>Sin visita</th>
                   <th>Obs.</th>
                   <th>Estables</th>
                 </tr>
               </thead>
-              <tbody id="sectorGlobalByResponsible"><tr><td colspan="9" class="hint">Sin datos.</td></tr></tbody>
+              <tbody id="sectorGlobalByResponsible"><tr><td colspan="7" class="hint">Sin datos.</td></tr></tbody>
             </table>
           </div>
         </details>
@@ -740,8 +738,7 @@
         <div class="sector-kpi"><div class="label">Atención inmediata</div><div id="sectorKpiPriority" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Contactar esta semana</div><div id="sectorKpiContact" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Sin visita registrada</div><div id="sectorKpiNoVisit" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">En seguimiento</div><div id="sectorKpiFollowing" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Pausados</div><div id="sectorKpiPaused" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">En observación</div><div id="sectorKpiObserve" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
       </div>
 
@@ -764,7 +761,7 @@
               </tr>
             </thead>
             <tbody id="sectorReportTableBody">
-              <tr><td colspan="5" class="hint">Elegí un responsable para ver el seguimiento por miembro.</td></tr>
+              <tr><td colspan="5" class="hint">Elegí un responsable para ver el diagnóstico por miembro.</td></tr>
             </tbody>
           </table>
         </div>
@@ -3317,25 +3314,17 @@ function buildSectorReportRows(responsable, from, to){
       activeFollowup
     };
     const classification = classifySectorRow(base);
-    let finalClassification = classification;
-    if (activeFollowup) {
-      if (activeFollowup.actionType === "paused") {
-        finalClassification = {key:"paused", label:"Pausado / revisar luego", action:`Revisar nuevamente el ${formatDate(activeFollowup.reviewDate)}.`};
-      } else {
-        finalClassification = {key:"following", label:"En seguimiento", action:`Esperar evolución hasta el ${formatDate(activeFollowup.reviewDate)}.`};
-      }
-    }
     return {
       ...base,
       baseStatusKey: classification.key,
       baseStatus: classification.label,
-      statusKey: finalClassification.key,
-      status: finalClassification.label,
-      action: finalClassification.action,
+      statusKey: classification.key,
+      status: classification.label,
+      action: classification.action,
       reason: buildSectorMemberReason(base)
     };
   }).sort((a,b) => {
-    const order = {priority:0, contact:1, no_visit:2, following:3, paused:4, observe:5, stable:6};
+    const order = {priority:0, contact:1, no_visit:2, observe:3, stable:4};
     const byStatus = (order[a.statusKey] ?? 99) - (order[b.statusKey] ?? 99);
     if (byStatus !== 0) return byStatus;
     const aDays = a.daysSinceAttendance === null ? 99999 : a.daysSinceAttendance;
@@ -3345,7 +3334,7 @@ function buildSectorReportRows(responsable, from, to){
   });
 }
 function sectorRowsByBucket(rows){
-  const buckets = {priority:[], contact:[], no_visit:[], following:[], paused:[], observe:[], stable:[]};
+  const buckets = {priority:[], contact:[], no_visit:[], observe:[], stable:[]};
   rows.forEach(row => { if (buckets[row.statusKey]) buckets[row.statusKey].push(row); });
   return buckets;
 }
@@ -3354,32 +3343,23 @@ function renderSectorAgenda(rows){
   if (!box) return;
   const buckets = sectorRowsByBucket(rows);
   if (!rows.length){ box.classList.add("hidden"); box.innerHTML = ""; return; }
-  const listNames = arr => arr.slice(0,5).map(row => `<div>• ${escapeHtml(row.member?.name || "")}</div>`).join("") || '<div class="hint">Sin casos.</div>';
+  const listNames = arr => arr.slice(0,6).map(row => `<div>• ${escapeHtml(row.member?.name || "")}</div>`).join("") || '<div class="hint">Sin casos.</div>';
   box.classList.remove("hidden");
   box.innerHTML = `
-    <h3>Agenda sugerida</h3>
+    <h3>Foco sugerido para revisión</h3>
+    <div class="hint" style="margin-bottom:10px;">Este bloque no reemplaza Planificación. Sirve para decidir qué casos revisar o convertir en tarea.</div>
     <div class="sector-agenda-grid">
-      <div class="sector-agenda-box"><strong>Acción urgente</strong>${listNames(buckets.priority)}</div>
-      <div class="sector-agenda-box"><strong>Contactar</strong>${listNames(buckets.contact)}</div>
-      <div class="sector-agenda-box"><strong>Programar primera visita</strong>${listNames(buckets.no_visit)}</div>
+      <div class="sector-agenda-box"><strong>Revisión prioritaria</strong>${listNames(buckets.priority)}</div>
+      <div class="sector-agenda-box"><strong>Revisar asistencia/contacto</strong>${listNames(buckets.contact)}</div>
+      <div class="sector-agenda-box"><strong>Sin visita efectiva</strong>${listNames(buckets.no_visit)}</div>
     </div>`;
-}
-function renderSectorQuickActions(row){
-  if (!["priority","contact","no_visit"].includes(row.statusKey)) return "";
-  return `<div class="sector-quick-actions">
-    <button type="button" class="sector-quick-btn" data-action="contacted" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Contacté</button>
-    <button type="button" class="sector-quick-btn" data-action="contact_attempted" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Intenté</button>
-    <button type="button" class="sector-quick-btn" data-action="visit_scheduled" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Programé visita</button>
-    <button type="button" class="sector-quick-btn" data-action="paused" data-member-id="${escapeHtml(String(row.member.id))}" data-alert-type="${escapeHtml(row.statusKey)}">Pausar</button>
-  </div>`;
 }
 function renderSectorFollowupLine(row){
   const f = row.latestFollowup;
   if (!f) return "";
   const created = f.createdAt ? formatDate(String(f.createdAt).slice(0,10)) : "sin fecha";
   const review = f.reviewDate ? formatDate(f.reviewDate) : "sin revisión";
-  const who = f.createdByEmail ? ` por ${escapeHtml(f.createdByEmail)}` : "";
-  return `<div class="sector-followup-last">Última gestión: ${escapeHtml(getFollowupActionLabel(f.actionType))} el ${escapeHtml(created)}${who}. Revisar: ${escapeHtml(review)}.</div>`;
+  return `<div class="sector-followup-last">Última gestión registrada: ${escapeHtml(getFollowupActionLabel(f.actionType))} el ${escapeHtml(created)}. Revisión prevista: ${escapeHtml(review)}.</div>`;
 }
 function renderSectorPersonCard(row){
   const attendanceText = row.attendances.length
@@ -3404,15 +3384,14 @@ function renderSectorPersonCard(row){
         </div>
         <div class="sector-person-motive">${escapeHtml(row.reason)}</div>
         ${renderSectorFollowupLine(row)}
-        ${renderSectorQuickActions(row)}
       </div>
     </summary>
     <div class="sector-person-detail">
       <div class="sector-card-line"><strong>Últimas asistencias:</strong><br>${escapeHtml(attendanceText)}<br><span class="hint">${escapeHtml(attendanceMeta)} · ${escapeHtml(String(row.attendanceCount))} asistencia${row.attendanceCount === 1 ? "" : "s"} en período</span></div>
       <div class="sector-card-line"><strong>Última visita efectiva:</strong><br>${escapeHtml(visitText)}<br><span class="hint">${escapeHtml(visitMeta)}</span></div>
       <div class="sector-card-line"><strong>Datos:</strong> ${escapeHtml(phone)} · ${escapeHtml(getMemberGroupSummary(row.member))}</div>
-      <div class="sector-card-line"><strong>Estado base:</strong> ${escapeHtml(row.baseStatus || row.status)}</div>
-      <div class="sector-action"><strong>Acción sugerida:</strong> ${escapeHtml(row.action)}</div>
+      <div class="sector-card-line"><strong>Lectura:</strong> ${escapeHtml(row.reason)}</div>
+      <div class="sector-action"><strong>Siguiente paso recomendado:</strong> revisar el caso y, si corresponde, cargar una tarea en Planificación.</div>
       <div class="row-actions" style="margin-top:10px;">
         <button type="button" class="secondary sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">Abrir ficha</button>
       </div>
@@ -3435,24 +3414,17 @@ function wireSectorMapButtons(container){
     ev.stopPropagation();
     abrirFicha(String(btn.dataset.memberId || ""));
   }));
-  container.querySelectorAll(".sector-quick-btn").forEach(btn => btn.addEventListener("click", async ev => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    await registerSectorFollowupFromButton(btn);
-  }));
 }
 function renderSectorBuckets(rows){
   const box = $("sectorMapBuckets");
   if (!box) return;
   const buckets = sectorRowsByBucket(rows);
   box.innerHTML = [
-    renderSectorBucket("priority", "🔴 Atención inmediata", "Baja asistencia combinada con ausencia de visita o visita antigua.", buckets.priority),
-    renderSectorBucket("contact", "🟠 Contactar esta semana", "Señales de enfriamiento, baja asistencia o seguimiento que necesita refuerzo.", buckets.contact),
-    renderSectorBucket("no_visit", "🟡 Sin visita registrada", "Personas asignadas que todavía no registran visita efectiva realizada.", buckets.no_visit),
-    renderSectorBucket("following", "🟣 En seguimiento", "Ya hubo una acción rápida y todavía no venció la fecha de revisión.", buckets.following),
-    renderSectorBucket("paused", "⚪ Pausados / revisar luego", "Casos pausados temporalmente para no insistir hasta la fecha de revisión.", buckets.paused),
+    renderSectorBucket("priority", "🔴 Revisar prioritariamente", "Casos donde se combina baja asistencia con falta de visita o visita antigua.", buckets.priority),
+    renderSectorBucket("contact", "🟠 Revisar asistencia / contacto", "Personas con señales de enfriamiento o baja asistencia en el período.", buckets.contact),
+    renderSectorBucket("no_visit", "🟡 Sin visita efectiva registrada", "Personas que no tienen visita realizada cargada en Planificación.", buckets.no_visit),
     renderSectorBucket("observe", "🔵 En observación", "No son casos críticos, pero conviene mirar su evolución.", buckets.observe),
-    renderSectorBucket("stable", "🟢 Estables", "Sin alertas fuertes de asistencia o seguimiento.", buckets.stable)
+    renderSectorBucket("stable", "🟢 Sin alerta operativa", "Sin señales fuertes en asistencia o seguimiento.", buckets.stable)
   ].join("");
   wireSectorMapButtons(box);
 }
@@ -3460,7 +3432,7 @@ function renderSectorReportTable(rows){
   const body = $("sectorReportTableBody");
   if (!body) return;
   if (!rows.length){
-    body.innerHTML = '<tr><td colspan="5" class="hint">No hay miembros asignados a ese responsable.</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" class="hint">No hay miembros asignados a ese responsable.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(row => {
@@ -3470,15 +3442,11 @@ function renderSectorReportTable(rows){
     const visitText = row.lastVisit
       ? `${escapeHtml(formatDate(row.lastVisit.date))}${row.lastVisit.time ? ` · ${escapeHtml(vaeFormatTime(row.lastVisit.time))}` : ""}<br><span class="hint">${escapeHtml(getActionDisplayTitle(row.lastVisit))}${row.daysSinceVisit !== null ? ` · hace ${escapeHtml(String(row.daysSinceVisit))} días` : ""}</span>`
       : `<span class="hint">Sin visita registrada</span>`;
-    const followText = row.latestFollowup
-      ? `${escapeHtml(getFollowupActionLabel(row.latestFollowup.actionType))}<br><span class="hint">Revisar ${escapeHtml(formatDate(row.latestFollowup.reviewDate))}</span>`
-      : `<span class="hint">Sin gestión registrada</span>`;
     return `<tr>
       <td><button type="button" class="metric-link sector-member-open" data-member-id="${escapeHtml(String(row.member.id))}">${escapeHtml(row.member.name || "")}</button></td>
       <td>${attendanceText}</td>
       <td>${visitText}</td>
       <td>${escapeHtml(row.status)}</td>
-      <td>${followText}</td>
     </tr>`;
   }).join("");
   wireSectorMapButtons(body);
@@ -3490,17 +3458,16 @@ function pctLabel(count, total){
   if (!total) return "0%";
   return `${((count / total) * 100).toFixed(1).replace(".", ",")}%`;
 }
+
 function renderSectorGlobalDistribution(buckets, total){
   const box = $("sectorGlobalDistribution");
   if (!box) return;
   const defs = [
-    ["priority", "🔴 Atención inmediata"],
-    ["contact", "🟠 Contactar esta semana"],
-    ["no_visit", "🟡 Sin visita registrada"],
-    ["following", "🟣 En seguimiento"],
-    ["paused", "⚪ Pausados"],
+    ["priority", "🔴 Revisar prioritariamente"],
+    ["contact", "🟠 Revisar asistencia/contacto"],
+    ["no_visit", "🟡 Sin visita efectiva"],
     ["observe", "🔵 En observación"],
-    ["stable", "🟢 Estables"]
+    ["stable", "🟢 Sin alerta operativa"]
   ];
   box.innerHTML = defs.map(([key,label]) => {
     const count = buckets[key]?.length || 0;
@@ -3521,7 +3488,7 @@ function renderSectorGlobalByResponsible(from, to){
     return {responsable, total: reportRows.length, buckets};
   });
   if (!rows.some(r => r.total)){
-    body.innerHTML = '<tr><td colspan="9" class="hint">No hay miembros asignados a responsables de sector.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="hint">No hay miembros asignados a responsables de sector.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(r => `<tr>
@@ -3530,8 +3497,6 @@ function renderSectorGlobalByResponsible(from, to){
     <td>${r.buckets.priority.length}</td>
     <td>${r.buckets.contact.length}</td>
     <td>${r.buckets.no_visit.length}</td>
-    <td>${r.buckets.following.length}</td>
-    <td>${r.buckets.paused.length}</td>
     <td>${r.buckets.observe.length}</td>
     <td>${r.buckets.stable.length}</td>
   </tr>`).join("");
@@ -3543,7 +3508,7 @@ function resetSectorGlobalSummary(message="Sin datos para mostrar."){
   if ($("sectorGlobalStable")) $("sectorGlobalStable").textContent = "0%";
   if ($("sectorGlobalRangeLabel")) $("sectorGlobalRangeLabel").textContent = "";
   if ($("sectorGlobalDistribution")) $("sectorGlobalDistribution").innerHTML = `<div class="sector-empty">${escapeHtml(message)}</div>`;
-  if ($("sectorGlobalByResponsible")) $("sectorGlobalByResponsible").innerHTML = `<tr><td colspan="9" class="hint">${escapeHtml(message)}</td></tr>`;
+  if ($("sectorGlobalByResponsible")) $("sectorGlobalByResponsible").innerHTML = `<tr><td colspan="7" class="hint">${escapeHtml(message)}</td></tr>`;
 }
 function renderSectorGlobalSummary(){
   if (!userCanViewSectorMap()) return;
@@ -3557,14 +3522,14 @@ function renderSectorGlobalSummary(){
   }
   const buckets = sectorRowsByBucket(rows);
   const pending = buckets.priority.length + buckets.contact.length + buckets.no_visit.length;
-  const managed = buckets.following.length + buckets.paused.length;
   if ($("sectorGlobalTotal")) $("sectorGlobalTotal").textContent = total;
   if ($("sectorGlobalPending")) $("sectorGlobalPending").textContent = pctLabel(pending, total);
-  if ($("sectorGlobalManaged")) $("sectorGlobalManaged").textContent = pctLabel(managed, total);
+  if ($("sectorGlobalManaged")) $("sectorGlobalManaged").textContent = pctLabel(buckets.no_visit.length, total);
   if ($("sectorGlobalStable")) $("sectorGlobalStable").textContent = pctLabel(buckets.stable.length, total);
   renderSectorGlobalDistribution(buckets, total);
   renderSectorGlobalByResponsible(from, to);
 }
+
 function buildDiagnosticRows(from, to){
   const sectorRowsByMemberId = new Map();
   getAllSectorReportRows(from, to).forEach(row => sectorRowsByMemberId.set(String(row.member.id), row));
@@ -3671,7 +3636,7 @@ function buildSystemDiagnosticSnapshot(){
   return {
     generated_at: new Date().toISOString(),
     generated_by_email: currentProfile?.email || currentSession?.user?.email || "",
-    app_version: "v6.4.18",
+    app_version: "v6.4.19",
     date_range: { from, to },
     summary,
     member_diagnostics: rows,
@@ -3761,17 +3726,16 @@ function renderQuickDiagnostic(){
   `;
 }
 
-function resetSectorReportUI(message='Elegí un responsable para generar el mapa de seguimiento.'){
+function resetSectorReportUI(message='Elegí un responsable para generar el diagnóstico.'){
   if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = "0";
   if ($("sectorKpiContact")) $("sectorKpiContact").textContent = "0";
   if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = "0";
-  if ($("sectorKpiFollowing")) $("sectorKpiFollowing").textContent = "0";
-  if ($("sectorKpiPaused")) $("sectorKpiPaused").textContent = "0";
+  if ($("sectorKpiObserve")) $("sectorKpiObserve").textContent = "0";
   if ($("sectorKpiStable")) $("sectorKpiStable").textContent = "0";
   if ($("sectorAgendaSuggested")) { $("sectorAgendaSuggested").classList.add("hidden"); $("sectorAgendaSuggested").innerHTML = ""; }
   if ($("sectorMapBuckets")) $("sectorMapBuckets").innerHTML = `<div class="sector-empty">${escapeHtml(message)}</div>`;
-  if ($("sectorReportTableBody")) $("sectorReportTableBody").innerHTML = `<tr><td colspan="5" class="hint">${escapeHtml(message)}</td></tr>`;
+  if ($("sectorReportTableBody")) $("sectorReportTableBody").innerHTML = `<tr><td colspan="4" class="hint">${escapeHtml(message)}</td></tr>`;
 }
 function renderSectorReport(){
   if (!userCanViewSectorMap()) return;
@@ -3788,8 +3752,7 @@ function renderSectorReport(){
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = buckets.priority.length;
   if ($("sectorKpiContact")) $("sectorKpiContact").textContent = buckets.contact.length;
   if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = buckets.no_visit.length;
-  if ($("sectorKpiFollowing")) $("sectorKpiFollowing").textContent = buckets.following.length;
-  if ($("sectorKpiPaused")) $("sectorKpiPaused").textContent = buckets.paused.length;
+  if ($("sectorKpiObserve")) $("sectorKpiObserve").textContent = buckets.observe.length;
   if ($("sectorKpiStable")) $("sectorKpiStable").textContent = buckets.stable.length;
 
   if (!rows.length){
@@ -3799,51 +3762,6 @@ function renderSectorReport(){
   renderSectorAgenda(rows);
   renderSectorBuckets(rows);
   renderSectorReportTable(rows);
-}
-async function registerSectorFollowupFromButton(btn){
-  if (!userCanViewSectorMap()) return;
-  const memberId = String(btn.dataset.memberId || "");
-  const actionType = String(btn.dataset.action || "");
-  const alertType = String(btn.dataset.alertType || "");
-  const responsable = $("sectorReportResponsible")?.value || "";
-  if (!memberId || !actionType || !responsable) return;
-  const action = SECTOR_FOLLOWUP_ACTIONS[actionType];
-  if (!action) return;
-  const today = selectedDate() || new Date().toISOString().slice(0,10);
-  const reviewDate = isoDaysFrom(today, action.reviewDays);
-  const originalText = btn.textContent;
-  try {
-    btn.disabled = true;
-    btn.textContent = "Guardando...";
-    const res = await supabaseClient.from("sector_followups").insert({
-      member_id: memberId,
-      sector_responsable: responsable,
-      alert_type: alertType,
-      action_type: actionType,
-      review_date: reviewDate,
-      created_by_email: currentProfile?.email || currentSession?.user?.email || ""
-    });
-    if (res.error) throw res.error;
-    const rows = await fetchOptionalAllRows("sector_followups", "*", 1000, "created_at");
-    state.sectorFollowups = (rows || []).map(r => ({
-      id: r.id,
-      memberId: String(r.member_id || ""),
-      sectorResponsable: r.sector_responsable || "",
-      alertType: r.alert_type || "",
-      actionType: r.action_type || "",
-      reviewDate: r.review_date || "",
-      notes: r.notes || "",
-      createdByEmail: r.created_by_email || "",
-      createdAt: r.created_at || ""
-    })).filter(r => r.memberId && r.actionType);
-    renderSectorReport();
-  } catch (err) {
-    console.error("registerSectorFollowupFromButton error:", err);
-    alert("No pude registrar el seguimiento: " + (err?.message || err || "error desconocido"));
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
 }
 
 function renderReport(title1, title2, rows, formatter){
