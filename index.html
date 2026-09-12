@@ -121,6 +121,9 @@
   .impact-person-title{font-weight:800;margin-bottom:5px}
   .impact-person-line{font-size:12.5px;line-height:1.45;color:#cbd5e1;margin-top:4px}
   .impact-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .impact-detail-panel{border:1px solid rgba(148,163,184,.22);border-radius:16px;background:rgba(2,6,23,.32);padding:10px;margin:10px 0}
+  .impact-detail-panel summary{cursor:pointer;font-weight:800;color:#e5e7eb}
+  .impact-detail-table td,.impact-detail-table th{font-size:11.5px}
   @media (max-width:1100px){.impact-kpi-grid{grid-template-columns:repeat(2,1fr)}.impact-card-list{grid-template-columns:1fr}}
   .diagnostic-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
   .diagnostic-actions button{font-size:12px;padding:8px 10px}
@@ -342,7 +345,7 @@
         <button id="btnForgotPassword" class="secondary" type="button">Olvidé mi contraseña</button>
       </div>
       <span id="loginStatus" class="hint">Ingresá con tu email y contraseña</span>
-      <span class="hint" style="opacity:.7;">Versión v6.4.26 · impacto unificado + administración desplegable</span>
+      <span class="hint" style="opacity:.7;">Versión v6.4.28 · detalle tareas realizadas</span>
     </div>
   </div>
 </div>
@@ -696,33 +699,9 @@
       </div>
     </details>
 
-    <details id="sectorReportsSection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Diagnóstico por responsable</div><div class="admin-collapsible-hint">Resumen general, diagnóstico por responsable, diagnóstico exportable e impacto de acciones.</div></div><span class="admin-collapsible-toggle"></span></summary>
+    <details id="sectorGlobalSummarySection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Resumen General de Diagnóstico</div><div class="admin-collapsible-hint">Foto global de estados, comparación por responsable y diagnóstico exportable.</div></div><span class="admin-collapsible-toggle"></span></summary>
       <div class="admin-collapsible-body">
-      <div class="sector-map-header">
-        <div>
-          <h2 class="sector-map-title">Diagnóstico por responsable</h2>
-          <div class="hint">Vista de orientación para detectar personas o sectores que conviene revisar. La ejecución de contactos, visitas y tareas queda concentrada en Planificación.</div>
-        </div>
-      </div>
-      <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Responsable de sector</div>
-          <select id="sectorReportResponsible"></select>
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Desde</div>
-          <input id="sectorReportDateFrom" type="date">
-        </div>
-        <div>
-          <div class="hint" style="margin-bottom:6px;">Hasta</div>
-          <input id="sectorReportDateTo" type="date">
-        </div>
-      </div>
-      <div class="row-actions" style="margin-bottom:12px;">
-        <button id="btnSectorReport" type="button" class="secondary">Generar diagnóstico</button>
-      </div>
-
       <div id="sectorGlobalSummary" class="sector-global-summary">
         <div class="sector-global-head">
           <div>
@@ -758,8 +737,10 @@
           </div>
         </details>
       </div>
+        <details id="diagnosticExportSection" class="diagnostic-panel" style="margin-top:14px;">
+          <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Diagnóstico del sistema</summary>
+          <div style="margin-top:12px;">
 
-      <div id="diagnosticExportSection" class="diagnostic-panel">
         <div class="sector-global-head">
           <div>
             <h3>Diagnóstico del sistema</h3>
@@ -773,12 +754,19 @@
           <button id="btnRenderQuickDiagnostic" type="button">Ver diagnóstico rápido</button>
         </div>
         <div id="diagnosticQuickSummary" class="diagnostic-quick hidden"></div>
-      </div>
 
-      <div id="impactActionsSection" class="impact-panel">
+          </div>
+        </details>
+      </div>
+    </details>
+
+    <details id="impactActionsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reporte de Acciones</div><div class="admin-collapsible-hint">Cruce entre tareas realizadas, personas alcanzadas y asistencia posterior.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
+      <div class="impact-panel">
         <div class="sector-global-head">
           <div>
-            <h3>Impacto de acciones realizadas</h3>
+            <h3>Reporte de Acciones</h3>
             <div class="hint">Cruza automáticamente tareas de Planificación en estado <strong>Realizada</strong> con asistencia posterior. Sirve para ver si las visitas/contactos generaron retorno visible.</div>
           </div>
           <div class="hint">No requiere carga adicional.</div>
@@ -789,17 +777,45 @@
           <div><div class="hint" style="margin-bottom:6px;">Responsable de sector</div><select id="impactResponsible"><option value="">Todos</option></select></div>
         </div>
         <div class="impact-actions">
-          <button id="btnImpactReport" type="button" class="secondary">Generar impacto</button>
-          <button id="btnExportImpactExcel" type="button" class="secondary">Exportar impacto Excel</button>
+          <button id="btnImpactReport" type="button" class="secondary">Generar reporte</button>
+          <button id="btnExportImpactExcel" type="button" class="secondary">Exportar reporte Excel</button>
+          <button id="btnShowImpactActionDetails" type="button" class="secondary">Ver detalle de tareas realizadas</button>
+          <button id="btnExportImpactActionDetails" type="button" class="secondary">Exportar detalle tareas Excel</button>
         </div>
+        <details id="impactActionDetailsPanel" class="impact-detail-panel hidden">
+          <summary>Detalle de tareas realizadas incluidas en el número total</summary>
+          <div id="impactActionDetailsSummary" class="hint" style="margin:8px 0 10px 0;line-height:1.45;"></div>
+          <div class="scroll" style="max-height:420px;">
+            <table class="impact-detail-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Hora</th>
+                  <th>Grupo responsable</th>
+                  <th>Tipo / Acción</th>
+                  <th>Responsables tarea</th>
+                  <th>Visitados válidos</th>
+                  <th>Visitados excluidos / no válidos</th>
+                  <th>Aporta al reporte</th>
+                  <th>Observaciones</th>
+                </tr>
+              </thead>
+              <tbody id="impactActionDetailsBody">
+                <tr><td colspan="9" class="hint">Generá el reporte para ver el detalle.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
         <div class="impact-kpi-grid">
-          <div class="impact-kpi"><div class="label">Acciones realizadas</div><div id="impactKpiActions" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Tareas realizadas</div><div id="impactKpiActions" class="value">0</div></div>
+          <div class="impact-kpi"><div class="label">Tareas con visitados</div><div id="impactKpiActionsWithVisited" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Personas alcanzadas</div><div id="impactKpiPeople" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Acción positiva</div><div id="impactKpiPositive" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Sin retorno</div><div id="impactKpiNoReturn" class="value">0</div></div>
           <div class="impact-kpi"><div class="label">Aún no evaluable</div><div id="impactKpiPending" class="value">0</div></div>
         </div>
         <div id="impactSummaryText" class="hint" style="margin-bottom:10px;">Elegí un período para generar el reporte.</div>
+        <div id="impactReachBreakdown" class="hint" style="margin-bottom:10px;"></div>
         <div id="impactBuckets" class="impact-buckets"></div>
         <details style="margin-top:12px;">
           <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Ver comparación por responsable</summary>
@@ -807,6 +823,35 @@
             <table><thead><tr><th>Responsable</th><th>Personas</th><th>Acción positiva</th><th>Sin retorno</th><th>No evaluable</th><th>Acompañamiento</th></tr></thead><tbody id="impactByResponsible"><tr><td colspan="6" class="hint">Sin datos.</td></tr></tbody></table>
           </div>
         </details>
+      </div>
+      </div>
+    </details>
+
+    <details id="sectorReportsSection" class="panel admin-collapsible">
+      <summary><div><div class="admin-collapsible-title">Reporte por Responsable</div><div class="admin-collapsible-hint">Diagnóstico operativo por responsable de sector, con secciones desplegables.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <div class="admin-collapsible-body">
+      <div class="sector-map-header">
+        <div>
+          <h2 class="sector-map-title">Reporte por Responsable</h2>
+          <div class="hint">Vista de orientación para detectar personas o sectores que conviene revisar. La ejecución de contactos, visitas y tareas queda concentrada en Planificación.</div>
+        </div>
+      </div>
+      <div class="filters" style="margin-bottom:12px; grid-template-columns:1fr 1fr 1fr;">
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Responsable de sector</div>
+          <select id="sectorReportResponsible"></select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Desde</div>
+          <input id="sectorReportDateFrom" type="date">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:6px;">Hasta</div>
+          <input id="sectorReportDateTo" type="date">
+        </div>
+      </div>
+      <div class="row-actions" style="margin-bottom:12px;">
+        <button id="btnSectorReport" type="button" class="secondary">Generar reporte</button>
       </div>
 
       <div class="sector-kpi-grid">
@@ -842,6 +887,7 @@
           </table>
         </div>
       </details>
+
       </div>
     </details>
 
@@ -1402,6 +1448,8 @@ function applyAdminRoleVisibility(){
   const analytics = $("adminAnalyticsSection");
   const groups = $("adminGroupsSection");
   const reports = $("adminReportsSection");
+  const sectorGlobalSummary = $("sectorGlobalSummarySection");
+  const impactActions = $("impactActionsSection");
   const sectorReports = $("sectorReportsSection");
   const reloadBtn = $("btnAdminReload");
   const exportBtn = $("btnExportMembersExcel");
@@ -1413,6 +1461,8 @@ function applyAdminRoleVisibility(){
   if (analytics) analytics.classList.toggle("hidden", !isAdmin);
   if (groups) groups.classList.toggle("hidden", !isAdmin);
   if (reports) reports.classList.toggle("hidden", !isAdmin);
+  if (sectorGlobalSummary) sectorGlobalSummary.classList.toggle("hidden", !userCanViewSectorMap());
+  if (impactActions) impactActions.classList.toggle("hidden", !userCanViewSectorMap());
   if (sectorReports) sectorReports.classList.toggle("hidden", !userCanViewSectorMap());
   if (reloadBtn) reloadBtn.classList.toggle("hidden", !isAdmin);
   if (exportBtn) exportBtn.classList.toggle("hidden", !isAdmin);
@@ -3758,9 +3808,149 @@ function groupImpactRows(rows){
   rows.forEach(row => { if (groups[row.key]) groups[row.key].push(row); });
   return groups;
 }
-function getImpactActionCount(){
+function getImpactActionStats(){
   const {from, to} = getImpactRange();
-  return (state.vaeActions || []).filter(action => String(action.status || "") === "realizada" && action.date >= from && action.date <= to).length;
+  const responsibleFilter = $("impactResponsible")?.value || "";
+  const realized = (state.vaeActions || []).filter(action => String(action.status || "") === "realizada" && action.date >= from && action.date <= to);
+  let actionsWithVisited = 0;
+  let memberActionLinks = 0;
+  const uniqueMembers = new Set();
+  const actionsWithoutVisited = [];
+  const repeatedByMember = new Map();
+
+  realized.forEach(action => {
+    let validForAction = 0;
+    (action.visitedMemberIds || []).map(String).forEach(memberId => {
+      const member = state.membersFullData?.[memberId];
+      if (!member || !isIncludedInCurrentReports(member)) return;
+      const responsable = member.sector_responsable || "Sin responsable";
+      if (responsibleFilter && responsable !== responsibleFilter) return;
+      validForAction += 1;
+      memberActionLinks += 1;
+      uniqueMembers.add(memberId);
+      repeatedByMember.set(memberId, (repeatedByMember.get(memberId) || 0) + 1);
+    });
+    if (validForAction) actionsWithVisited += 1;
+    else actionsWithoutVisited.push(action);
+  });
+
+  const repeatedPeople = [...repeatedByMember.values()].filter(count => count > 1).length;
+  const avgActionsPerPerson = uniqueMembers.size ? (memberActionLinks / uniqueMembers.size) : 0;
+  return {
+    totalRealized: realized.length,
+    actionsWithVisited,
+    actionsWithoutVisited: actionsWithoutVisited.length,
+    memberActionLinks,
+    uniquePeople: uniqueMembers.size,
+    repeatedPeople,
+    avgActionsPerPerson
+  };
+}
+function getImpactRealizedActionDetails(){
+  const {from, to} = getImpactRange();
+  const responsibleFilter = $("impactResponsible")?.value || "";
+  return (state.vaeActions || [])
+    .filter(action => String(action.status || "") === "realizada")
+    .filter(action => action.date >= from && action.date <= to)
+    .sort(vaeCompareActions)
+    .map(action => {
+      const validVisited = [];
+      const excludedVisited = [];
+      const missingVisited = [];
+      (action.visitedMemberIds || []).map(String).forEach(memberId => {
+        const member = state.membersFullData?.[memberId];
+        if (!member){ missingVisited.push(`ID ${memberId}`); return; }
+        const responsable = member.sector_responsable || "Sin responsable";
+        if (responsibleFilter && responsable !== responsibleFilter){
+          excludedVisited.push(`${member.name || "Sin nombre"} (otro responsable: ${responsable})`);
+          return;
+        }
+        if (!isIncludedInCurrentReports(member)){
+          const reason = member.inactive_reason || "fuera de reportes actuales";
+          excludedVisited.push(`${member.name || "Sin nombre"} (${reason})`);
+          return;
+        }
+        validVisited.push(member.name || `ID ${memberId}`);
+      });
+      const freeVisitedText = normalizeName(action.visitedText || "");
+      const aporta = validVisited.length > 0;
+      return {
+        action,
+        validVisited,
+        excludedVisited,
+        missingVisited,
+        freeVisitedText,
+        aporta
+      };
+    });
+}
+function renderImpactActionDetails(){
+  const panel = $("impactActionDetailsPanel");
+  const body = $("impactActionDetailsBody");
+  const summary = $("impactActionDetailsSummary");
+  if (!panel || !body) return;
+  panel.classList.remove("hidden");
+  panel.open = true;
+  const details = getImpactRealizedActionDetails();
+  const total = details.length;
+  const withValid = details.filter(d => d.aporta).length;
+  const withoutValid = total - withValid;
+  const validLinks = details.reduce((sum,d) => sum + d.validVisited.length, 0);
+  const uniqueValidPeople = new Set(details.flatMap(d => d.validVisited)).size;
+  const repeatedMap = new Map();
+  details.forEach(d => d.validVisited.forEach(name => repeatedMap.set(name, (repeatedMap.get(name) || 0) + 1)));
+  const repeatedPeople = [...repeatedMap.entries()].filter(([,count]) => count > 1).sort((a,b) => b[1]-a[1]).slice(0,8);
+  if (summary) summary.innerHTML = `
+    <strong>Qué incluye el total:</strong> ${total} tareas realizadas en el período. De ellas, ${withValid} tienen al menos un visitado válido para el filtro actual y ${withoutValid} no aportan personas al reporte. Hay ${validLinks} vínculos tarea-persona y ${uniqueValidPeople} personas únicas alcanzadas.
+    ${repeatedPeople.length ? `<br><strong>Personas repetidas en más de una tarea:</strong> ${repeatedPeople.map(([name,count]) => `${escapeHtml(name)} (${count})`).join(" · ")}` : ""}
+  `;
+  if (!details.length){
+    body.innerHTML = '<tr><td colspan="9" class="hint">No hay tareas realizadas en el período seleccionado.</td></tr>';
+    return;
+  }
+  body.innerHTML = details.map(d => {
+    const invalids = [...d.excludedVisited, ...d.missingVisited];
+    if (d.freeVisitedText) invalids.push(`Texto libre: ${d.freeVisitedText}`);
+    return `<tr>
+      <td style="mso-number-format:'\\@'">${escapeHtml(formatDate(d.action.date))}</td>
+      <td>${escapeHtml(vaeFormatTime(d.action.time || ""))}</td>
+      <td>${escapeHtml(d.action.group || "")}</td>
+      <td>${escapeHtml(d.action.type || "")}</td>
+      <td>${escapeHtml(vaeShortExecutors(d.action))}</td>
+      <td>${d.validVisited.length ? escapeHtml(d.validVisited.join(", ")) : '<span class="hint">Sin visitados válidos</span>'}</td>
+      <td>${invalids.length ? escapeHtml(invalids.join(" | ")) : '<span class="hint">—</span>'}</td>
+      <td>${d.aporta ? "Sí" : "No"}</td>
+      <td>${escapeHtml(d.action.notes || "")}</td>
+    </tr>`;
+  }).join("");
+}
+function exportImpactActionDetailsExcel(){
+  if (!userCanViewSectorMap()) return;
+  const {from, to} = getImpactRange();
+  const details = getImpactRealizedActionDetails();
+  const generatedAt = new Date().toLocaleString("es-AR");
+  const rows = details.map(d => {
+    const invalids = [...d.excludedVisited, ...d.missingVisited];
+    if (d.freeVisitedText) invalids.push(`Texto libre: ${d.freeVisitedText}`);
+    return `<tr>
+      <td style="mso-number-format:'\\@'">${excelHtmlEscape(formatDate(d.action.date))}</td>
+      <td style="mso-number-format:'\\@'">${excelHtmlEscape(vaeFormatTime(d.action.time || ""))}</td>
+      <td>${excelHtmlEscape(d.action.status || "")}</td>
+      <td>${excelHtmlEscape(d.action.group || "")}</td>
+      <td>${excelHtmlEscape(d.action.type || "")}</td>
+      <td>${excelHtmlEscape(getActionDisplayTitle(d.action))}</td>
+      <td>${excelHtmlEscape(vaeShortExecutors(d.action))}</td>
+      <td>${excelHtmlEscape(d.validVisited.join(", "))}</td>
+      <td>${excelHtmlEscape(invalids.join(" | "))}</td>
+      <td>${excelHtmlEscape(d.aporta ? "Sí" : "No")}</td>
+      <td>${excelHtmlEscape(d.action.notes || "")}</td>
+    </tr>`;
+  }).join("");
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif} h1{font-size:18px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px;font-size:12px;vertical-align:top} th{background:#e5e7eb}</style></head><body><h1>Detalle de tareas realizadas</h1><p>Período: ${excelHtmlEscape(formatDate(from))} a ${excelHtmlEscape(formatDate(to))}<br>Generado: ${excelHtmlEscape(generatedAt)}</p><table><thead><tr><th>Fecha</th><th>Hora</th><th>Estado</th><th>Grupo responsable</th><th>Tipo / Acción</th><th>Título mostrado</th><th>Responsables tarea</th><th>Visitados válidos</th><th>Visitados excluidos / no válidos</th><th>Aporta al reporte</th><th>Observaciones</th></tr></thead><tbody>${rows || '<tr><td colspan="11">Sin datos.</td></tr>'}</tbody></table></body></html>`;
+  downloadTextFile(`detalle_tareas_realizadas_${from}_a_${to}.xls`, html, "application/vnd.ms-excel;charset=utf-8");
+}
+function getImpactActionCount(){
+  return getImpactActionStats().totalRealized;
 }
 function renderImpactPerson(row){
   const firstAfter = row.firstAfter ? formatDate(row.firstAfter) : "Sin asistencia posterior";
@@ -3787,15 +3977,20 @@ function renderImpactReport(){
   initializeImpactReportDefaults();
   const rows = buildImpactRows();
   const groups = groupImpactRows(rows);
-  if ($("impactKpiActions")) $("impactKpiActions").textContent = getImpactActionCount();
-  if ($("impactKpiPeople")) $("impactKpiPeople").textContent = rows.length;
+  const actionStats = getImpactActionStats();
+  if ($("impactKpiActions")) $("impactKpiActions").textContent = actionStats.totalRealized;
+  if ($("impactKpiActionsWithVisited")) $("impactKpiActionsWithVisited").textContent = actionStats.actionsWithVisited;
+  if ($("impactKpiPeople")) $("impactKpiPeople").textContent = actionStats.uniquePeople;
   if ($("impactKpiPositive")) $("impactKpiPositive").textContent = groups.positive.length;
   if ($("impactKpiConsolidated")) $("impactKpiConsolidated").textContent = groups.positive.length;
   if ($("impactKpiInitial")) $("impactKpiInitial").textContent = groups.positive.length;
   if ($("impactKpiNoReturn")) $("impactKpiNoReturn").textContent = groups.no_return.length;
   if ($("impactKpiPending")) $("impactKpiPending").textContent = groups.pending.length;
   const {from, to} = getImpactRange();
-  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Acciones realizadas entre ${formatDate(from)} y ${formatDate(to)}. Acción positiva significa: sin asistencia en los 30 días previos y con asistencia posterior registrada. Si ya asistía antes y siguió asistiendo, se muestra como acompañamiento activo.`;
+  if ($("impactSummaryText")) $("impactSummaryText").textContent = `Reporte de acciones entre ${formatDate(from)} y ${formatDate(to)}. Acción positiva significa: sin asistencia en los 30 días previos y con asistencia posterior registrada. Si ya asistía antes y siguió asistiendo, se muestra como acompañamiento activo.`;
+  if ($("impactReachBreakdown")) $("impactReachBreakdown").innerHTML = `
+    <strong>Lectura del alcance:</strong> ${actionStats.totalRealized} tareas realizadas en Planificación; ${actionStats.actionsWithVisited} tienen visitados válidos cargados; ${actionStats.memberActionLinks} vínculos tarea-persona; ${actionStats.uniquePeople} personas únicas alcanzadas; promedio ${actionStats.avgActionsPerPerson.toFixed(1)} acciones por persona alcanzada. ${actionStats.actionsWithoutVisited ? `${actionStats.actionsWithoutVisited} tareas realizadas no aportan personas al reporte porque no tienen visitados válidos para este filtro.` : ``}
+  `;
   const box = $("impactBuckets");
   if (box) box.innerHTML = [
     renderImpactBucket("🟢 Acción positiva", "No tenía asistencia reciente antes de la acción y luego registró asistencia.", groups.positive),
@@ -3804,6 +3999,7 @@ function renderImpactReport(){
     renderImpactBucket("🔵 Acompañamiento activo", "Ya venía asistiendo antes y continuó asistiendo después.", groups.active)
   ].join("");
   renderImpactByResponsible(rows);
+  if ($("impactActionDetailsPanel") && !$('impactActionDetailsPanel').classList.contains("hidden") && $('impactActionDetailsPanel').open) renderImpactActionDetails();
 }
 function exportImpactExcel(){
   if (!userCanViewSectorMap()) return;
@@ -3811,8 +4007,8 @@ function exportImpactExcel(){
   const rows = buildImpactRows();
   const generatedAt = new Date().toLocaleString("es-AR");
   const bodyRows = rows.map(row => `<tr><td>${excelHtmlEscape(row.member.name || "")}</td><td>${excelHtmlEscape(row.responsable || "Sin responsable")}</td><td>${excelHtmlEscape(row.label || "")}</td><td style="mso-number-format:'\\@'">${excelHtmlEscape(formatDate(row.action.date))}</td><td>${excelHtmlEscape(getActionDisplayTitle(row.action))}</td><td>${excelHtmlEscape(String(row.before30))}</td><td>${excelHtmlEscape(row.lastBefore ? formatDate(row.lastBefore) : "")}</td><td>${excelHtmlEscape(String(row.after30))}</td><td>${excelHtmlEscape(String(row.after60))}</td><td>${excelHtmlEscape(row.firstAfter ? formatDate(row.firstAfter) : "")}</td><td>${excelHtmlEscape(row.reason || "")}</td></tr>`).join("");
-  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif} h1{font-size:18px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px;font-size:12px;vertical-align:top} th{background:#e5e7eb}</style></head><body><h1>Impacto de acciones realizadas</h1><p>Período: ${excelHtmlEscape(formatDate(from))} a ${excelHtmlEscape(formatDate(to))}<br>Generado: ${excelHtmlEscape(generatedAt)}</p><table><thead><tr><th>Miembro</th><th>Responsable sector</th><th>Resultado</th><th>Fecha acción</th><th>Acción</th><th>Asistencias 30 días antes</th><th>Última asistencia antes</th><th>Asistencias 30 días después</th><th>Asistencias 60 días después</th><th>Primera asistencia después</th><th>Lectura</th></tr></thead><tbody>${bodyRows || '<tr><td colspan="11">Sin datos.</td></tr>'}</tbody></table></body></html>`;
-  downloadTextFile(`impacto_acciones_${from}_a_${to}.xls`, html, "application/vnd.ms-excel;charset=utf-8");
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif} h1{font-size:18px} table{border-collapse:collapse;width:100%} th,td{border:1px solid #999;padding:6px;font-size:12px;vertical-align:top} th{background:#e5e7eb}</style></head><body><h1>Reporte de Acciones</h1><p>Período: ${excelHtmlEscape(formatDate(from))} a ${excelHtmlEscape(formatDate(to))}<br>Generado: ${excelHtmlEscape(generatedAt)}</p><table><thead><tr><th>Miembro</th><th>Responsable sector</th><th>Resultado</th><th>Fecha acción</th><th>Acción</th><th>Asistencias 30 días antes</th><th>Última asistencia antes</th><th>Asistencias 30 días después</th><th>Asistencias 60 días después</th><th>Primera asistencia después</th><th>Lectura</th></tr></thead><tbody>${bodyRows || '<tr><td colspan="11">Sin datos.</td></tr>'}</tbody></table></body></html>`;
+  downloadTextFile(`reporte_acciones_${from}_a_${to}.xls`, html, "application/vnd.ms-excel;charset=utf-8");
 }
 function buildDiagnosticRows(from, to){
   const sectorRowsByMemberId = new Map();
@@ -5840,6 +6036,8 @@ function wireEvents(){
   if ($("btnSectorReport")) $("btnSectorReport").addEventListener("click", renderSectorReport);
   if ($("btnImpactReport")) $("btnImpactReport").addEventListener("click", renderImpactReport);
   if ($("btnExportImpactExcel")) $("btnExportImpactExcel").addEventListener("click", exportImpactExcel);
+  if ($("btnShowImpactActionDetails")) $("btnShowImpactActionDetails").addEventListener("click", renderImpactActionDetails);
+  if ($("btnExportImpactActionDetails")) $("btnExportImpactActionDetails").addEventListener("click", exportImpactActionDetailsExcel);
   if ($("impactDateFrom")) $("impactDateFrom").addEventListener("change", renderImpactReport);
   if ($("impactDateTo")) $("impactDateTo").addEventListener("change", renderImpactReport);
   if ($("impactResponsible")) $("impactResponsible").addEventListener("change", renderImpactReport);
