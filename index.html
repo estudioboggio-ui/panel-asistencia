@@ -605,7 +605,7 @@
         <div class="sector-global-mini">
           <div class="mini-card"><div class="mini-label">Total asignados</div><div id="sectorGlobalTotal" class="mini-value">0</div></div>
           <div class="mini-card"><div class="mini-label">Estados accionables</div><div id="sectorGlobalPending" class="mini-value">0%</div></div>
-          <div class="mini-card"><div class="mini-label">Sin VAE registrada</div><div id="sectorGlobalManaged" class="mini-value">0%</div></div>
+          <div class="mini-card"><div class="mini-label">Coordinar VAE</div><div id="sectorGlobalManaged" class="mini-value">0%</div></div>
           <div class="mini-card"><div class="mini-label">Estables</div><div id="sectorGlobalStable" class="mini-value">0%</div></div>
         </div>
         <div id="sectorGlobalDistribution" class="sector-distribution"></div>
@@ -620,13 +620,11 @@
                   <th>Coordinar VAE</th>
                   <th>Chequeo asistencia</th>
                   <th>Alerta asistencia</th>
-                  <th>Sin VAE reciente</th>
-                  <th>Sin VAE registrada</th>
                   <th>Obs.</th>
                   <th>Estables</th>
                 </tr>
               </thead>
-              <tbody id="sectorGlobalByResponsible"><tr><td colspan="9" class="hint">Sin datos.</td></tr></tbody>
+              <tbody id="sectorGlobalByResponsible"><tr><td colspan="7" class="hint">Sin datos.</td></tr></tbody>
             </table>
           </div>
         </details>
@@ -685,11 +683,9 @@
 
       <div class="sector-kpi-grid">
         <div class="sector-kpi"><div class="label">Miembros asignados</div><div id="sectorKpiMembers" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Coordinar VAE - Prioritario</div><div id="sectorKpiPriority" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Coordinar VAE</div><div id="sectorKpiPriority" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Chequeo de asistencia</div><div id="sectorKpiCheckAttendance" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Alerta de Asistencia</div><div id="sectorKpiAttendanceAlert" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Sin VAE Reciente - Planificar</div><div id="sectorKpiVaeOld" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Sin VAE registrada</div><div id="sectorKpiNoVisit" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">En observación</div><div id="sectorKpiObserve" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
       </div>
@@ -3461,38 +3457,27 @@ function classifySectorRow(row){
   const vaeOld = row.daysSinceVisit !== null && row.daysSinceVisit > SECTOR_VISIT_OLD_DAYS;
   const vaeModeratelyOld = row.daysSinceVisit !== null && row.daysSinceVisit > SECTOR_VISIT_OBSERVATION_DAYS;
   const noAttendanceLast4 = row.last4MeetingDatesCount > 0 && row.last4AttendanceCount === 0;
-  const lowAttendanceLast4 = row.last4MeetingDatesCount > 0 && row.last4AttendanceCount <= 1;
 
-  // Antes de interpretar ausencia/enfriamiento, primero se validan los casos sin historial.
+  // Chequeo de asistencia es una bandeja administrativa transitoria.
+  // Si no hay asistencia histórica y todavía no fue revisado, no se interpreta como alerta pastoral.
   if (noAttendanceHistory && !attendanceChecked) {
     return {key:"check_attendance", label:"Chequeo de asistencia", action:"Revisar si corresponde corregir datos, fusionar duplicado, excluir de reportes o confirmar que efectivamente no tiene asistencia histórica."};
   }
 
-  // Si ya se confirmó que no tiene asistencia histórica, vuelve al circuito por VAE.
+  // Una vez confirmado el chequeo, si no tiene VAE o la VAE está vencida, la salida operativa es coordinar VAE.
   if (noAttendanceHistory && attendanceChecked) {
-    if (noVae) return {key:"no_visit", label:"Sin VAE registrada", action:"Evaluar si corresponde planificar primera VAE o excluir de reportes actuales."};
-    if (vaeOld) return {key:"vae_old", label:"Sin VAE Reciente - Planificar", action:"Planificar una VAE ordinaria si corresponde seguimiento actual."};
+    if (noVae || vaeOld) return {key:"priority", label:"Coordinar VAE", action:"Planificar VAE desde Planificación."};
     return {key:"observe", label:"En observación", action:"Tiene VAE reciente, pero no asistencia histórica; observar o revisar ficha."};
   }
 
-  // Prioridad: hay asistencia histórica, no estuvo en las últimas 4 reuniones y no tiene VAE reciente.
-  if (noAttendanceLast4 && (noVae || vaeOld)) {
-    return {key:"priority", label:"Coordinar VAE - Prioritario", action:"Coordinar VAE desde Planificación."};
+  // Coordinar VAE unifica los casos cuya acción concreta es cargar/planificar una VAE.
+  if (noVae || vaeOld) {
+    return {key:"priority", label:"Coordinar VAE", action:"Planificar VAE desde Planificación."};
   }
 
-  // Alerta de asistencia: asistió 0 o 1 vez en las últimas 4 reuniones, pero no cae en prioridad.
-  if (lowAttendanceLast4) {
+  // Alerta de asistencia: solo casos con ausencia total en las últimas 4 reuniones reales.
+  if (noAttendanceLast4) {
     return {key:"attendance_alert", label:"Alerta de Asistencia", action:"Revisar evolución de asistencia y evaluar contacto preventivo."};
-  }
-
-  // VAE vencida: no es alerta de asistencia, es deuda de seguimiento.
-  if (vaeOld) {
-    return {key:"vae_old", label:"Sin VAE Reciente - Planificar", action:"Planificar VAE ordinaria."};
-  }
-
-  // Nunca tuvo VAE, pero no tiene una señal fuerte de asistencia.
-  if (noVae) {
-    return {key:"no_visit", label:"Sin VAE registrada", action:"Considerar programación de primera VAE."};
   }
 
   if (vaeModeratelyOld) {
@@ -3580,7 +3565,7 @@ function buildSectorReportRows(responsable, from, to){
       reason: buildSectorMemberReason(base)
     };
   }).sort((a,b) => {
-    const order = {priority:0, check_attendance:1, attendance_alert:2, vae_old:3, no_visit:4, observe:5, stable:6};
+    const order = {priority:0, check_attendance:1, attendance_alert:2, observe:3, stable:4, vae_old:5, no_visit:6};
     const byStatus = (order[a.statusKey] ?? 99) - (order[b.statusKey] ?? 99);
     if (byStatus !== 0) return byStatus;
     const aDays = a.daysSinceAttendance === null ? 99999 : a.daysSinceAttendance;
@@ -3601,18 +3586,17 @@ function renderSectorAgenda(rows){
   const buckets = sectorRowsByBucket(rows);
   if (!rows.length){ box.classList.add("hidden"); box.innerHTML = ""; return; }
   const listNames = arr => arr.slice(0,6).map(row => `<div>• ${escapeHtml(row.member?.name || "")}</div>`).join("") || '<div class="hint">Sin casos.</div>';
+  const agendaBoxes = [
+    `<div class="sector-agenda-box"><strong>Coordinar VAE</strong>${listNames(buckets.priority)}</div>`,
+    buckets.check_attendance.length ? `<div class="sector-agenda-box"><strong>Chequeo de asistencia</strong>${listNames(buckets.check_attendance)}</div>` : "",
+    `<div class="sector-agenda-box"><strong>Alerta de Asistencia</strong>${listNames(buckets.attendance_alert)}</div>`
+  ].filter(Boolean).join("");
   box.classList.remove("hidden");
   box.innerHTML = `
     <details>
       <summary style="cursor:pointer;font-weight:800;">Foco sugerido para revisión</summary>
       <div class="hint" style="margin:8px 0 10px;">Este bloque no reemplaza Planificación. Sirve para decidir qué casos revisar o convertir en tarea.</div>
-      <div class="sector-agenda-grid">
-        <div class="sector-agenda-box"><strong>Coordinar VAE - Prioritario</strong>${listNames(buckets.priority)}</div>
-        <div class="sector-agenda-box"><strong>Chequeo de asistencia</strong>${listNames(buckets.check_attendance)}</div>
-        <div class="sector-agenda-box"><strong>Alerta de Asistencia</strong>${listNames(buckets.attendance_alert)}</div>
-        <div class="sector-agenda-box"><strong>Sin VAE Reciente - Planificar</strong>${listNames(buckets.vae_old)}</div>
-        <div class="sector-agenda-box"><strong>Sin VAE registrada</strong>${listNames(buckets.no_visit)}</div>
-      </div>
+      <div class="sector-agenda-grid">${agendaBoxes}</div>
     </details>`;
 }
 
@@ -3688,15 +3672,14 @@ function renderSectorBuckets(rows){
   const box = $("sectorMapBuckets");
   if (!box) return;
   const buckets = sectorRowsByBucket(rows);
-  box.innerHTML = [
-    renderSectorBucket("priority", "🔴 Coordinar VAE - Prioritario", "Tiene asistencia histórica, no estuvo en las últimas 4 reuniones y no tiene VAE reciente.", buckets.priority),
-    renderSectorBucket("check_attendance", "⚫ Chequeo de asistencia", "No tiene asistencia histórica. Requiere validación administrativa antes de interpretarlo como alerta pastoral.", buckets.check_attendance),
-    renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", "Tiene asistencia histórica, pero asistió 0 o 1 vez en las últimas 4 reuniones.", buckets.attendance_alert),
-    renderSectorBucket("vae_old", "🟤 Sin VAE Reciente - Planificar", `Tiene VAE registrada, pero la última supera los ${SECTOR_VISIT_OLD_DAYS} días.`, buckets.vae_old),
-    renderSectorBucket("no_visit", "🟡 Sin VAE registrada", "No tiene ninguna VAE realizada cargada en Planificación.", buckets.no_visit),
+  const sections = [
+    renderSectorBucket("priority", "🔴 Coordinar VAE", `Debe planificarse una VAE: no registra VAE, la VAE supera los ${SECTOR_VISIT_OLD_DAYS} días o combina ausencia reciente con falta de VAE actual.`, buckets.priority),
+    buckets.check_attendance.length ? renderSectorBucket("check_attendance", "⚫ Chequeo de asistencia", "No tiene asistencia histórica. Requiere validación administrativa antes de interpretarlo como alerta pastoral.", buckets.check_attendance) : "",
+    renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", "Tiene asistencia histórica, pero no asistió en ninguna de las últimas 4 reuniones reales.", buckets.attendance_alert),
     renderSectorBucket("observe", "🔵 En observación", "No son casos críticos, pero conviene mirar su evolución.", buckets.observe),
     renderSectorBucket("stable", "🟢 Sin alerta operativa", "Sin señales fuertes en asistencia o seguimiento.", buckets.stable)
-  ].join("");
+  ].filter(Boolean);
+  box.innerHTML = sections.join("");
   wireSectorMapButtons(box);
 }
 
@@ -3748,14 +3731,12 @@ function renderSectorGlobalDistribution(buckets, total){
   const box = $("sectorGlobalDistribution");
   if (!box) return;
   const defs = [
-    ["priority", "🔴 Coordinar VAE - Prioritario"],
+    ["priority", "🔴 Coordinar VAE"],
     ["check_attendance", "⚫ Chequeo de asistencia"],
     ["attendance_alert", "🟠 Alerta de Asistencia"],
-    ["vae_old", "🟤 Sin VAE Reciente - Planificar"],
-    ["no_visit", "🟡 Sin VAE registrada"],
     ["observe", "🔵 En observación"],
     ["stable", "🟢 Sin alerta operativa"]
-  ];
+  ].filter(([key]) => key !== "check_attendance" || (buckets.check_attendance || []).length);
   box.innerHTML = defs.map(([key,label]) => {
     const rows = buckets[key] || [];
     const count = rows.length;
@@ -3782,7 +3763,7 @@ function renderSectorGlobalByResponsible(from, to){
     return {responsable, total: reportRows.length, rows: reportRows, buckets};
   });
   if (!rows.some(r => r.total)){
-    body.innerHTML = '<tr><td colspan="9" class="hint">No hay miembros asignados a responsables de sector.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="hint">No hay miembros asignados a responsables de sector.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(r => `<tr>
@@ -3791,8 +3772,6 @@ function renderSectorGlobalByResponsible(from, to){
     <td>${renderMetricDrill(r.buckets.priority.length, r.buckets.priority)}</td>
     <td>${renderMetricDrill(r.buckets.check_attendance.length, r.buckets.check_attendance)}</td>
     <td>${renderMetricDrill(r.buckets.attendance_alert.length, r.buckets.attendance_alert)}</td>
-    <td>${renderMetricDrill(r.buckets.vae_old.length, r.buckets.vae_old)}</td>
-    <td>${renderMetricDrill(r.buckets.no_visit.length, r.buckets.no_visit)}</td>
     <td>${renderMetricDrill(r.buckets.observe.length, r.buckets.observe)}</td>
     <td>${renderMetricDrill(r.buckets.stable.length, r.buckets.stable)}</td>
   </tr>`).join("");
@@ -3805,7 +3784,7 @@ function resetSectorGlobalSummary(message="Sin datos para mostrar."){
   if ($("sectorGlobalStable")) $("sectorGlobalStable").textContent = "0%";
   if ($("sectorGlobalRangeLabel")) $("sectorGlobalRangeLabel").textContent = "";
   if ($("sectorGlobalDistribution")) $("sectorGlobalDistribution").innerHTML = `<div class="sector-empty">${escapeHtml(message)}</div>`;
-  if ($("sectorGlobalByResponsible")) $("sectorGlobalByResponsible").innerHTML = `<tr><td colspan="9" class="hint">${escapeHtml(message)}</td></tr>`;
+  if ($("sectorGlobalByResponsible")) $("sectorGlobalByResponsible").innerHTML = `<tr><td colspan="7" class="hint">${escapeHtml(message)}</td></tr>`;
 }
 function renderSectorGlobalSummary(){
   if (!userCanViewSectorMap()) return;
@@ -3818,10 +3797,10 @@ function renderSectorGlobalSummary(){
     return;
   }
   const buckets = sectorRowsByBucket(rows);
-  const pending = buckets.priority.length + buckets.check_attendance.length + buckets.attendance_alert.length + buckets.vae_old.length + buckets.no_visit.length;
+  const pending = buckets.priority.length + buckets.check_attendance.length + buckets.attendance_alert.length;
   if ($("sectorGlobalTotal")) $("sectorGlobalTotal").textContent = total;
   if ($("sectorGlobalPending")) $("sectorGlobalPending").textContent = pctLabel(pending, total);
-  if ($("sectorGlobalManaged")) $("sectorGlobalManaged").textContent = pctLabel(buckets.no_visit.length, total);
+  if ($("sectorGlobalManaged")) $("sectorGlobalManaged").textContent = pctLabel(buckets.priority.length, total);
   if ($("sectorGlobalStable")) $("sectorGlobalStable").textContent = pctLabel(buckets.stable.length, total);
   renderSectorGlobalDistribution(buckets, total);
   renderSectorGlobalByResponsible(from, to);
@@ -4334,7 +4313,7 @@ function renderQuickDiagnostic(){
 function resetSectorReportUI(message='Elegí un responsable para generar el diagnóstico.'){
   if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = "0";
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = "0";
-  if ($("sectorKpiCheckAttendance")) $("sectorKpiCheckAttendance").textContent = "0";
+  if ($("sectorKpiCheckAttendance")) { $("sectorKpiCheckAttendance").textContent = "0"; const card = $("sectorKpiCheckAttendance").closest(".sector-kpi"); if (card) card.style.display = "none"; }
   if ($("sectorKpiAttendanceAlert")) $("sectorKpiAttendanceAlert").textContent = "0";
   if ($("sectorKpiVaeOld")) $("sectorKpiVaeOld").textContent = "0";
   if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = "0";
@@ -4357,7 +4336,11 @@ function renderSectorReport(){
   const buckets = sectorRowsByBucket(rows);
   if ($("sectorKpiMembers")) $("sectorKpiMembers").textContent = rows.length;
   if ($("sectorKpiPriority")) $("sectorKpiPriority").textContent = buckets.priority.length;
-  if ($("sectorKpiCheckAttendance")) $("sectorKpiCheckAttendance").textContent = buckets.check_attendance.length;
+  if ($("sectorKpiCheckAttendance")) {
+    $("sectorKpiCheckAttendance").textContent = buckets.check_attendance.length;
+    const card = $("sectorKpiCheckAttendance").closest(".sector-kpi");
+    if (card) card.style.display = buckets.check_attendance.length ? "" : "none";
+  }
   if ($("sectorKpiAttendanceAlert")) $("sectorKpiAttendanceAlert").textContent = buckets.attendance_alert.length;
   if ($("sectorKpiVaeOld")) $("sectorKpiVaeOld").textContent = buckets.vae_old.length;
   if ($("sectorKpiNoVisit")) $("sectorKpiNoVisit").textContent = buckets.no_visit.length;
