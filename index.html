@@ -57,6 +57,10 @@
   .login-wrap{max-width:520px;margin:60px auto}
   .hidden{display:none !important}
   .alert-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1220;margin-bottom:10px}
+  .attendance-missing-alert{display:none;margin:0 0 16px 0;padding:14px 16px;border-radius:16px;border:1px solid rgba(245,158,11,.5);background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(146,64,14,.12));color:#fde68a;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+  .attendance-missing-alert.show{display:block}
+  .attendance-missing-alert strong{color:#fff7ed}
+  .attendance-missing-alert .hint{color:#fcd34d}
   .ok{color:#86efac}.bad{color:#fca5a5}.warntext{color:#fcd34d}
   
   .save-feedback{display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:13px}
@@ -400,6 +404,8 @@
       <button id="btnExport" type="button">Exportar reporte HTML</button>
       <button id="btnToday" type="button">Ir a hoy</button>
     </div>
+
+    <div id="attendanceMissingAlert" class="attendance-missing-alert" role="status" aria-live="polite"></div>
 
     <div class="grid">
       <div class="panel">
@@ -1337,7 +1343,8 @@ const INACTIVE_REASON_OPTIONS = [
   { value: "otro", label: "Otro / fuera de seguimiento" }
 ];
 const SECTOR_VISIT_OLD_DAYS = 180;
-const SECTOR_POST_VAE_OBSERVATION_DAYS = 30;
+const SECTOR_POST_VAE_OBSERVATION_DAYS = 45;
+const SECTOR_ATTENDANCE_ALERT_MEETINGS = 3;
 const SECTOR_FOLLOWUP_ACTIONS = {
   contacted: { label: "Contacté", reviewDays: 15, bucket: "following", description: "Contacto efectivo" },
   contact_attempted: { label: "Intenté", reviewDays: 7, bucket: "following", description: "Intento de contacto" },
@@ -2874,6 +2881,49 @@ async function guardarCambiosMiembro() {
     renderAll();
 }
 
+
+function isMeetingDay(dateStr){
+  if (!dateStr) return false;
+  const day = new Date(dateStr + "T00:00:00").getDay();
+  return day === 0 || day === 3;
+}
+function previousMeetingDate(dateStr){
+  if (!dateStr) return null;
+  const d = new Date(dateStr + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return null;
+  for (let i = 1; i <= 7; i++){
+    const prev = new Date(d);
+    prev.setDate(d.getDate() - i);
+    const day = prev.getDay();
+    if (day === 0 || day === 3) return prev.toISOString().slice(0,10);
+  }
+  return null;
+}
+function dayHasAttendanceRecord(dateStr){
+  if (!dateStr) return false;
+  const memberRows = (state.attendance || []).some(r => String(r.date || "") === String(dateStr));
+  if (memberRows) return true;
+  const extra = state.dayExtras?.[dateStr];
+  const visitas = Number(extra?.visitas?.count || 0);
+  const primeraVez = Number(extra?.primeraVez?.count || 0);
+  return (visitas + primeraVez) > 0;
+}
+function renderAttendanceMissingAlert(){
+  const box = $("attendanceMissingAlert");
+  if (!box) return;
+  const date = selectedDate();
+  box.classList.remove("show");
+  box.innerHTML = "";
+  if (!isMeetingDay(date)) return;
+  const prev = previousMeetingDate(date);
+  if (!prev) return;
+  // La alerta se limita al mes de la fecha que se está cargando para no arrastrar faltantes de meses anteriores.
+  if (prev.slice(0,7) !== date.slice(0,7)) return;
+  if (dayHasAttendanceRecord(prev)) return;
+  box.innerHTML = `<strong>Falta cargar asistencia de ${escapeHtml(formatDate(prev))}.</strong><div class="hint" style="margin-top:4px;">La reunión anterior registrada en calendario fue miércoles/domingo y no tiene asistencia cargada.</div>`;
+  box.classList.add("show");
+}
+
 function renderPeople(){
   const date = selectedDate();
   const query = $("search").value.trim().toLowerCase();
@@ -3412,7 +3462,7 @@ function getMemberGroupSummary(member){
   const categories = normalizeCategoryValue(member?.category);
   return categories.length ? categories.join(", ") : "Sin grupo cargado";
 }
-function getLastMeetingDates(to, limit=4){
+function getLastMeetingDates(to, limit=SECTOR_ATTENDANCE_ALERT_MEETINGS){
   return [...new Set((state.attendance || [])
     .map(r => r.date)
     .filter(Boolean)
@@ -3437,7 +3487,7 @@ function memberAttendanceChecked(member){
 }
 function buildSectorMemberReason(row){
   const reasons = [];
-  const last4Label = row.lastMeetingDates?.length ? `últimas ${row.lastMeetingDates.length} reuniones` : "últimas reuniones";
+  const last4Label = row.lastMeetingDates?.length ? `últimas ${row.lastMeetingDates.length} reuniones` : `últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones`;
   const hasVisit = !!row.lastVisit;
   const noAttendanceAfterLastVae = hasVisit && Number(row.attendanceAfterLastVisitCount || 0) === 0;
   const hasRecentVae = row.daysSinceVisit !== null && row.daysSinceVisit <= SECTOR_POST_VAE_OBSERVATION_DAYS;
@@ -3494,10 +3544,10 @@ function buildSectorMemberReason(row){
     return {key:"priority", label:"Coordinar VAE", action:"Planificar VAE desde Planificación."};
   }
 
-  // Alerta de asistencia: solo casos con ausencia total en las últimas 4 reuniones reales.
+  // Alerta de asistencia: solo casos con ausencia total en las últimas reuniones reales definidas para el reporte.
   // No incluye casos que ya tienen una VAE reciente en observación o que directamente requieren coordinar VAE.
   if (!noAttendanceHistory && noAttendanceLast4) {
-    return {key:"attendance_alert", label:"Alerta de Asistencia", action:"Revisar evolución de asistencia y evaluar contacto preventivo."};
+    return {key:"attendance_alert", label:"Alerta de Asistencia", action:`Revisar evolución: no asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales.`};
   }
 
   return {key:"stable", label:"Sin alerta operativa", action:"Sin acción urgente."};
@@ -3692,7 +3742,7 @@ function renderSectorBuckets(rows){
   const sections = [
     renderSectorBucket("priority", "🔴 Coordinar VAE", `Debe planificarse una VAE: no registra VAE, la VAE supera los ${SECTOR_VISIT_OLD_DAYS} días o hubo VAE sin retorno posterior luego del plazo de observación.`, buckets.priority),
     buckets.check_attendance.length ? renderSectorBucket("check_attendance", "⚫ Chequeo de asistencia", "No tiene asistencia histórica. Requiere validación administrativa antes de interpretarlo como alerta pastoral.", buckets.check_attendance) : "",
-    renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", "Tiene asistencia histórica, pero no asistió en ninguna de las últimas 4 reuniones reales.", buckets.attendance_alert),
+    renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", `Tiene asistencia histórica, pero no asistió en ninguna de las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales.`, buckets.attendance_alert),
     renderSectorBucket("observe", "🔵 En observación post VAE", `Tuvo VAE reciente y todavía no registra asistencia posterior. Se observa durante ${SECTOR_POST_VAE_OBSERVATION_DAYS} días antes de volver a coordinar VAE.`, buckets.observe),
     renderSectorBucket("stable", "🟢 Sin alerta operativa", "Asistencia reciente y VAE vigente, o sin señales que requieran acción actual.", buckets.stable)
   ].filter(Boolean);
@@ -6266,7 +6316,7 @@ function initializeDefaults(){
   if ($("groupDateTo")) $("groupDateTo").value = $("fecha").value;
   switchTab("operativa");
 }
-function renderAll(){ renderPeople(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); initializeSectorReportDefaults(); initializeImpactReportDefaults(); resumen(); renderVae(); updateSaveStatus(); }
+function renderAll(){ renderPeople(); renderAttendanceMissingAlert(); actualizarSugerenciasInactivar(); actualizarSugerenciasReactivar(); renderInactiveMembersQuickList(); fillGroupSelect(); initializeSectorReportDefaults(); initializeImpactReportDefaults(); resumen(); renderVae(); updateSaveStatus(); }
 async function initialize(){
   if (window.__panelInitialized) return;
   window.__panelInitialized = true;
