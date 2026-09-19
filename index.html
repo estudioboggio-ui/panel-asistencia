@@ -3872,7 +3872,14 @@ function matrixCellNames(rows){
   return rows
     .slice()
     .sort((a,b) => String(a.member?.name || "").localeCompare(String(b.member?.name || ""), "es"))
-    .map(row => `<div class="matrix-name">- ${escapeHtml(row.member?.name || "")}</div>`)
+    .map(row => {
+      const lastAttendanceText = row.lastAttendance ? formatDate(row.lastAttendance) : "sin registro";
+      const lastVaeText = row.lastVisit?.date ? formatDate(row.lastVisit.date) : "sin VAE";
+      return `<div class="matrix-person">
+        <div class="matrix-name">- ${escapeHtml(row.member?.name || "")}</div>
+        <div class="matrix-meta">Asist.: ${escapeHtml(lastAttendanceText)} · VAE: ${escapeHtml(lastVaeText)}</div>
+      </div>`;
+    })
     .join("");
 }
 function buildSectorMatrixPrintableHtml(){
@@ -3920,7 +3927,9 @@ function buildSectorMatrixPrintableHtml(){
   .state-title{font-size:13px;font-weight:800;margin-bottom:8px;}
   .state-desc{font-size:10.5px;line-height:1.35;color:#334155;font-weight:400;}
   .matrix-count{display:inline-flex;align-items:center;justify-content:center;color:white;border-radius:999px;min-width:34px;height:20px;padding:0 10px;font-size:11px;font-weight:800;margin-bottom:8px;}
-  .matrix-name{font-size:9px;line-height:1.28;text-transform:uppercase;color:#0f172a;}
+  .matrix-person{margin-bottom:5px;break-inside:avoid;}
+  .matrix-name{font-size:9px;line-height:1.22;text-transform:uppercase;color:#0f172a;font-weight:700;}
+  .matrix-meta{font-size:8.2px;line-height:1.18;color:#475569;margin-left:8px;}
   .matrix-empty{font-size:10px;color:#64748b;margin-top:3px;}
   .foot{font-size:10px;color:#64748b;margin-top:10px;line-height:1.4;}
   @media print{body{background:white}.page{padding:0}.no-print{display:none!important}}
