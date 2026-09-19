@@ -606,7 +606,10 @@
             <h3>Reporte General</h3>
             <div class="hint">Foto global de todos los miembros asignados a responsables de sector. Cada estado y cada métrica por responsable se puede desplegar para ver los nombres incluidos.</div>
           </div>
-          <div class="hint" id="sectorGlobalRangeLabel"></div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+            <div class="hint" id="sectorGlobalRangeLabel"></div>
+            <button id="btnOpenSectorMatrixReport" type="button" class="secondary">Abrir matriz imprimible</button>
+          </div>
         </div>
         <div class="sector-global-mini">
           <div class="mini-card"><div class="mini-label">Total asignados</div><div id="sectorGlobalTotal" class="mini-value">0</div></div>
@@ -3863,6 +3866,91 @@ function renderSectorGlobalSummary(){
   renderSectorGlobalByResponsible(from, to);
 }
 
+
+function matrixCellNames(rows){
+  if (!rows || !rows.length) return '<div class="matrix-empty">Sin casos</div>';
+  return rows
+    .slice()
+    .sort((a,b) => String(a.member?.name || "").localeCompare(String(b.member?.name || ""), "es"))
+    .map(row => `<div class="matrix-name">- ${escapeHtml(row.member?.name || "")}</div>`)
+    .join("");
+}
+function buildSectorMatrixPrintableHtml(){
+  const {from, to} = getSectorReportRange();
+  const generatedAt = new Date().toLocaleString("es-AR");
+  const byResponsible = SECTOR_RESPONSABLE_OPTIONS.map(responsable => {
+    const rows = buildSectorReportRows(responsable, from, to).map(row => ({...row, responsable}));
+    return {responsable, buckets: sectorRowsByBucket(rows), total: rows.length};
+  });
+  const rowDefsBase = [
+    {key:"priority", label:"Planificar VAE", desc:`Faltó las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones sin VAE reciente, o no registra VAE / VAE vigente.`, color:"#dc2626"},
+    {key:"check_attendance", label:"Chequeo de asistencia", desc:"Sin asistencia histórica; requiere validación administrativa.", color:"#111827"},
+    {key:"attendance_alert", label:"Alerta de Asistencia", desc:`Faltó las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones, pero tiene VAE reciente dentro de ${SECTOR_VAE_RECENT_DAYS} días.`, color:"#f97316"}
+  ];
+  const rowDefs = rowDefsBase.filter(def => def.key !== "check_attendance" || byResponsible.some(r => (r.buckets.check_attendance || []).length));
+  const rowsHtml = rowDefs.map(def => {
+    const cells = byResponsible.map(resp => {
+      const rows = resp.buckets[def.key] || [];
+      return `<td><div class="matrix-count" style="background:${def.color}">${rows.length}</div>${matrixCellNames(rows)}</td>`;
+    }).join("");
+    return `<tr class="matrix-row"><th class="state-cell" style="border-bottom-color:${def.color}"><div class="state-title">${escapeHtml(def.label)}</div><div class="state-desc">${escapeHtml(def.desc)}</div></th>${cells}</tr>`;
+  }).join("");
+  const headerCells = byResponsible.map(r => `<th>${escapeHtml(r.responsable)}</th>`).join("");
+  const totalsLine = byResponsible.map(r => `${escapeHtml(r.responsable)}: ${r.total}`).join(" · ");
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Matriz de seguimiento por responsable</title>
+<style>
+  @page{size:A4 landscape;margin:8mm;}
+  *{box-sizing:border-box;}
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#0f172a;background:#f8fafc;}
+  .page{padding:18px 22px;}
+  h1{font-size:25px;margin:0 0 6px;color:#0b1f4d;letter-spacing:-.3px;}
+  .sub{font-size:13px;color:#475569;margin-bottom:14px;}
+  .meta{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-top:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;padding:8px 0;margin-bottom:12px;color:#475569;font-size:11px;}
+  table.matrix{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:white;}
+  .matrix thead th{background:#e2e8f0;color:#0f172a;font-size:11px;text-align:center;padding:10px 8px;border-right:1px solid #cbd5e1;}
+  .matrix thead th:first-child{text-align:left;width:20%;}
+  .matrix td,.matrix th.state-cell{vertical-align:top;border-right:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;padding:10px 10px;}
+  .matrix tr:last-child td,.matrix tr:last-child th{border-bottom:none;}
+  .matrix td:last-child,.matrix th:last-child{border-right:none;}
+  .state-cell{background:#ffffff;border-bottom:8px solid #cbd5e1;}
+  .state-title{font-size:13px;font-weight:800;margin-bottom:8px;}
+  .state-desc{font-size:10.5px;line-height:1.35;color:#334155;font-weight:400;}
+  .matrix-count{display:inline-flex;align-items:center;justify-content:center;color:white;border-radius:999px;min-width:34px;height:20px;padding:0 10px;font-size:11px;font-weight:800;margin-bottom:8px;}
+  .matrix-name{font-size:9px;line-height:1.28;text-transform:uppercase;color:#0f172a;}
+  .matrix-empty{font-size:10px;color:#64748b;margin-top:3px;}
+  .foot{font-size:10px;color:#64748b;margin-top:10px;line-height:1.4;}
+  @media print{body{background:white}.page{padding:0}.no-print{display:none!important}}
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>Matriz de seguimiento por responsable</h1>
+    <div class="sub">Periodo: ${escapeHtml(formatDate(from))} al ${escapeHtml(formatDate(to))} · Estados accionables con nombres</div>
+    <div class="meta"><div>${totalsLine}</div><div>Generado: ${escapeHtml(generatedAt)}</div></div>
+    <table class="matrix">
+      <thead><tr><th>Estado</th>${headerCells}</tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <div class="foot">La matriz no incluye “Sin alerta operativa” para mantener el reporte enfocado en acciones. Los casos de “Chequeo de asistencia” se muestran solo cuando existen personas pendientes de validación.</div>
+  </div>
+</body>
+</html>`;
+}
+function openSectorMatrixPrintableReport(){
+  if (!userCanViewSectorMap()) return;
+  const html = buildSectorMatrixPrintableHtml();
+  const w = window.open("", "_blank");
+  if (!w){ alert("El navegador bloqueó la ventana emergente. Permití pop-ups para abrir la matriz imprimible."); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch(err){} }, 400);
+}
+
 function isoAddDays(iso, days){
   const d = new Date(iso + "T00:00:00");
   d.setDate(d.getDate() + Number(days || 0));
@@ -6202,6 +6290,7 @@ function wireEvents(){
   $("btnReportNoReturn").addEventListener("click", () => runReport("noReturn"));
   $("btnReportTop").addEventListener("click", () => runReport("top"));
   if ($("btnSectorReport")) $("btnSectorReport").addEventListener("click", renderSectorReport);
+  if ($("btnOpenSectorMatrixReport")) $("btnOpenSectorMatrixReport").addEventListener("click", openSectorMatrixPrintableReport);
   if ($("btnImpactReport")) $("btnImpactReport").addEventListener("click", renderImpactReport);
   if ($("btnExportImpactExcel")) $("btnExportImpactExcel").addEventListener("click", exportImpactExcel);
   if ($("btnShowImpactActionDetails")) $("btnShowImpactActionDetails").addEventListener("click", renderImpactActionDetails);
