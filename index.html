@@ -615,7 +615,7 @@
           <div class="mini-card"><div class="mini-label">Total asignados</div><div id="sectorGlobalTotal" class="mini-value">0</div></div>
           <div class="mini-card"><div class="mini-label">Estados accionables</div><div id="sectorGlobalPending" class="mini-value">0%</div></div>
           <div class="mini-card"><div class="mini-label">Planificar VAE</div><div id="sectorGlobalManaged" class="mini-value">0%</div></div>
-          <div class="mini-card"><div class="mini-label">Estables</div><div id="sectorGlobalStable" class="mini-value">0%</div></div>
+          <div class="mini-card"><div class="mini-label">Asist. y VAE recientes</div><div id="sectorGlobalStable" class="mini-value">0%</div></div>
         </div>
         <div id="sectorGlobalDistribution" class="sector-distribution"></div>
         <details style="margin-top:12px;">
@@ -629,7 +629,7 @@
                   <th>Planificar VAE</th>
                   <th>Chequeo asistencia</th>
                   <th>Alerta asistencia</th>
-                  <th>Estables</th>
+                  <th>Asist. y VAE recientes</th>
                 </tr>
               </thead>
               <tbody id="sectorGlobalByResponsible"><tr><td colspan="6" class="hint">Sin datos.</td></tr></tbody>
@@ -694,7 +694,7 @@
         <div class="sector-kpi"><div class="label">Planificar VAE</div><div id="sectorKpiPriority" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Chequeo de asistencia</div><div id="sectorKpiCheckAttendance" class="value">0</div></div>
         <div class="sector-kpi"><div class="label">Alerta de Asistencia</div><div id="sectorKpiAttendanceAlert" class="value">0</div></div>
-        <div class="sector-kpi"><div class="label">Estables / al día</div><div id="sectorKpiStable" class="value">0</div></div>
+        <div class="sector-kpi"><div class="label">Asistencia y VAE recientes</div><div id="sectorKpiStable" class="value">0</div></div>
       </div>
 
       <div id="sectorAgendaSuggested" class="sector-agenda hidden"></div>
@@ -3544,7 +3544,7 @@ function classifySectorRow(row){
     return {key:"priority", label:"Planificar VAE", action:"Planificar VAE desde Planificación."};
   }
 
-  return {key:"stable", label:"Sin alerta operativa", action:"Sin acción urgente."};
+  return {key:"stable", label:"Asistencia y VAE recientes", action:"Sin acción urgente."};
 }
 function getSectorFollowupsForMember(memberId, to=null){
   return (state.sectorFollowups || [])
@@ -3739,7 +3739,7 @@ function renderSectorBuckets(rows){
     renderSectorBucket("priority", "🔴 Planificar VAE", `Requiere VAE: no asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones y no registra VAE reciente en los últimos ${SECTOR_VAE_RECENT_DAYS} días, o bien nunca tuvo VAE / la última supera los ${SECTOR_VISIT_OLD_DAYS} días.`, buckets.priority),
     buckets.check_attendance.length ? renderSectorBucket("check_attendance", "⚫ Chequeo de asistencia", "No tiene asistencia histórica. Requiere validación administrativa antes de interpretarlo como alerta pastoral.", buckets.check_attendance) : "",
     renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", `No asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales, pero registra VAE reciente dentro de los últimos ${SECTOR_VAE_RECENT_DAYS} días. Permanece en alerta hasta que vuelva a asistir.`, buckets.attendance_alert),
-    renderSectorBucket("stable", "🟢 Sin alerta operativa", "Asistió recientemente o no presenta una situación que requiera acción actual.", buckets.stable)
+    renderSectorBucket("stable", "🟢 Asistencia y VAE recientes", "Asiste recientemente y registra VAE vigente.", buckets.stable)
   ].filter(Boolean);
   box.innerHTML = sections.join("");
   wireSectorMapButtons(box);
@@ -3796,7 +3796,7 @@ function renderSectorGlobalDistribution(buckets, total){
     ["priority", "🔴 Planificar VAE"],
     ["check_attendance", "⚫ Chequeo de asistencia"],
     ["attendance_alert", "🟠 Alerta de Asistencia"],
-    ["stable", "🟢 Sin alerta operativa"]
+    ["stable", "🟢 Asistencia y VAE recientes"]
   ].filter(([key]) => key !== "check_attendance" || (buckets.check_attendance || []).length);
   box.innerHTML = defs.map(([key,label]) => {
     const rows = buckets[key] || [];
@@ -3882,12 +3882,113 @@ function matrixCellNames(rows){
     })
     .join("");
 }
+function monthNameEs(monthIndex){
+  return ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][monthIndex] || "";
+}
+function getSectorGroupDistribution(rows){
+  const map = new Map();
+  (rows || []).forEach(row => {
+    const groups = normalizeCategoryValue(row.member?.category);
+    const effectiveGroups = groups.length ? groups : ["Sin grupo"];
+    effectiveGroups.forEach(group => map.set(group, (map.get(group) || 0) + 1));
+  });
+  return Array.from(map.entries())
+    .map(([group,count]) => ({group,count}))
+    .sort((a,b) => b.count - a.count || a.group.localeCompare(b.group, "es"));
+}
+function renderReportBarChart(items, labelKey, valueKey, emptyText){
+  if (!items || !items.length) return `<div class="chart-empty">${escapeHtml(emptyText || "Sin datos")}</div>`;
+  const max = Math.max(1, ...items.map(item => Number(item[valueKey] || 0)));
+  return `<div class="report-bars">${items.map(item => {
+    const value = Number(item[valueKey] || 0);
+    const pct = Math.max(4, Math.min(100, (value / max) * 100));
+    return `<div class="bar-line"><div class="bar-label">${escapeHtml(item[labelKey] || "")}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div><div class="bar-value">${value}</div></div>`;
+  }).join("")}</div>`;
+}
+function getSectorMonthlyAttendanceStats(responsable, to){
+  const members = getSectorMembers(responsable);
+  const ids = new Set(members.map(m => String(m.id)));
+  const year = String(to || getReferenceDate()).slice(0,4);
+  const toMonth = Math.max(1, Math.min(12, Number(String(to || getReferenceDate()).slice(5,7)) || 12));
+  const stats = Array.from({length: toMonth}, (_, idx) => ({
+    key: `${year}-${String(idx + 1).padStart(2,"0")}`,
+    label: monthNameEs(idx),
+    present: 0,
+    absent: 0,
+    meetings: 0
+  }));
+  const dates = [...new Set((state.attendance || [])
+    .map(r => r.date)
+    .filter(date => date && String(date).slice(0,4) === year && String(date) <= String(to || getReferenceDate())))]
+    .sort();
+  dates.forEach(date => {
+    const monthIdx = Number(String(date).slice(5,7)) - 1;
+    if (monthIdx < 0 || monthIdx >= stats.length) return;
+    const presentIds = new Set((state.attendance || [])
+      .filter(r => String(r.date) === String(date) && ids.has(String(r.member_id)))
+      .map(r => String(r.member_id)));
+    stats[monthIdx].meetings += 1;
+    stats[monthIdx].present += presentIds.size;
+    stats[monthIdx].absent += Math.max(0, ids.size - presentIds.size);
+  });
+  return stats.filter(item => item.meetings > 0);
+}
+function renderMonthlyAttendanceChart(stats){
+  if (!stats || !stats.length) return `<div class="chart-empty">Sin reuniones registradas para graficar en el año.</div>`;
+  const max = Math.max(1, ...stats.map(item => item.present + item.absent));
+  return `<div class="month-chart">${stats.map(item => {
+    const presentPct = ((item.present / max) * 100).toFixed(1);
+    const absentPct = ((item.absent / max) * 100).toFixed(1);
+    return `<div class="month-row">
+      <div class="month-label">${escapeHtml(item.label)}</div>
+      <div class="month-bars">
+        <div class="month-present" style="width:${presentPct}%" title="Presentes: ${item.present}"></div>
+        <div class="month-absent" style="width:${absentPct}%" title="Ausentes: ${item.absent}"></div>
+      </div>
+      <div class="month-values"><span>P ${item.present}</span><span>A ${item.absent}</span></div>
+    </div>`;
+  }).join("")}</div>`;
+}
+function renderResponsibleStatusBlock(title, desc, rows, color){
+  return `<section class="resp-status" style="border-left-color:${color}">
+    <div class="resp-status-head"><div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(desc)}</p></div><strong>${rows.length}</strong></div>
+    <div class="resp-person-list">${matrixCellNames(rows)}</div>
+  </section>`;
+}
+function renderResponsiblePrintablePage(data, from, to){
+  const buckets = data.buckets;
+  const rows = data.rows || [];
+  const groupItems = getSectorGroupDistribution(rows);
+  const monthlyStats = getSectorMonthlyAttendanceStats(data.responsable, to);
+  const statusDefs = [
+    {key:"priority", label:"Planificar VAE", desc:`No registra VAE, VAE mayor a ${SECTOR_VISIT_OLD_DAYS} días, o faltó las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones sin VAE reciente.`, color:"#dc2626"},
+    {key:"check_attendance", label:"Chequeo de asistencia", desc:"Sin asistencia histórica; requiere validación administrativa.", color:"#111827", optional:true},
+    {key:"attendance_alert", label:"Alerta de Asistencia", desc:`Faltó las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones, pero tiene VAE reciente dentro de ${SECTOR_VAE_RECENT_DAYS} días.`, color:"#f97316"},
+    {key:"stable", label:"Asistencia y VAE recientes", desc:"Asiste recientemente y registra VAE vigente.", color:"#16a34a"}
+  ].filter(def => !def.optional || (buckets[def.key] || []).length);
+  return `<div class="page responsible-page">
+    <h1>${escapeHtml(data.responsable)}</h1>
+    <div class="sub">Reporte individual · ${escapeHtml(formatDate(from))} al ${escapeHtml(formatDate(to))} · Total asignados: ${data.total}</div>
+    <div class="resp-grid">
+      <div class="chart-card">
+        <h2>Distribución por grupo</h2>
+        ${renderReportBarChart(groupItems, "group", "count", "Sin grupos cargados")}
+      </div>
+      <div class="chart-card">
+        <h2>Asistencia del sector en el año</h2>
+        <div class="legend"><span class="dot present"></span>Presentes <span class="dot absent"></span>Ausentes</div>
+        ${renderMonthlyAttendanceChart(monthlyStats)}
+      </div>
+    </div>
+    <div class="resp-status-grid">${statusDefs.map(def => renderResponsibleStatusBlock(def.label, def.desc, buckets[def.key] || [], def.color)).join("")}</div>
+  </div>`;
+}
 function buildSectorMatrixPrintableHtml(){
   const {from, to} = getSectorReportRange();
   const generatedAt = new Date().toLocaleString("es-AR");
   const byResponsible = SECTOR_RESPONSABLE_OPTIONS.map(responsable => {
     const rows = buildSectorReportRows(responsable, from, to).map(row => ({...row, responsable}));
-    return {responsable, buckets: sectorRowsByBucket(rows), total: rows.length};
+    return {responsable, rows, buckets: sectorRowsByBucket(rows), total: rows.length};
   });
   const rowDefsBase = [
     {key:"priority", label:"Planificar VAE", desc:`Faltó las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones sin VAE reciente, o no registra VAE / VAE vigente.`, color:"#dc2626"},
@@ -3904,16 +4005,18 @@ function buildSectorMatrixPrintableHtml(){
   }).join("");
   const headerCells = byResponsible.map(r => `<th>${escapeHtml(r.responsable)}</th>`).join("");
   const totalsLine = byResponsible.map(r => `${escapeHtml(r.responsable)}: ${r.total}`).join(" · ");
+  const individualPages = byResponsible.map(data => renderResponsiblePrintablePage(data, from, to)).join("");
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Matriz de seguimiento por responsable</title>
+<title>Reporte de seguimiento por responsable</title>
 <style>
   @page{size:A4 landscape;margin:8mm;}
   *{box-sizing:border-box;}
   body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#0f172a;background:#f8fafc;}
-  .page{padding:18px 22px;}
+  .page{padding:18px 22px;page-break-after:always;break-after:page;}
+  .page:last-child{page-break-after:auto;break-after:auto;}
   h1{font-size:25px;margin:0 0 6px;color:#0b1f4d;letter-spacing:-.3px;}
   .sub{font-size:13px;color:#475569;margin-bottom:14px;}
   .meta{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-top:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1;padding:8px 0;margin-bottom:12px;color:#475569;font-size:11px;}
@@ -3932,7 +4035,32 @@ function buildSectorMatrixPrintableHtml(){
   .matrix-meta{font-size:8.2px;line-height:1.18;color:#475569;margin-left:8px;}
   .matrix-empty{font-size:10px;color:#64748b;margin-top:3px;}
   .foot{font-size:10px;color:#64748b;margin-top:10px;line-height:1.4;}
-  @media print{body{background:white}.page{padding:0}.no-print{display:none!important}}
+  .resp-grid{display:grid;grid-template-columns:1fr 1.25fr;gap:12px;margin-bottom:12px;}
+  .chart-card{background:white;border:1px solid #cbd5e1;border-radius:12px;padding:12px;min-height:155px;}
+  .chart-card h2{font-size:14px;margin:0 0 9px;color:#0b1f4d;}
+  .report-bars,.month-chart{display:flex;flex-direction:column;gap:6px;}
+  .bar-line,.month-row{display:grid;grid-template-columns:95px 1fr 46px;gap:8px;align-items:center;font-size:9.5px;}
+  .bar-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;}
+  .bar-track{height:13px;background:#e2e8f0;border-radius:999px;overflow:hidden;}
+  .bar-fill{height:100%;background:#2563eb;border-radius:999px;}
+  .bar-value{font-weight:800;color:#0f172a;text-align:right;}
+  .month-label{font-weight:700;color:#334155;}
+  .month-bars{height:14px;background:#e2e8f0;border-radius:999px;overflow:hidden;display:flex;}
+  .month-present{height:100%;background:#16a34a;}
+  .month-absent{height:100%;background:#dc2626;}
+  .month-values{display:flex;gap:5px;justify-content:flex-end;font-size:8.5px;color:#475569;}
+  .legend{font-size:9.5px;color:#475569;margin:-2px 0 8px;display:flex;gap:8px;align-items:center;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:-5px;}
+  .dot.present{background:#16a34a;}.dot.absent{background:#dc2626;}
+  .chart-empty{font-size:10px;color:#64748b;padding:8px;border:1px dashed #cbd5e1;border-radius:8px;}
+  .resp-status-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start;}
+  .resp-status{background:white;border:1px solid #cbd5e1;border-left:7px solid #cbd5e1;border-radius:12px;padding:10px;min-height:205px;break-inside:avoid;}
+  .resp-status-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;border-bottom:1px solid #e2e8f0;margin-bottom:8px;padding-bottom:7px;}
+  .resp-status h3{font-size:12px;margin:0 0 3px;color:#0f172a;}
+  .resp-status p{font-size:8.5px;line-height:1.25;margin:0;color:#475569;}
+  .resp-status strong{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:20px;border-radius:999px;background:#e2e8f0;font-size:11px;}
+  .resp-person-list{max-height:360px;overflow:hidden;}
+  @media print{body{background:white}.page{padding:0}.no-print{display:none!important}.resp-person-list{max-height:none;overflow:visible;}}
 </style>
 </head>
 <body>
@@ -3944,8 +4072,9 @@ function buildSectorMatrixPrintableHtml(){
       <thead><tr><th>Estado</th>${headerCells}</tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table>
-    <div class="foot">La matriz no incluye “Sin alerta operativa” para mantener el reporte enfocado en acciones. Los casos de “Chequeo de asistencia” se muestran solo cuando existen personas pendientes de validación.</div>
+    <div class="foot">La primera página mantiene foco en casos accionables. Las páginas individuales agregan “Asistencia y VAE recientes” y gráficos por responsable.</div>
   </div>
+  ${individualPages}
 </body>
 </html>`;
 }
