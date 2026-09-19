@@ -598,16 +598,21 @@
     
 
 <details id="sectorGlobalSummarySection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Reporte General</div><div class="admin-collapsible-hint">Foto global auditable: cada número puede desplegarse para ver quiénes lo integran.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <summary><div><div class="admin-collapsible-title">Reporte General</div></div><span class="admin-collapsible-toggle"></span></summary>
       <div class="admin-collapsible-body">
       <div id="sectorGlobalSummary" class="sector-global-summary">
         <div class="sector-global-head">
-          <div>
-            <h3>Reporte General</h3>
-            <div class="hint">Foto global de todos los miembros asignados a responsables de sector. Cada estado y cada métrica por responsable se puede desplegar para ver los nombres incluidos.</div>
+          <div class="filters" style="grid-template-columns:1fr 1fr; min-width:320px; margin:0;">
+            <div>
+              <div class="hint" style="margin-bottom:6px;">Desde</div>
+              <input id="sectorGlobalDateFrom" type="date">
+            </div>
+            <div>
+              <div class="hint" style="margin-bottom:6px;">Hasta</div>
+              <input id="sectorGlobalDateTo" type="date">
+            </div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-            <div class="hint" id="sectorGlobalRangeLabel"></div>
             <button id="btnOpenSectorMatrixReport" type="button" class="secondary">Abrir matriz imprimible</button>
           </div>
         </div>
@@ -637,37 +642,16 @@
           </div>
         </details>
       </div>
-        <details id="diagnosticExportSection" class="diagnostic-panel" style="margin-top:14px;">
-          <summary style="cursor:pointer; color:var(--muted); font-weight:700;">Diagnóstico del sistema</summary>
-          <div style="margin-top:12px;">
-
-        <div class="sector-global-head">
-          <div>
-            <h3>Diagnóstico del sistema</h3>
-            <div class="hint">Exporta una foto completa para analizar consistencia, cruces útiles, reportes redundantes y oportunidades de mejora. Visible solo para el usuario autorizado.</div>
-          </div>
-          <div class="hint">Incluye miembros, asistencia, planificación, seguimientos, vínculos y alertas calculadas.</div>
-        </div>
-        <div class="diagnostic-actions">
-          <button id="btnExportDiagnosticJson" type="button" class="secondary">Exportar diagnóstico JSON</button>
-          <button id="btnExportDiagnosticCsv" type="button" class="secondary">Exportar diagnóstico CSV</button>
-          <button id="btnRenderQuickDiagnostic" type="button">Ver diagnóstico rápido</button>
-        </div>
-        <div id="diagnosticQuickSummary" class="diagnostic-quick hidden"></div>
-
-          </div>
-        </details>
       </div>
     </details>
 
     
 
 <details id="sectorReportsSection" class="panel admin-collapsible">
-      <summary><div><div class="admin-collapsible-title">Reporte por Responsable</div><div class="admin-collapsible-hint">Diagnóstico operativo por responsable de sector, con secciones desplegables.</div></div><span class="admin-collapsible-toggle"></span></summary>
+      <summary><div><div class="admin-collapsible-title">Reporte por Responsable</div></div><span class="admin-collapsible-toggle"></span></summary>
       <div class="admin-collapsible-body">
       <div class="sector-map-header">
         <div>
-          <h2 class="sector-map-title">Reporte por Responsable</h2>
           <div class="hint">Vista de orientación para detectar personas o sectores que conviene revisar. La ejecución de contactos, visitas y tareas queda concentrada en Planificación.</div>
         </div>
       </div>
@@ -3422,10 +3406,20 @@ function getSectorReportRange(){
   if (from > to) [from, to] = [to, from];
   return {from, to};
 }
+function getSectorGlobalRange(){
+  const refDate = getReferenceDate();
+  const defaultFrom = isoMonthsAgo(refDate, 3);
+  let from = $("sectorGlobalDateFrom")?.value || defaultFrom;
+  let to = $("sectorGlobalDateTo")?.value || refDate;
+  if (from > to) [from, to] = [to, from];
+  return {from, to};
+}
 function initializeSectorReportDefaults(){
   if (!userCanViewSectorMap()) return;
   populateSectorResponsableOptions();
   const {from, to} = getReportRange();
+  if ($("sectorGlobalDateFrom") && !$('sectorGlobalDateFrom').value) $("sectorGlobalDateFrom").value = from;
+  if ($("sectorGlobalDateTo") && !$('sectorGlobalDateTo').value) $("sectorGlobalDateTo").value = to;
   if ($("sectorReportDateFrom") && !$('sectorReportDateFrom').value) $("sectorReportDateFrom").value = from;
   if ($("sectorReportDateTo") && !$('sectorReportDateTo').value) $("sectorReportDateTo").value = to;
   renderSectorGlobalSummary();
@@ -3842,16 +3836,14 @@ function resetSectorGlobalSummary(message="Sin datos para mostrar."){
   if ($("sectorGlobalPending")) $("sectorGlobalPending").textContent = "0%";
   if ($("sectorGlobalManaged")) $("sectorGlobalManaged").textContent = "0%";
   if ($("sectorGlobalStable")) $("sectorGlobalStable").textContent = "0%";
-  if ($("sectorGlobalRangeLabel")) $("sectorGlobalRangeLabel").textContent = "";
   if ($("sectorGlobalDistribution")) $("sectorGlobalDistribution").innerHTML = `<div class="sector-empty">${escapeHtml(message)}</div>`;
   if ($("sectorGlobalByResponsible")) $("sectorGlobalByResponsible").innerHTML = `<tr><td colspan="6" class="hint">${escapeHtml(message)}</td></tr>`;
 }
 function renderSectorGlobalSummary(){
   if (!userCanViewSectorMap()) return;
-  const {from, to} = getSectorReportRange();
+  const {from, to} = getSectorGlobalRange();
   const rows = getAllSectorReportRows(from, to);
   const total = rows.length;
-  if ($("sectorGlobalRangeLabel")) $("sectorGlobalRangeLabel").textContent = `${formatDate(from)} a ${formatDate(to)}`;
   if (!total){
     resetSectorGlobalSummary("No hay miembros asignados a responsables de sector.");
     return;
@@ -3984,7 +3976,7 @@ function renderResponsiblePrintablePage(data, from, to){
   </div>`;
 }
 function buildSectorMatrixPrintableHtml(){
-  const {from, to} = getSectorReportRange();
+  const {from, to} = getSectorGlobalRange();
   const generatedAt = new Date().toLocaleString("es-AR");
   const byResponsible = SECTOR_RESPONSABLE_OPTIONS.map(responsable => {
     const rows = buildSectorReportRows(responsable, from, to).map(row => ({...row, responsable}));
@@ -4497,13 +4489,13 @@ function summarizeDiagnosticRows(rows, from, to){
   };
 }
 function buildSystemDiagnosticSnapshot(){
-  const {from, to} = getSectorReportRange();
+  const {from, to} = getSectorGlobalRange();
   const rows = buildDiagnosticRows(from, to);
   const summary = summarizeDiagnosticRows(rows, from, to);
   return {
     generated_at: new Date().toISOString(),
     generated_by_email: currentProfile?.email || currentSession?.user?.email || "",
-    app_version: "v6.4.19",
+    app_version: "v6.4.40",
     date_range: { from, to },
     summary,
     member_diagnostics: rows,
@@ -6439,6 +6431,8 @@ function wireEvents(){
   if ($("btnExportDiagnosticJson")) $("btnExportDiagnosticJson").addEventListener("click", exportSystemDiagnosticJson);
   if ($("btnExportDiagnosticCsv")) $("btnExportDiagnosticCsv").addEventListener("click", exportSystemDiagnosticCsv);
   if ($("btnRenderQuickDiagnostic")) $("btnRenderQuickDiagnostic").addEventListener("click", renderQuickDiagnostic);
+  if ($("sectorGlobalDateFrom")) $("sectorGlobalDateFrom").addEventListener("change", renderSectorGlobalSummary);
+  if ($("sectorGlobalDateTo")) $("sectorGlobalDateTo").addEventListener("change", renderSectorGlobalSummary);
   if ($("sectorReportResponsible")) $("sectorReportResponsible").addEventListener("change", renderSectorReport);
   if ($("sectorReportDateFrom")) $("sectorReportDateFrom").addEventListener("change", renderSectorReport);
   if ($("sectorReportDateTo")) $("sectorReportDateTo").addEventListener("change", renderSectorReport);
