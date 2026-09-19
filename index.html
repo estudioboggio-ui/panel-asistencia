@@ -3512,7 +3512,9 @@ function classifySectorRow(row){
   const noAttendanceHistory = row.noAttendanceHistory;
   const attendanceChecked = row.attendanceChecked;
   const noVae = !row.lastVisit;
+  const vaeRecent = row.daysSinceVisit !== null && row.daysSinceVisit <= SECTOR_VAE_RECENT_DAYS;
   const vaeNotRecent = row.daysSinceVisit === null || row.daysSinceVisit > SECTOR_VAE_RECENT_DAYS;
+  const vaeNotCurrent = row.daysSinceVisit === null || row.daysSinceVisit > SECTOR_VISIT_OLD_DAYS;
   const noAttendanceLastMeetings = row.lastMeetingDatesCount > 0 && row.lastAttendanceInWindowCount === 0;
 
   // Chequeo de asistencia: bandeja administrativa transitoria.
@@ -3521,16 +3523,22 @@ function classifySectorRow(row){
     return {key:"check_attendance", label:"Chequeo de asistencia", action:"Revisar si corresponde corregir datos, fusionar duplicado, excluir de reportes o confirmar que efectivamente no tiene asistencia histórica."};
   }
 
-  // Planificar VAE: faltó las últimas reuniones y no tiene una VAE reciente.
+  // Planificar VAE por ausencia: faltó las últimas reuniones y no registra VAE reciente.
   // Esto incluye no tener VAE registrada o tener la última VAE hace más de 60 días.
   if (noAttendanceLastMeetings && vaeNotRecent) {
     return {key:"priority", label:"Planificar VAE", action:"Planificar VAE desde Planificación."};
   }
 
-  // Alerta de asistencia: faltó las últimas reuniones, pero tiene una VAE reciente.
+  // Alerta de asistencia: faltó las últimas reuniones, pero registra VAE reciente.
   // Permanece en esta alerta hasta que vuelva a asistir.
-  if (!noAttendanceHistory && noAttendanceLastMeetings) {
+  if (noAttendanceLastMeetings && vaeRecent) {
     return {key:"attendance_alert", label:"Alerta de Asistencia", action:`Revisar evolución: no asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales, pero registra VAE reciente.`};
+  }
+
+  // Planificar VAE por vigencia: aunque esté asistiendo, requiere VAE si nunca tuvo
+  // una VAE registrada o si la última supera el plazo operativo de vigencia.
+  if (vaeNotCurrent) {
+    return {key:"priority", label:"Planificar VAE", action:"Planificar VAE desde Planificación."};
   }
 
   return {key:"stable", label:"Sin alerta operativa", action:"Sin acción urgente."};
@@ -3725,9 +3733,9 @@ function renderSectorBuckets(rows){
   if (!box) return;
   const buckets = sectorRowsByBucket(rows);
   const sections = [
-    renderSectorBucket("priority", "🔴 Planificar VAE", `No asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales y no registra VAE reciente en los últimos ${SECTOR_VAE_RECENT_DAYS} días.`, buckets.priority),
+    renderSectorBucket("priority", "🔴 Planificar VAE", `Requiere VAE: no asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones y no registra VAE reciente en los últimos ${SECTOR_VAE_RECENT_DAYS} días, o bien nunca tuvo VAE / la última supera los ${SECTOR_VISIT_OLD_DAYS} días.`, buckets.priority),
     buckets.check_attendance.length ? renderSectorBucket("check_attendance", "⚫ Chequeo de asistencia", "No tiene asistencia histórica. Requiere validación administrativa antes de interpretarlo como alerta pastoral.", buckets.check_attendance) : "",
-    renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", `No asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales, pero registra VAE reciente. Permanece en alerta hasta que vuelva a asistir.`, buckets.attendance_alert),
+    renderSectorBucket("attendance_alert", "🟠 Alerta de Asistencia", `No asistió en las últimas ${SECTOR_ATTENDANCE_ALERT_MEETINGS} reuniones reales, pero registra VAE reciente dentro de los últimos ${SECTOR_VAE_RECENT_DAYS} días. Permanece en alerta hasta que vuelva a asistir.`, buckets.attendance_alert),
     renderSectorBucket("stable", "🟢 Sin alerta operativa", "Asistió recientemente o no presenta una situación que requiera acción actual.", buckets.stable)
   ].filter(Boolean);
   box.innerHTML = sections.join("");
